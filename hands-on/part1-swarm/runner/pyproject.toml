@@ -1,0 +1,39 @@
+[project]
+name = "aidev-swarm"
+version = "0.3.0"
+description = "Launch an HF Job that claims Terminal-Bench 2.1 trials from the workshop swarm, runs them with Harbor on HF Sandbox under your own HF token, and submits the results."
+readme = "README.md"
+requires-python = ">=3.12"
+# The base install is what the laptop needs for `aidev-swarm launch` (a few MB). The `run` extra is what the
+# HF Job installs to run trials.
+dependencies = [
+    "httpx>=0.27",
+    "huggingface-hub>=1.33,<2",
+]
+
+[project.optional-dependencies]
+run = [
+    # The Harness Leaderboard's harness wiring, in-sandbox meter and HF Sandbox environment,
+    # pinned to the deployed Space revision (public). It pins huggingface-hub 1.33.0 and,
+    # with [worker], harbor[hf-sandbox] 0.24.0.
+    "harness-leaderboard[worker] @ git+https://huggingface.co/spaces/joelniklaus/harness-leaderboard@11357c3091b8bdcb1de9a28171d1d809cb533c02",
+]
+
+[project.scripts]
+aidev-swarm = "aidev_swarm.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8.3", "aidev-swarm[run]"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aidev_swarm"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

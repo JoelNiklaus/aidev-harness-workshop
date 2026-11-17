@@ -1,0 +1,101 @@
+"""Deploy the coordinator as a PRIVATE Docker Space (results in a PRIVATE bucket).
+
+    uv run python -m swarm_coordinator.deploy --space joelniklaus/aidev-swarm --bucket joelniklaus/aidev-swarm-results
+
+Stages coordinator/ (code, lock), config/, replay/reference.json and the runner's README and agent prompt
+(for /join) into a temp folder with a Dockerfile
+and the Space README, creates the bucket and the Space as private if missing (an existing one keeps
+its visibility, and the script refuses when it is public), sets the HF_TOKEN secret from the local
+login (never printed) and SWARM_BUCKET as a variable, and uploads. Rerun after grid.json changes.
+"""
+
+from __future__ import annotations
+
+import argparse
+import shutil
+import tempfile
+from pathlib import Path
+
+from . import paths
+
+COORD = Path(__file__).resolve().parents[2]
+
+DOCKERFILE = """FROM python:3.12-slim
+COPY --from=ghcr.io/astral-sh/uv:0.9 /uv /usr/local/bin/uv
+RUN useradd -m -u 1000 user
+USER user
+ENV HOME=/home/user PATH=/home/user/.local/bin:$PATH UV_LINK_MODE=copy UV_COMPILE_BYTECODE=1 \\
+    SWARM_ROOT=/home/user/app PYTHONUNBUFFERED=1
+WORKDIR /home/user/app
+COPY --chown=user coordinator/pyproject.toml coordinator/uv.lock coordinator/
+RUN cd coordinator && uv sync --frozen --no-dev --no-install-project
+COPY --chown=user . .
+RUN cd coordinator && uv sync --frozen --no-dev
+EXPOSE 7860
+CMD ["coordinator/.venv/bin/coordinator", "--host", "0.0.0.0", "--port", "7860", "--db", "/tmp/swarm.db"]
+"""
+
+README = """---
+title: AI Dev NYC swarm board
+emoji: 🐝
+colorFrom: yellow
+colorTo: gray
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
+Coordinator and live board of the AI Dev NYC 2026 Part 1 swarm evaluation (Agent Harnesses workshop).
+API: see PROTOCOL.md in the workshop repo. Results persist to a private HF bucket.
+"""
+
+
+def stage(out: Path) -> Path:
+    out = Path(out)
+    if out.exists():
+        shutil.rmtree(out)
+    ignore = shutil.ignore_patterns(".venv", "__pycache__", ".pytest_cache", "tests", "*.db", "scripts", ".gitignore", "PROGRESS.md")
+    shutil.copytree(COORD, out / "coordinator", ignore=ignore)
+    (out / "config").mkdir(parents=True)
+    shutil.copy2(paths.grid_path(), out / "config" / "grid.json")
+    shutil.copy2(paths.prices_path(), out / "config" / "prices.json")
+    (out / "replay").mkdir()
+    shutil.copy2(paths.reference_path(), out / "replay" / "reference.json")
+    (out / "runner").mkdir()
+    for name in ("README.md", "AGENT_PROMPT.md"):  # the /join page's command and prompt
+        shutil.copy2(paths.runner_dir() / name, out / "runner" / name)
+    (out / "Dockerfile").write_text(DOCKERFILE)
+    (out / "README.md").write_text(README)
+    return out
+
+
+def deploy(space: str, bucket: str, *, hardware: str = "cpu-basic") -> str:
+    from huggingface_hub import HfApi, get_token
+
+    api = HfApi()
+    api.create_bucket(bucket, private=True, exist_ok=True)
+    if not api.bucket_info(bucket).private:
+        raise SystemExit(f"bucket {bucket} is public; refusing to write results there")
+    api.create_repo(space, repo_type="space", space_sdk="docker", private=True, exist_ok=True, space_hardware=hardware)
+    if not api.space_info(space).private:
+        raise SystemExit(f"space {space} is public; refusing to deploy (Joel approves going public)")
+    api.add_space_secret(space, "HF_TOKEN", get_token())
+    api.add_space_variable(space, "SWARM_BUCKET", bucket)
+    with tempfile.TemporaryDirectory() as tmp:
+        staged = stage(Path(tmp) / "space")
+        commit = api.upload_folder(repo_id=space, repo_type="space", folder_path=str(staged), commit_message="Deploy coordinator",
+                                   delete_patterns=["*"])
+    return commit.oid
+
+
+def main(argv: list[str] | None = None) -> None:
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--space", default="joelniklaus/aidev-swarm")
+    ap.add_argument("--bucket", default="joelniklaus/aidev-swarm-results")
+    ap.add_argument("--hardware", default="cpu-basic")
+    a = ap.parse_args(argv)
+    print("deployed commit", deploy(a.space, a.bucket, hardware=a.hardware))
+
+
+if __name__ == "__main__":
+    main()
