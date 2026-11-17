@@ -28,7 +28,7 @@ uvx --from "https://github.com/JoelNiklaus/aidev-harness-workshop/releases/downl
 - [`hands-on/part1-swarm/runner`](hands-on/part1-swarm/runner): the attendee CLI `aidev-swarm` (`check`, `launch`, `run`). `run --local --harness pi --task nginx-request-logging` runs one trial without the workshop's coordinator, for use after the workshop.
 - [`hands-on/part1-swarm/coordinator`](hands-on/part1-swarm/coordinator): the FastAPI app behind the board (claim queue with leases, results, the live board and the `/join` page).
 - [`hands-on/part1-swarm/replay`](hands-on/part1-swarm/replay): pre-run reference trials from the [Harness Leaderboard](https://huggingface.co/spaces/joelniklaus/harness-leaderboard), shown next to the room's results and replayed when the venue network fails.
-- [`hands-on/part1-swarm/config`](hands-on/part1-swarm/config): the grid (model, harnesses, tasks, trials), prices and the per-attendee spend cap.
+- [`hands-on/part1-swarm/config`](hands-on/part1-swarm/config): the grid (model, harnesses, tasks, trials) and the list prices behind every cost on the board.
 - [`hands-on/part1-swarm/PROTOCOL.md`](hands-on/part1-swarm/PROTOCOL.md): the HTTP protocol between runner and coordinator.
 
 The Day 2 code (evolving a small agent's harness with your own coding agent as the proposer) is added to this repo before the workshop.
