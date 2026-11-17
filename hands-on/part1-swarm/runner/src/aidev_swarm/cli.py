@@ -381,12 +381,20 @@ def _check(deps: Deps, token: str, user: str) -> int:
     else:
         url = f"https://huggingface.co/jobs/{user}/{job.id}"
         _say(f"test Job started: {url}")
-        waited, stage = 0.0, deps.job_stage(token, user, job.id)
-        while stage not in check.DONE and waited < deps.check_wait_s:
-            deps.sleep(deps.check_poll_s)
-            waited += deps.check_poll_s
+        waited = 0.0
+        try:
             stage = deps.job_stage(token, user, job.id)
-        if stage == "COMPLETED":
+            while stage not in check.DONE and waited < deps.check_wait_s:
+                deps.sleep(deps.check_poll_s)
+                waited += deps.check_poll_s
+                stage = deps.job_stage(token, user, job.id)
+        except Exception as e:  # noqa: BLE001
+            stage = None
+            problems.append(f"Could not read the status of the test Job {job.id} ({type(e).__name__}: {str(e)[:200]}). Look at {url}; "
+                            f"if it says COMPLETED, you are fine.")
+        if stage is None:
+            pass  # already reported
+        elif stage == "COMPLETED":
             _say(f"test Job ok: COMPLETED after about {waited:.0f} s")
         elif stage in check.DONE:
             problems.append(f"The test Job {job.id} ended {stage}: read its log at {url}")

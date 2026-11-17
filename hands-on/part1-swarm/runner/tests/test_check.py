@@ -145,3 +145,15 @@ def test_check_works_without_the_heavy_run_extra_installed():
             "sys.exit(rc)\n")
     p = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=60)
     assert p.returncode == 0, p.stderr
+
+
+def test_a_job_status_read_that_fails_is_a_reported_problem_not_a_crash(capsys):
+    f = Fakes()
+
+    def broken(token, user, job_id):
+        raise RuntimeError("503 Service Unavailable")
+
+    f.job_stage = broken
+    assert run(f) == 1
+    err = capsys.readouterr().err
+    assert "503" in err and "6912chk" in err and TOKEN not in err
