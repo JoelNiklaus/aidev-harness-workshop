@@ -6,6 +6,8 @@ Every external is faked: whoami, the inference router, the Jobs API and the cloc
 import subprocess
 import sys
 
+import json
+
 from aidev_swarm import check, cli
 
 TOKEN = "hf_attendee_token_for_tests"
@@ -67,7 +69,7 @@ def run(f, can_pay=True):
 def test_check_calls_the_workshop_model_once_runs_a_tiny_job_and_reports_ready(capsys):
     f = Fakes()
     assert run(f) == 0
-    grid = check.grid()
+    grid = json.loads(cli.data_text("grid.json"))
     assert f.chats == [(TOKEN, grid["model"], grid["provider"])]
     [(token, spec)] = f.jobs
     assert token == TOKEN and spec["namespace"] == "alice" and spec["flavor"] == "cpu-basic"

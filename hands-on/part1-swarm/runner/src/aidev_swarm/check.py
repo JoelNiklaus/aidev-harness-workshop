@@ -8,18 +8,12 @@ token: it only prints a line.
 
 from __future__ import annotations
 
-import json
-from importlib import resources
 from typing import Any
 
 ROUTER = "https://router.huggingface.co/v1/chat/completions"
 IMAGE = "python:3.12-slim"
 LABEL = {"aidev-swarm": "check"}
 DONE = {"COMPLETED", "ERROR", "CANCELED", "DELETED"}
-
-
-def grid() -> dict[str, Any]:
-    return json.loads(resources.files("aidev_swarm").joinpath("data", "grid.json").read_text())
 
 
 def job_spec(user: str) -> dict[str, Any]:

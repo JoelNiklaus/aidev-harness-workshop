@@ -365,7 +365,7 @@ def _launch(args: argparse.Namespace, deps: Deps, token: str, user: str, url: st
 
 def _check(deps: Deps, token: str, user: str) -> int:
     """The prep email's self-test: every problem in one run, each with its fix."""
-    grid = check.grid()
+    grid = json.loads(data_text("grid.json"))  # the same packaged grid `run` claims against
     problems = []
     try:
         reply = deps.chat(token, grid["model"], grid["provider"])
