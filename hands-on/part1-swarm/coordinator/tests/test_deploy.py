@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 
 import re
+import shutil
 
 import pytest
 
@@ -32,6 +33,21 @@ def test_stage_never_copies_secrets(tmp_path, monkeypatch):
     for p in out.rglob("*"):
         if p.is_file():
             assert b"hf_THISmustNOTleak" not in p.read_bytes()
+
+
+def test_stage_copies_only_the_app_never_local_files_next_to_it(tmp_path, monkeypatch):
+    """A gitignored token file (space-token.txt) or any other local file in coordinator/ never reaches the Space."""
+    fake = tmp_path / "coord"
+    shutil.copytree(deploy.COORD, fake, ignore=shutil.ignore_patterns(".venv", ".pytest_cache", "__pycache__", "space-token.txt"))
+    (fake / "space-token.txt").write_text("SPACE_HF_TOKEN=hf_PLANTED" + "0" * 30 + "\n")  # split: the export's secret scan reads this file
+    (fake / "notes-local.md").write_text("private notes")
+    monkeypatch.setattr(deploy, "COORD", fake)
+    out = stage(tmp_path / "space")
+    names = {p.relative_to(out / "coordinator").as_posix() for p in (out / "coordinator").rglob("*") if p.is_file()}
+    assert names and all(n in ("pyproject.toml", "uv.lock") or n.startswith("src/") for n in names), sorted(names)
+    for p in out.rglob("*"):
+        if p.is_file():
+            assert b"hf_PLANTED" not in p.read_bytes(), p
 
 
 def test_default_space_serves_the_runners_default_coordinator():

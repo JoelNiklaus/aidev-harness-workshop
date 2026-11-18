@@ -77,8 +77,11 @@ def stage(out: Path) -> Path:
     out = Path(out)
     if out.exists():
         shutil.rmtree(out)
-    ignore = shutil.ignore_patterns(".venv", "__pycache__", ".pytest_cache", "tests", "*.db", "scripts", ".gitignore", "PROGRESS.md")
-    shutil.copytree(COORD, out / "coordinator", ignore=ignore)
+    # Allowlist, not a denylist: coordinator/ also holds gitignored local files (space-token.txt with the org token).
+    (out / "coordinator").mkdir(parents=True)
+    for name in ("pyproject.toml", "uv.lock"):
+        shutil.copy2(COORD / name, out / "coordinator" / name)
+    shutil.copytree(COORD / "src", out / "coordinator" / "src", ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
     (out / "config").mkdir(parents=True)
     shutil.copy2(paths.grid_path(), out / "config" / "grid.json")
     shutil.copy2(paths.prices_path(), out / "config" / "prices.json")
