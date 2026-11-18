@@ -60,3 +60,10 @@ def test_readme_wheel_url_is_the_one_launch_installs():
     shown = re.search(r"`<WHEEL_URL>` is today `([^`]+)`", readme)
     assert shown, "README keeps the line `<WHEEL_URL>` is today `<url>` (coordinator join.py and the deck read it)"
     assert shown.group(1) == launch.default_package_url()
+
+
+def test_readme_names_the_default_coordinator():
+    from aidev_swarm import cli
+
+    readme = (Path(__file__).parents[1] / "README.md").read_text()
+    assert f"The coordinator defaults to `{cli.DEFAULT_COORDINATOR}`" in readme

@@ -31,7 +31,7 @@ from typing import Any
 from aidev_swarm import __version__, check, launch
 
 WHOAMI = "https://huggingface.co/api/whoami-v2"
-DEFAULT_COORDINATOR = "https://joelniklaus-aidev-swarm.hf.space"
+DEFAULT_COORDINATOR = "https://agent-harness-workshop-aidev-swarm.hf.space"  # Space agent-harness-workshop/aidev-swarm (coordinator deploy.DEFAULT_SPACE)
 MAX_FAILURES_IN_A_ROW = 3
 
 

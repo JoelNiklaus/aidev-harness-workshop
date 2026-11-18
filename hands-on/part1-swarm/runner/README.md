@@ -23,7 +23,7 @@ uvx --from "<WHEEL_URL>" aidev-swarm launch --n 2    # or exactly 2 trials
 URL. Or paste `AGENT_PROMPT.md` into your coding agent and let it do this. In the room, the coordinator's
 `/join` page (the slide's QR code) shows both with Copy buttons.
 
-`<WHEEL_URL>` is today `https://github.com/JoelNiklaus/aidev-harness-workshop/releases/download/swarm-v0.3.0/aidev_swarm-0.3.0-py3-none-any.whl`
+`<WHEEL_URL>` is today `https://github.com/JoelNiklaus/aidev-harness-workshop/releases/download/swarm-v0.3.1/aidev_swarm-0.3.1-py3-none-any.whl`
 (a release asset of this public repo: no login needed; the Job downloads the same file). The laptop install is
 26 MB (httpx and huggingface_hub; 4 s with an empty uv cache). Harbor and the harness wiring (about 290 MB)
 install only inside the Job (the `run` extra, about 8 s there).
@@ -35,7 +35,7 @@ Other commands:
 - `aidev-swarm run [--loop | --n K]`: what the Job runs (needs `aidev-swarm[run]`).
 - `aidev-swarm run --local --harness pi --task nginx-request-logging`: one trial, no coordinator (take-home).
 
-The coordinator defaults to `https://joelniklaus-aidev-swarm.hf.space` (override with `--coordinator` or
+The coordinator defaults to `https://agent-harness-workshop-aidev-swarm.hf.space` (override with `--coordinator` or
 `AIDEV_SWARM_URL`).
 
 ## How it works

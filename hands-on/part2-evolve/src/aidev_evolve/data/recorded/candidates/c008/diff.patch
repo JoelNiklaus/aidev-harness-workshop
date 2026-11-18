@@ -1,0 +1,41 @@
+--- agent.py (c001)
++++ agent.py (c008)
+@@ -9,6 +9,7 @@
+ """
+ 
+ import json
++import re
+ 
+ SYSTEM_PROMPT = """You are an AI agent that solves tasks in a Linux terminal.
+ Use the bash tool to run commands. When the task is complete, reply with a short summary."""
+@@ -43,7 +44,23 @@
+     return format_output(result)
+ 
+ 
++def main_program(command):
++    """The program name of the last command in a pipeline or && chain."""
++    last = re.split(r"&&|\|\||[|;]", command.strip())[-1].split()
++    return last[0] if last else ""
++
++
++def stuck_note(history):
++    """After 4 commands in a row with the same main program, tell the model to change approach."""
++    if len(history) >= 4 and len(set(history[-4:])) == 1:
++        return (f"\n[harness: your last 4 commands all ran `{history[-1]}` and results are not improving. "
++                "Try a different tool or method, or accept the best result so far "
++                "and finish the other required outputs.]")
++    return ""
++
++
+ def run(task, env):
++    history = []
+     messages = [
+         {"role": "system", "content": SYSTEM_PROMPT},
+         {"role": "user", "content": task},
+@@ -58,4 +75,6 @@
+             return  # the model answered in text: we are done
+         for call in tool_calls:
+             content = run_tool_call(call, env)
++            history.append(main_program(json.loads(call["function"]["arguments"])["command"]))
++            content += stuck_note(history)
+             messages.append({"role": "tool", "tool_call_id": call["id"], "content": content})

@@ -1,0 +1,34 @@
+--- agent.py (c001)
++++ agent.py (c003)
+@@ -16,6 +16,7 @@
+ MAX_STEPS = 100  # a safety net: the time budget is the real limit
+ STOP_MARGIN = 10  # seconds kept free so the last command is not cut off
+ MAX_OUTPUT_CHARS = 1000
++WRAP_UP_AT = 70  # seconds left when the model is told to deliver what it has
+ 
+ BASH_TOOL = {
+     "type": "function",
+@@ -35,6 +36,16 @@
+     """What the model sees of a command's result."""
+     output = result.output[:MAX_OUTPUT_CHARS]
+     return f"exit code: {result.exit_code}\n{output}"
++
++
++def clock_note(env):
++    """Keep the model aware of the deadline; near the end, demand a best-effort deliverable."""
++    left = int(env.time_left())
++    note = f"\n[time left: {left} s]"
++    if left < WRAP_UP_AT:
++        note += (" WRAP UP NOW: stop investigating. Write every required output file/state with your"
++                 " best guess (use placeholders for what you could not read), then finish.")
++    return note
+ 
+ 
+ def run_tool_call(call, env):
+@@ -57,5 +68,5 @@
+         if not tool_calls:
+             return  # the model answered in text: we are done
+         for call in tool_calls:
+-            content = run_tool_call(call, env)
++            content = run_tool_call(call, env) + clock_note(env)
+             messages.append({"role": "tool", "tool_call_id": call["id"], "content": content})

@@ -1,0 +1,40 @@
+[project]
+name = "aidev-evolve"
+version = "0.2.1"
+description = "Evolve a small coding-agent harness on Terminal-Bench 2.1: your coding agent proposes patches, an HF Job scores them on HF Sandboxes with GLM-5.3-Flash, and the loop keeps a patch only if it wins on validation."
+readme = "README.md"
+requires-python = ">=3.12"
+# The base install is what the laptop needs (the loop, the proposer call, Job submission and log reading).
+# The `run` extra is what the HF Job installs to run trials with Harbor.
+dependencies = [
+    "httpx>=0.27",
+    "huggingface-hub>=1.33,<2",
+]
+
+[project.optional-dependencies]
+run = [
+    # Same pin as the Part 1 runner: the Harness Leaderboard's HF Sandbox environment, pinned to the
+    # deployed Space revision (public). It pins harbor[hf-sandbox] 0.24.0 with [worker].
+    "harness-leaderboard[worker] @ git+https://huggingface.co/spaces/joelniklaus/harness-leaderboard@11357c3091b8bdcb1de9a28171d1d809cb533c02",
+]
+
+[project.scripts]
+aidev-evolve = "aidev_evolve.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8.3", "pytest-xdist>=3.6", "aidev-evolve[run]"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aidev_evolve"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["live: real HF Jobs, router or proposer calls (opt-in: -m live)"]
+addopts = "-m 'not live'"

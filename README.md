@@ -10,7 +10,7 @@ You need a Hugging Face account with credits and a fine-grained token with the p
 
 ```bash
 uvx hf auth login
-uvx --from "https://github.com/JoelNiklaus/aidev-harness-workshop/releases/download/swarm-v0.3.0/aidev_swarm-0.3.0-py3-none-any.whl" aidev-swarm check
+uvx --from "https://github.com/JoelNiklaus/aidev-harness-workshop/releases/download/swarm-v0.3.1/aidev_swarm-0.3.1-py3-none-any.whl" aidev-swarm check
 ```
 
 `check` makes one GLM-5.3-Flash call, runs one tiny HF Job and one command in an HF Sandbox (about 15 s, well under one cent) and ends with `ready: ...`. It claims no workshop task.
@@ -18,10 +18,18 @@ uvx --from "https://github.com/JoelNiklaus/aidev-harness-workshop/releases/downl
 ## Part 1 in the room
 
 ```bash
-uvx --from "https://github.com/JoelNiklaus/aidev-harness-workshop/releases/download/swarm-v0.3.0/aidev_swarm-0.3.0-py3-none-any.whl" aidev-swarm launch
+uvx --from "https://github.com/JoelNiklaus/aidev-harness-workshop/releases/download/swarm-v0.3.1/aidev_swarm-0.3.1-py3-none-any.whl" aidev-swarm launch
 ```
 
 `launch` submits one cpu-basic HF Job in your own namespace and returns in about a second. The Job claims a cell (harness, task, trial), runs it with [Harbor](https://github.com/laude-institute/harbor) in an HF Sandbox, submits the result to the board and claims the next one. Your laptop can close. Or paste [`AGENT_PROMPT.md`](hands-on/part1-swarm/runner/AGENT_PROMPT.md) into your coding agent and let it run and watch the Job.
+
+## Part 2 in the room
+
+```bash
+uvx --from "https://github.com/JoelNiklaus/aidev-harness-workshop/releases/download/evolve-v0.2.1/aidev_evolve-0.2.1-py3-none-any.whl" aidev-evolve run --proposer claude --model sonnet
+```
+
+Use `--proposer codex` for Codex, or `--proposer manual` to paste the prompt into any coding agent. `aidev-evolve replay` plays a recorded real run without network.
 
 ## Layout
 
@@ -30,8 +38,7 @@ uvx --from "https://github.com/JoelNiklaus/aidev-harness-workshop/releases/downl
 - [`hands-on/part1-swarm/replay`](hands-on/part1-swarm/replay): pre-run reference trials from the [Harness Leaderboard](https://huggingface.co/spaces/joelniklaus/harness-leaderboard), shown next to the room's results and replayed when the venue network fails.
 - [`hands-on/part1-swarm/config`](hands-on/part1-swarm/config): the grid (model, harnesses, tasks, trials) and the list prices behind every cost on the board.
 - [`hands-on/part1-swarm/PROTOCOL.md`](hands-on/part1-swarm/PROTOCOL.md): the HTTP protocol between runner and coordinator.
-
-The Day 2 code (evolving a small agent's harness with your own coding agent as the proposer) is added to this repo before the workshop.
+- [`hands-on/part2-evolve`](hands-on/part2-evolve): Day 2, the CLI `aidev-evolve`. Your coding agent (Claude Code or Codex) proposes patches to a small terminal agent, an HF Job in your account scores each patch with GLM-5.3-Flash on Terminal-Bench 2.1 tasks, and the loop keeps a patch only if it wins on tasks the proposer never sees.
 
 ## Develop
 
@@ -39,6 +46,7 @@ The Day 2 code (evolving a small agent's harness with your own coding agent as t
 cd hands-on/part1-swarm/runner && uv run python -m pytest -q       # every external call faked, seconds
 cd hands-on/part1-swarm/coordinator && uv run python -m pytest -q
 cd hands-on/part1-swarm/coordinator && uv run coordinator --replay   # the board offline, http://127.0.0.1:7860
+cd hands-on/part2-evolve && uv run python -m pytest -q
 ```
 
 ## License

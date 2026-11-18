@@ -1,0 +1,33 @@
+--- agent.py (c001)
++++ agent.py (c007)
+@@ -16,6 +16,14 @@
+ MAX_STEPS = 100  # a safety net: the time budget is the real limit
+ STOP_MARGIN = 10  # seconds kept free so the last command is not cut off
+ MAX_OUTPUT_CHARS = 1000
++CHECKPOINT_EVERY = 8  # tool calls between progress checkpoints
++
++CHECKPOINT = (
++    "\n[checkpoint: {n} commands used, {t:.0f} s left] Before the next command, state in one line: "
++    "which parts of the task are DONE and written to the required place, and which remain. "
++    "If you have spent several commands on one sub-problem without progress, drop it, use your best "
++    "guess for it, and finish the remaining parts first."
++)
+ 
+ BASH_TOOL = {
+     "type": "function",
+@@ -48,6 +56,7 @@
+         {"role": "system", "content": SYSTEM_PROMPT},
+         {"role": "user", "content": task},
+     ]
++    calls = 0
+     for step in range(MAX_STEPS):
+         if env.time_left() < STOP_MARGIN:
+             return
+@@ -58,4 +67,7 @@
+             return  # the model answered in text: we are done
+         for call in tool_calls:
+             content = run_tool_call(call, env)
++            calls += 1
++            if calls % CHECKPOINT_EVERY == 0:
++                content += CHECKPOINT.format(n=calls, t=env.time_left())
+             messages.append({"role": "tool", "tool_call_id": call["id"], "content": content})

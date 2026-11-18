@@ -1,0 +1,30 @@
+--- agent.py (c001)
++++ agent.py (c002)
+@@ -15,7 +15,7 @@
+ 
+ MAX_STEPS = 100  # a safety net: the time budget is the real limit
+ STOP_MARGIN = 10  # seconds kept free so the last command is not cut off
+-MAX_OUTPUT_CHARS = 1000
++MAX_OUTPUT_CHARS = 3000
+ 
+ BASH_TOOL = {
+     "type": "function",
+@@ -33,13 +33,16 @@
+ 
+ def format_output(result):
+     """What the model sees of a command's result."""
+-    output = result.output[:MAX_OUTPUT_CHARS]
++    output = result.output
++    if len(output) > MAX_OUTPUT_CHARS:  # errors and results come last: keep both ends
++        half = MAX_OUTPUT_CHARS // 2
++        output = output[:half] + f"\n[... {len(output) - 2 * half} chars cut ...]\n" + output[-half:]
+     return f"exit code: {result.exit_code}\n{output}"
+ 
+ 
+ def run_tool_call(call, env):
+     args = json.loads(call["function"]["arguments"])
+-    result = env.shell("{ " + args["command"] + "\n} 2>/dev/null")  # only stdout: stderr is mostly noise
++    result = env.shell("{ " + args["command"] + "\n} 2>&1")  # stderr carries the error messages
+     return format_output(result)
+ 
+ 

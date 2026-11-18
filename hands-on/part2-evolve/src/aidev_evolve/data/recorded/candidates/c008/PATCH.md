@@ -1,0 +1,4 @@
+# Detect repeated-command loops, force new approach
+Hypothesis: financial-document-processor spent 25+ calls re-running tesseract variants on one unreadable file and delivered nothing; build-pov-ray also repeated near-identical fix attempts.
+Change: the harness records the main program of each command; after 4 consecutive commands with the same program, the tool result gets a note telling the model to switch tool/method or accept the best result and finish other outputs.
+Expected: cuts OCR/tuning rabbit holes so other outputs get delivered; could misfire on legitimate repeated use (many `sed`/`cat` edits) and nudge the model off a fine path.

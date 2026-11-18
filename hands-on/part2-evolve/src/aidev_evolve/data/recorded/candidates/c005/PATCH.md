@@ -1,0 +1,4 @@
+# Verify requirements before declaring done
+Hypothesis: build-pov-ray ended with a confident "build complete" summary after only a sanity run and still got reward 0; the model never re-checked the task's explicit requirements (paths, names, formats) before stopping.
+Change: the first time the model answers without a tool call (and 40+ s remain), the harness adds one user message asking it to list each explicit requirement and verify each by command; the second text answer ends the run.
+Expected: fixes premature "done" claims with a missed requirement (build-pov-ray-style); could cost 10-20 s on tasks already correct, and does not help rabbit holes like financial-document-processor.

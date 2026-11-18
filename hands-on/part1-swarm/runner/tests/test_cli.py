@@ -141,7 +141,7 @@ def test_without_a_coordinator_url_the_workshop_space_is_used():
     deps = h.deps()
     deps.coordinator = lambda url, token: urls.append(url) or h.coord
     assert cli.main(["run"], deps=deps, environ={"HF_TOKEN": TOKEN, "AIDEV_SWARM_WORKDIR": str(WORKDIR)}) == 0
-    assert urls == [cli.DEFAULT_COORDINATOR] == ["https://joelniklaus-aidev-swarm.hf.space"]
+    assert urls == [cli.DEFAULT_COORDINATOR] == ["https://agent-harness-workshop-aidev-swarm.hf.space"]
 
 
 def test_crash_in_the_trial_releases_the_cell():

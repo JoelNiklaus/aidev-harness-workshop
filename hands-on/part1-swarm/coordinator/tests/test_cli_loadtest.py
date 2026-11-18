@@ -51,7 +51,7 @@ def test_live_mode_with_a_bucket_restores_from_it(files):
     api = FakeBucketApi()
     api.files["results/opencode__t1__0.json"] = json.dumps({"cell_id": "opencode__t1__0", "harness": "opencode", "task": "t1", "trial": 0,
                                                              "passed": True, "hf_user": "alice", "received_at": "2026-11-30T15:00:00+00:00"}).encode()
-    c = build(parse(files), env={"SWARM_BUCKET": "joelniklaus/aidev-swarm-results", "HF_TOKEN": "x"}, hub_api=api)
+    c = build(parse(files), env={"SWARM_BUCKET": "agent-harness-workshop/aidev-swarm-results", "HF_TOKEN": "x"}, hub_api=api)
     assert isinstance(c.auth, WhoamiAuth) and isinstance(c.sink, BucketSink)
     assert [r["cell_id"] for r in c.store.results()] == ["opencode__t1__0"]
 
@@ -63,7 +63,7 @@ def test_live_mode_without_a_bucket_runs_unpersisted(files):
 
 def test_fake_auth_is_refused_on_a_space(files):
     with pytest.raises(SystemExit):
-        build(parse(["--fake-auth", *files]), env={"SPACE_ID": "joelniklaus/aidev-swarm"})
+        build(parse(["--fake-auth", *files]), env={"SPACE_ID": "agent-harness-workshop/aidev-swarm"})
     assert isinstance(build(parse(["--fake-auth", *files]), env={}).auth, FakeAuth)
 
 

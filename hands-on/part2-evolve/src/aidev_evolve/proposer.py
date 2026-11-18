@@ -1,0 +1,133 @@
+"""The proposer: the attendee's own coding agent reads the traces and edits agent.py.
+
+Backends: `claude` (Claude Code `claude -p`, the attendee's subscription), `codex` (`codex exec`), and
+`manual` (the loop pauses; paste PROMPT.md into any coding agent, or edit agent.py yourself, then press
+Enter). The proposer works in a folder holding only agent.py, the traces of the current agent on the
+search tasks, the history of earlier attempts and the contract; it may read and edit files there and
+nothing else (no shell: the controller, not the proposer, evaluates). It explains its patch in PATCH.md.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import shutil
+import subprocess
+import time
+from collections.abc import Callable
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+TIMEOUT_S = 300
+CLAUDE_TOOLS = "Read,Edit,Write,Glob,Grep"
+STRIP_ENV = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "OPENAI_API_KEY", "HF_TOKEN")
+
+PROMPT = """You are improving a small coding-agent harness: the Python file `agent.py` in this folder.
+A fixed model (GLM-5.3-Flash) runs inside this harness on Terminal-Bench 2.1 tasks: Linux terminal tasks
+checked by hidden tests. Each task run gets {budget_s:.0f} seconds; the model, its settings and the time
+budget are fixed. Only the harness can change: prompts, the loop, tools, how outputs are shown to the
+model, when to stop, how to recover from mistakes.
+
+This is iteration {iteration}. Read, in this order:
+1. `traces/INDEX.md`, then the failed transcripts in `traces/` (the current agent.py on the search tasks).
+2. `HISTORY.md`: what earlier iterations tried, and whether validation kept or dropped it. Do not repeat a
+   dropped idea unchanged.
+3. `CONTRACT.md` (what `env` offers) and `agent.py`.
+
+Then make one focused change (one mechanism) to `agent.py` that fixes a failure mechanism you can see in several
+transcripts. Rules:
+- General harness behaviour only: never mention benchmark task names or task-specific content.
+- Keep the contract: `run(task, env)`; only `env.llm` and `env.shell` reach the model and the container;
+  standard-library imports from: json, re, time, textwrap, shlex, collections, dataclasses, itertools,
+  functools, math, random, string, typing, base64, hashlib, difflib, enum, datetime. No open/eval/exec.
+- Keep agent.py short and readable (it is shown on a projector): prefer a few clear lines over a framework.
+- Do not run anything; you cannot run the benchmark. Work fast (about 2 minutes).
+
+Finally write `PATCH.md`: first line `# <title, at most 8 words>`, then three short lines:
+`Hypothesis:` (which failure, seen in which transcripts), `Change:` (what you changed), `Expected:` (which
+failures it should fix, and what it could break).
+"""
+
+CONTRACT = """# The contract between agent.py and the evaluation
+
+`run(task, env)` is called once per task, with the task text. `env` offers:
+
+- `env.llm(messages, tools=None, *, temperature=None, max_tokens=None, top_p=None)` -> the assistant message
+  as a dict: `role`, `content` (str or None) and, when the model calls tools, `tool_calls`
+  (`[{"id", "type": "function", "function": {"name", "arguments": <JSON string>}}]`). OpenAI chat format:
+  answer each tool call with `{"role": "tool", "tool_call_id": <id>, "content": <str>}`.
+  The model (GLM-5.3-Flash), provider and reasoning effort are fixed.
+- `env.shell(command, timeout=None)` -> object with `exit_code`, `output` (stdout and stderr together) and
+  `timed_out`. Each call is a fresh `bash -c` in the task container (the working directory and variables do
+  not carry over). The sandbox kills the command's whole process group at its timeout; without a timeout
+  a command may run until the task's time budget is gone, which ends the run.
+- `env.time_left()` -> seconds left of the budget. `env.log(text)` adds a note to the transcript.
+
+When `run` returns (or the budget is gone, or it raises), the task's hidden tests check the container.
+"""
+
+
+@dataclass
+class ProposerResult:
+    ok: bool
+    seconds: float
+    cost_usd: float | None = None
+    error: str | None = None
+    log: str = ""
+
+
+def build_prompt(*, iteration: int, budget_s: float) -> str:
+    return PROMPT.format(iteration=iteration, budget_s=budget_s)
+
+
+def _run(argv: list[str], cwd: Path, env: dict[str, str], timeout: float) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(argv, cwd=cwd, env=env, timeout=timeout, capture_output=True, text=True, stdin=subprocess.DEVNULL, check=False)
+
+
+def propose(backend: str, work: Path, prompt: str, *, model: str | None = None, timeout_s: float = TIMEOUT_S,
+            run: Callable[..., Any] = _run, which: Callable[[str], str | None] = shutil.which,
+            ask: Callable[[str], str] = input, clock: Callable[[], float] = time.monotonic) -> ProposerResult:
+    start = clock()
+    work = Path(work)
+    if backend == "manual":
+        ask(f"\n  Paste {work / 'PROMPT.md'} into your coding agent (or edit {work / 'agent.py'} yourself and write PATCH.md),\n"
+            f"  then press Enter here to evaluate the change... ")
+        return ProposerResult(True, clock() - start)
+    exe = which(backend)
+    if not exe:
+        return ProposerResult(False, 0.0, error=f"`{backend}` not found on PATH: install and log in at home, or use --proposer manual")
+    env = {k: v for k, v in os.environ.items() if k not in STRIP_ENV}
+    if backend == "claude":
+        argv = [exe, "-p", prompt, "--permission-mode", "acceptEdits", "--allowedTools", CLAUDE_TOOLS, "--setting-sources", "",
+                "--output-format", "json", *(["--model", model] if model else [])]
+    elif backend == "codex":
+        argv = [exe, "exec", "--sandbox", "workspace-write", "--skip-git-repo-check", "-C", str(work), *(["-m", model] if model else []), prompt]
+    else:
+        raise ValueError(f"unknown proposer {backend!r} (claude, codex, manual)")
+    try:
+        cp = run(argv, cwd=work, env=env, timeout=timeout_s)
+    except subprocess.TimeoutExpired:
+        return ProposerResult(False, clock() - start, error=f"proposer still running after {timeout_s:.0f} s: stopped")
+    seconds = clock() - start
+    out = cp.stdout or ""
+    if backend == "claude":
+        try:
+            data = json.loads(out)
+        except json.JSONDecodeError:
+            return ProposerResult(False, seconds, error=f"claude exited {cp.returncode}: {(out or cp.stderr or '')[-400:]}", log=out)
+        if data.get("is_error") or cp.returncode != 0:
+            return ProposerResult(False, seconds, data.get("total_cost_usd"), error=str(data.get("result"))[:400], log=out)
+        return ProposerResult(True, seconds, data.get("total_cost_usd"), log=out)
+    if cp.returncode != 0:
+        return ProposerResult(False, seconds, error=f"codex exited {cp.returncode}: {(cp.stderr or out)[-400:]}", log=out)
+    return ProposerResult(True, seconds, log=out)
+
+
+def read_patch_notes(work: Path) -> tuple[str, str]:
+    p = Path(work) / "PATCH.md"
+    if not p.exists():
+        return "(no PATCH.md)", ""
+    text = p.read_text().strip()
+    first = text.splitlines()[0] if text else ""
+    return (first.lstrip("# ").strip() or "(untitled)"), text

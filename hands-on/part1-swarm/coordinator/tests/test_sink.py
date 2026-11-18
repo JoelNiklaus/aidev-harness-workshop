@@ -39,7 +39,7 @@ class FakeBucketApi:
 
 def test_flush_writes_pending_results_and_leases_in_one_batch():
     api = FakeBucketApi()
-    s = BucketSink(api, "joelniklaus/aidev-swarm-results")
+    s = BucketSink(api, "agent-harness-workshop/aidev-swarm-results")
     s.put(make_result("pi__t1__0"))
     s.put(make_result("pi__t2__0"))
     s.put_leases([{"cell_id": "pi__t1__1", "user": "bob", "expires": 2e9}])

@@ -1,0 +1,9 @@
+.venv/
+.smoke/
+.dryrun*/
+.integ/
+.sync.log
+__pycache__/
+.pytest_cache/
+dist/
+runs/

@@ -1,0 +1,17 @@
+--- agent.py (c001)
++++ agent.py (c004)
+@@ -39,8 +39,12 @@
+ 
+ def run_tool_call(call, env):
+     args = json.loads(call["function"]["arguments"])
+-    result = env.shell("{ " + args["command"] + "\n} 2>/dev/null")  # only stdout: stderr is mostly noise
+-    return format_output(result)
++    result = env.shell("{ " + args["command"] + "\n} 2>/tmp/.stderr")  # stderr kept aside, not mixed in
++    text = format_output(result)
++    if result.exit_code != 0:  # a failure: show why (error messages are printed to stderr)
++        err = env.shell("tail -c 1500 /tmp/.stderr").output
++        text += f"\nstderr (last 1500 chars):\n{err}"
++    return text
+ 
+ 
+ def run(task, env):
