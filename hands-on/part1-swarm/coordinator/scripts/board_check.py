@@ -35,6 +35,7 @@ def main() -> None:
     ap.add_argument("--url", required=True)
     ap.add_argument("--shot")
     ap.add_argument("--runs", type=int, default=3)
+    ap.add_argument("--svg", default="pareto", help="id of the chart whose SVG text is checked (pareto on /, race on /evolve)")
     ap.add_argument("--header", action="append", default=[], help="extra request header 'Name: value' (value never printed)")
     a = ap.parse_args()
     headers = dict(h.split(": ", 1) for h in a.header)
@@ -55,15 +56,15 @@ def main() -> None:
                 out["html_bytes"] = n.get("transferSize")
                 out["overflow"] = page.evaluate("""(() => {
                     const d = document.documentElement;
-                    const bad = [...document.querySelectorAll('td,th,.gname,.feed li,h1,h2,.plegend,.legend,.nr,.counter')].filter(e => e.scrollWidth > e.clientWidth + 1 && getComputedStyle(e).textOverflow !== 'ellipsis').length;
+                    const bad = [...document.querySelectorAll('td,th,.gname,.feed li,h1,h2,.plegend,.legend,.nr,.counter,.fixes .fl,.fixes .fn,.feed .who,.rlegend')].filter(e => e.scrollWidth > e.clientWidth + 1 && getComputedStyle(e).textOverflow !== 'ellipsis').length;
                     const cut = [...document.querySelectorAll('tbody tr,.gname,.legend,.feed li')].filter(e => { const p = e.closest('.panel'); return p && e.getBoundingClientRect().bottom > p.getBoundingClientRect().bottom - 4; }).length;
                     return {page_w: d.scrollWidth, page_h: d.scrollHeight, clipped_text_nodes: bad, rows_cut_by_panel: cut};
                 })()""")
                 out["min_font_px"] = page.evaluate("""Math.min(...[...document.querySelectorAll('body *')].filter(e => e.offsetParent && e.childNodes.length && [...e.childNodes].some(n => n.nodeType === 3 && n.textContent.trim())).map(e => parseFloat(getComputedStyle(e).fontSize)))""")
-                out["scatter"] = page.evaluate("""(() => {
+                out["scatter"] = page.evaluate("""(() => { const SVG_ID = '""" + a.svg + """';
                     // SVG text at screen scale, and the ink of texts that touches other ink or a marker
                     // (font boxes include line gap above and below the glyphs, so they are measured on canvas)
-                    const svg = document.getElementById('pareto'), k = svg.getScreenCTM().a, ctx = document.createElement('canvas').getContext('2d');
+                    const svg = document.getElementById(SVG_ID), k = svg.getScreenCTM().a, ctx = document.createElement('canvas').getContext('2d');
                     const texts = [...svg.querySelectorAll('text')].map(t => {
                         const r = t.getBoundingClientRect(), cs = getComputedStyle(t);
                         ctx.font = cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily;

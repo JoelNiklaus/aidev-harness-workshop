@@ -1,10 +1,12 @@
-"""The coordinator's HTTP surface (PROTOCOL.md): claim, heartbeat, submit, release, state, board, join page."""
+"""The coordinator's HTTP surface (PROTOCOL.md): claim, heartbeat, submit, release, state, board, join page;
+Part 2's evolve board: /api/evolve/submit, /api/evolve/state, /api/evolve/diff/..., /evolve."""
 
 from __future__ import annotations
 
 import hashlib
 import json
 import logging
+import math
 import time
 from collections.abc import Callable
 from importlib import resources
@@ -12,10 +14,11 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, JSONResponse, Response
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
 from starlette.concurrency import run_in_threadpool
 
-from . import join, paths
+from . import evolve, join, paths
 from .auth import AuthUnavailable, Unauthorized
 from .state import build_state
 from .store import AtLimit, Conflict, Invalid, NotFound, Store
@@ -23,19 +26,59 @@ from .store import AtLimit, Conflict, Invalid, NotFound, Store
 log = logging.getLogger("swarm.app")
 
 STATE_TTL_S = 2.0
+EVOLVE_PER_MINUTE, EVOLVE_BURST = 6, 10  # an attendee sends ~1 event per 4 min; a resumed run may flush a few at once
 BOOT_OPEN = b'<script id="boot" type="application/json">'
 BOOT_SLOT = BOOT_OPEN + b"null</script>"
 
 
+class CachedJson:
+    """A JSON payload rebuilt at most every ttl_s whatever the number of viewers, with its ETag."""
+
+    def __init__(self, build: Callable[[], Any], mono: Callable[[], float], ttl_s: float):
+        self.build, self.mono, self.ttl_s = build, mono, ttl_s
+        self.at: float | None = None
+        self.body, self.etag = b"", ""
+
+    def get(self) -> bytes:
+        now = self.mono()
+        if self.at is None or now - self.at >= self.ttl_s:
+            self.body = json.dumps(self.build(), separators=(",", ":")).encode()
+            self.at, self.etag = now, '"' + hashlib.sha1(self.body).hexdigest()[:16] + '"'
+        return self.body
+
+    def response(self, request: Request) -> Response:
+        self.get()
+        headers = {"ETag": self.etag, "Cache-Control": f"public, max-age={int(self.ttl_s)}"}
+        if request.headers.get("if-none-match") == self.etag:
+            return Response(status_code=304, headers=headers)
+        return Response(self.body, media_type="application/json", headers=headers)
+
+    def page(self, html: bytes) -> HTMLResponse:
+        # the current state rides along, so the first full draw needs no second round trip;
+        # "</" is escaped ("<\/" is the same JSON string) so no value can close the script tag
+        boot = self.get().replace(b"</", b"<\\/")
+        return HTMLResponse(html.replace(BOOT_SLOT, BOOT_OPEN + boot + b"</script>", 1), headers={"Cache-Control": "no-cache"})
+
+
+def _static(name: str) -> bytes:
+    page = resources.files("swarm_coordinator").joinpath(f"static/{name}").read_bytes()
+    if BOOT_SLOT not in page:
+        raise RuntimeError(f"{name} lacks the boot state slot")
+    return page
+
+
 def create_app(store: Store, auth: Any, *, reference: list[dict[str, Any]], meta: dict[str, dict[str, str]], mode: str = "live",
                mono: Callable[[], float] = time.monotonic, state_ttl_s: float = STATE_TTL_S, lifespan: Any = None,
-               runner_dir: Path | None = None) -> FastAPI:
+               runner_dir: Path | None = None, evolve_store: evolve.EvolveStore | None = None,
+               evolve_reference: list[dict[str, Any]] | None = None, evolve_limiter: evolve.RateLimiter | None = None) -> FastAPI:
     app = FastAPI(title="aidev swarm coordinator", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
-    board = resources.files("swarm_coordinator").joinpath("static/board.html").read_bytes()
-    if BOOT_SLOT not in board:
-        raise RuntimeError("board.html lacks the boot state slot")
+    app.add_middleware(GZipMiddleware, minimum_size=500)  # the pages fit the first round trip through the HF edge
+    board, evolve_page = _static("board.html"), _static("evolve.html")
     join_page = join.page(runner_dir or paths.runner_dir())  # rendered once: a README without the wheel URL fails at start
-    cache: dict[str, Any] = {"at": None, "body": b"", "etag": ""}
+    evolve_store = evolve_store or evolve.EvolveStore()
+    evolve_limiter = evolve_limiter or evolve.RateLimiter(per_minute=EVOLVE_PER_MINUTE, burst=EVOLVE_BURST)
+    swarm_state = CachedJson(lambda: build_state(store.grid, store.snapshot(), reference, meta, mode=mode), mono, state_ttl_s)
+    evolve_state = CachedJson(lambda: evolve.build_state(evolve_store.events(), evolve_reference or [], mode=mode), mono, state_ttl_s)
 
     @app.exception_handler(Unauthorized)
     async def _401(_: Request, e: Unauthorized) -> JSONResponse:
@@ -97,28 +140,49 @@ def create_app(store: Store, auth: Any, *, reference: list[dict[str, Any]], meta
         store.release(cell_id, await user(request))
         return {"ok": True, "cell_id": cell_id}
 
-    def state_body() -> bytes:
-        """The board payload, rebuilt at most every state_ttl_s whatever the number of viewers."""
-        now = mono()
-        if cache["at"] is None or now - cache["at"] >= state_ttl_s:
-            body = json.dumps(build_state(store.grid, store.snapshot(), reference, meta, mode=mode), separators=(",", ":")).encode()
-            cache.update(at=now, body=body, etag='"' + hashlib.sha1(body).hexdigest()[:16] + '"')
-        return cache["body"]
-
     @app.get("/api/state")
     async def state(request: Request) -> Response:
-        state_body()
-        headers = {"ETag": cache["etag"], "Cache-Control": f"public, max-age={int(state_ttl_s)}"}
-        if request.headers.get("if-none-match") == cache["etag"]:
-            return Response(status_code=304, headers=headers)
-        return Response(cache["body"], media_type="application/json", headers=headers)
+        return swarm_state.response(request)
 
     @app.get("/")
     async def index() -> HTMLResponse:
-        # the current state rides along, so the first full draw needs no second round trip;
-        # "</" is escaped ("<\/" is the same JSON string) so no value can close the script tag
-        boot = state_body().replace(b"</", b"<\\/")
-        return HTMLResponse(board.replace(BOOT_SLOT, BOOT_OPEN + boot + b"</script>", 1), headers={"Cache-Control": "no-cache"})
+        return swarm_state.page(board)
+
+    # ---- Part 2: the evolve board ----------------------------------------------------------------
+
+    @app.post("/api/evolve/submit")
+    async def evolve_submit(request: Request) -> Response:
+        if int(request.headers.get("content-length") or 0) > evolve.MAX_BODY_BYTES:
+            return JSONResponse({"detail": f"event larger than {evolve.MAX_BODY_BYTES} bytes"}, status_code=413)
+        who = await user(request)
+        wait = evolve_limiter.allow(who)
+        if wait:
+            return JSONResponse({"detail": "too many events; retry later"}, status_code=429, headers={"Retry-After": str(math.ceil(wait))})
+        raw = await request.body()
+        if len(raw) > evolve.MAX_BODY_BYTES:  # a chunked body without Content-Length
+            return JSONResponse({"detail": f"event larger than {evolve.MAX_BODY_BYTES} bytes"}, status_code=413)
+        try:
+            body = json.loads(raw)
+        except ValueError:
+            raise Invalid("body must be one evolve event as JSON") from None
+        stored = evolve_store.add(who, evolve.validate(body))
+        log.info("evolve %s %s %s %s", who, stored["run_id"], stored["kind"], stored["iteration"])
+        return JSONResponse({"ok": True})
+
+    @app.get("/api/evolve/state")
+    async def evolve_state_(request: Request) -> Response:
+        return evolve_state.response(request)
+
+    @app.get("/api/evolve/diff/{who}/{run_id}/{iteration}")
+    async def evolve_diff(who: str, run_id: str, iteration: int) -> Response:
+        diff = evolve_store.diff(who, run_id, iteration)
+        if diff is None:
+            return JSONResponse({"detail": "no such patch"}, status_code=404)
+        return PlainTextResponse(diff, headers={"X-Content-Type-Options": "nosniff"})
+
+    @app.get("/evolve")
+    async def evolve_index() -> HTMLResponse:
+        return evolve_state.page(evolve_page)
 
     @app.get(join.PATH)
     async def join_() -> HTMLResponse:

@@ -1,6 +1,6 @@
 """Where the coordinator finds the grid, the prices and the replay data.
 
-Layout (repo and Docker image alike): <root>/config/{grid,prices}.json, <root>/replay/reference.json,
+Layout (repo and Docker image alike): <root>/config/{grid,prices}.json, <root>/replay/{reference,evolve-recorded}.json,
 <root>/runner/{README,AGENT_PROMPT}.md (the /join page).
 <root> is $SWARM_ROOT, else hands-on/part1-swarm/ of this checkout.
 """
@@ -25,6 +25,10 @@ def prices_path() -> Path:
 
 def reference_path() -> Path:
     return root() / "replay" / "reference.json"
+
+
+def evolve_replay_path() -> Path:
+    return root() / "replay" / "evolve-recorded.json"
 
 
 def harness_meta_path() -> Path:

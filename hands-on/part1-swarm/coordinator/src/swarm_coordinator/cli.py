@@ -3,6 +3,8 @@
     uv run coordinator                         # live; persists to $SWARM_BUCKET when set (needs HF_TOKEN)
     uv run coordinator --replay                # offline fallback: replays recorded results, no network
     uv run coordinator --replay --replay-minutes 10 --port 8000
+
+The same process serves Part 2's evolve board (/evolve); --replay also replays the recorded evolve runs.
 """
 
 from __future__ import annotations
@@ -17,9 +19,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from . import paths
+from . import evolve, paths
 from .app import create_app
 from .auth import FakeAuth, NoAuth, WhoamiAuth
+from .evolve_replay import EvolveReplayer, load_recorded, reference_curves
 from .grid import Grid
 from .replay import Replayer, load_results
 from .sink import BucketSink, NullSink
@@ -38,7 +41,8 @@ def parse(argv: list[str] | None = None) -> argparse.Namespace:
     ap.add_argument("--db", default=":memory:", help="SQLite file (rebuilt from the bucket on start)")
     ap.add_argument("--replay", action="store_true", help="offline: stream recorded results into the board, take no claims")
     ap.add_argument("--replay-file", default=None, help="results to replay (default: the reference file)")
-    ap.add_argument("--replay-minutes", type=float, default=20.0)
+    ap.add_argument("--replay-minutes", type=float, default=20.0, help="replay length (swarm results and evolve runs alike)")
+    ap.add_argument("--evolve-recorded", default=str(paths.evolve_replay_path()), help="recorded evolve runs (replay and live backdrop)")
     ap.add_argument("--replay-concurrency", type=int, default=150, help="virtual runners in the replay")
     ap.add_argument("--fake-auth", action="store_true", help="load tests only: the bearer token is the username")
     ap.add_argument("--lease-s", type=float, default=40 * 60)
@@ -53,6 +57,8 @@ class Components:
     sink: Any
     replayer: Replayer | None
     mode: str
+    evolve_store: evolve.EvolveStore
+    evolve_replayer: EvolveReplayer | None
 
 
 def build(args: argparse.Namespace, *, env: dict[str, str] | None = None, hub_api: Any = None) -> Components:
@@ -83,23 +89,32 @@ def build(args: argparse.Namespace, *, env: dict[str, str] | None = None, hub_ap
     n = store.restore()
     if n:
         log.info("restored %d results from %s", n, env.get("SWARM_BUCKET"))
-    replayer = None
+    evolve_store = evolve.EvolveStore(sink=sink)
+    n = evolve_store.restore()
+    if n:
+        log.info("restored %d evolve events", n)
+    recorded = load_recorded(args.evolve_recorded) if Path(args.evolve_recorded).exists() else []
+    replayer = evolve_replayer = None
     if args.replay:
         replayer = Replayer(store, load_results(args.replay_file or args.reference), minutes=args.replay_minutes, concurrency=args.replay_concurrency)
+        evolve_replayer = EvolveReplayer(evolve_store, recorded, minutes=args.replay_minutes)
 
     @asynccontextmanager
     async def lifespan(_app):
         sink.start()
-        if replayer is not None:
-            replayer.start = replayer.clock()  # the replay starts when the server does
-            replayer.start_thread()
+        for rp in (replayer, evolve_replayer):
+            if rp is not None:
+                rp.start = rp.clock()  # the replay starts when the server does
+                rp.start_thread()
         yield
-        if replayer is not None:
-            replayer.stop()
+        for rp in (replayer, evolve_replayer):
+            if rp is not None:
+                rp.stop()
         sink.close()
 
-    app = create_app(store, auth, reference=reference, meta=meta, mode=mode, lifespan=lifespan)
-    return Components(app, store, auth, sink, replayer, mode)
+    app = create_app(store, auth, reference=reference, meta=meta, mode=mode, lifespan=lifespan, evolve_store=evolve_store,
+                     evolve_reference=reference_curves(recorded))
+    return Components(app, store, auth, sink, replayer, mode, evolve_store, evolve_replayer)
 
 
 def main(argv: list[str] | None = None) -> None:

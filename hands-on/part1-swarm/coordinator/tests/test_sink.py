@@ -84,3 +84,24 @@ def test_close_flushes_what_is_still_queued():
     s.put(make_result("pi__t1__0"))
     s.close()
     assert "results/pi__t1__0.json" in api.files
+
+
+def test_put_path_rides_the_same_batch_and_load_prefix_reads_it_back():
+    api = FakeBucketApi()
+    s = BucketSink(api, "agent-harness-workshop/aidev-swarm-results")
+    s.put(make_result("pi__t1__0"))
+    s.put_path("evolve/alice/alice-r1/seed-000.json", b'{"kind":"seed"}')
+    s.put_path("evolve/alice/alice-r1/seed-000.json", b'{"kind":"seed","v":2}')  # newer content of one path wins
+    s.flush()
+    assert api.batches == 1
+    assert api.files["evolve/alice/alice-r1/seed-000.json"] == b'{"kind":"seed","v":2}'
+    assert s.load_prefix("evolve/") == {"evolve/alice/alice-r1/seed-000.json": b'{"kind":"seed","v":2}'}
+    results, _ = s.load()
+    assert [r["cell_id"] for r in results] == ["pi__t1__0"]  # evolve files are not swarm results
+
+
+def test_null_sink_takes_paths_and_loads_nothing():
+    from swarm_coordinator.sink import NullSink
+    s = NullSink()
+    s.put_path("evolve/a/b/seed-000.json", b"{}")
+    assert s.load_prefix("evolve/") == {}

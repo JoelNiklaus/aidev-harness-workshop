@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Evolve the harness · the room</title>
+<style>
+/* Projector board for Part 2: 1920x1080, read from ~30 m. No text below 26 px. Same look as the swarm board (/). */
+:root{--bg:#0b0f17;--panel:#121826;--line:#243047;--fg:#f3f6fb;--mute:#a3b0c4;--pass:#22c55e;--fail:#ef4444;--open:#2a3448;--acc:#ffd21e;--run:#5b6b86}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg);font:700 28px/1.2 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+body{padding:10px 22px 12px;height:100vh;display:flex;flex-direction:column;gap:10px;overflow:hidden}
+header{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex:none}
+h1{margin:0;font-size:44px;letter-spacing:-.5px;line-height:1.1}
+h1 small{display:block;font-size:28px;color:var(--mute);font-weight:600;margin-top:4px;letter-spacing:0}
+.badge{display:inline-block;background:var(--acc);color:#111;border-radius:8px;padding:2px 12px;font-size:26px;margin-left:14px;vertical-align:middle;letter-spacing:0}
+.counters{display:flex;gap:34px;text-align:right;white-space:nowrap}
+.big{font-size:56px;line-height:1;font-variant-numeric:tabular-nums}
+.lab{font-size:26px;color:var(--mute);margin-top:4px}
+.main{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:14px;flex:1;min-height:0}
+.left{display:grid;grid-template-rows:minmax(0,1fr) auto;gap:14px;min-height:0}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:8px 18px 10px;min-width:0;min-height:0;overflow:hidden;display:flex;flex-direction:column}
+.panel h2{margin:0 0 4px;font-size:28px;color:var(--mute);text-transform:uppercase;letter-spacing:1px;display:flex;justify-content:space-between;align-items:baseline;gap:20px;white-space:nowrap}
+.panel h2 .note{text-transform:none;letter-spacing:0;font-size:26px;font-weight:600}
+.chart{flex:1;min-height:0;position:relative}
+#race{position:absolute;inset:0;width:100%;height:100%;display:block}#race text{font-family:inherit}#race .ax{fill:var(--mute)}
+.rlegend{display:flex;justify-content:center;gap:22px;font-size:26px;color:var(--mute);padding-top:4px;white-space:nowrap}
+.rlegend svg{width:44px;height:26px;vertical-align:-4px;margin-right:8px}
+.fixes{display:grid;grid-template-columns:max-content minmax(0,1fr) max-content;column-gap:16px;row-gap:6px;align-items:center}
+.fixes .fl{font-size:26px;white-space:nowrap}
+.fixes .fb{position:relative;height:24px;border-radius:6px;background:var(--open)}
+.fixes .fb i{position:absolute;left:0;top:0;bottom:0;border-radius:6px;background:var(--mute)}
+.fixes .fb b{position:absolute;left:0;top:0;bottom:0;border-radius:6px;background:var(--pass)}
+.fixes .fn{font-size:26px;color:var(--mute);white-space:nowrap;font-variant-numeric:tabular-nums}
+.fixes .fn b{color:var(--pass)}
+.feed{list-style:none;margin:0;padding:0;flex:1;min-height:0;overflow:hidden}
+.feed li{padding:8px 0 10px;border-top:1px solid var(--line)}
+.feed .who{font-size:26px;color:var(--mute);white-space:nowrap;overflow:hidden}
+.feed .who b{color:var(--fg)}
+.feed .gain{color:var(--pass)}
+.feed .title{font-size:30px;margin-top:2px}
+.feed .hyp{font-size:26px;color:var(--mute);font-weight:600;margin-top:2px}
+.empty{color:var(--mute);font-weight:600;padding:12px 0;font-size:26px}
+#net{display:inline-block;width:14px;height:14px;border-radius:50%;background:var(--pass);margin-left:10px;vertical-align:middle}
+#net.down{background:var(--fail)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Evolve the harness: the room<span id="mode"></span><small>GLM-5.3-Flash · Terminal-Bench 2.1 · same seed agent, your coding agent proposes</small></h1>
+  <div class="counters">
+    <div><div class="big" id="c-att">0</div><div class="lab">attendees</div></div>
+    <div><div class="big" id="c-it">0</div><div class="lab">iterations</div></div>
+    <div><div class="big" id="c-kept">0</div><div class="lab">patches kept</div></div>
+    <div><div class="big" id="c-usd">$0</div><div class="lab">HF credits<span id="net" title="connection"></span></div></div>
+  </div>
+</header>
+<div class="main">
+  <div class="left">
+    <section class="panel">
+      <h2><span>Race · best validation pass rate by iteration</span><span class="note" id="race-note"></span></h2>
+      <div class="chart" id="chart"><svg id="race" role="img" aria-label="Each attendee's best validation pass rate over iterations, with the room best and the seed baseline"></svg></div>
+      <div class="rlegend" id="rlegend"></div>
+    </section>
+    <section class="panel">
+      <h2><span>Most common fixes</span><span class="note">grey: tried · green: kept</span></h2>
+      <div class="fixes" id="fixes"></div>
+    </section>
+  </div>
+  <section class="panel">
+    <h2>Newest kept patches</h2>
+    <ul class="feed" id="feed"></ul>
+  </section>
+</div>
+<script id="boot" type="application/json">null</script>
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"})[c]);
+const pct = v => Math.round(v * 100) + "%";
+const TOP = ["#E69F00", "#56B4E9", "#009E73", "#F0E442", "#CC79A7"];  // Okabe-Ito: the five best runs
+const FS = 26;
+
+// <stackLabels>
+// Vertical positions for end-of-line labels: each label as close to its line's y as possible, at least `gap`
+// apart, all inside [lo, hi]. Input order is kept in the output.
+function stackLabels(ys, gap, lo, hi) {
+  const order = ys.map((y, i) => [y, i]).sort((a, b) => a[0] - b[0]);
+  const out = order.map(([y]) => Math.min(Math.max(y, lo), hi));
+  for (let k = 1; k < out.length; k++) out[k] = Math.max(out[k], out[k - 1] + gap);
+  if (out.length && out[out.length - 1] > hi) {
+    out[out.length - 1] = hi;
+    for (let k = out.length - 2; k >= 0; k--) out[k] = Math.min(out[k], out[k + 1] - gap);
+  }
+  const res = new Array(ys.length);
+  order.forEach(([, i], k) => { res[i] = out[k]; });
+  return res;
+}
+// </stackLabels>
+
+function header(s) {
+  const t = s.totals;
+  $("c-att").textContent = t.attendees;
+  $("c-it").textContent = t.iterations;
+  $("c-kept").textContent = t.kept;
+  $("c-usd").textContent = "$" + (t.spend_usd >= 100 ? Math.round(t.spend_usd) : t.spend_usd.toFixed(2));
+  $("mode").innerHTML = s.mode === "replay" ? '<span class="badge">REPLAY · recorded runs</span>' : "";
+}
+
+function race(s) {
+  const runs = s.runs, top = runs.slice(0, TOP.length), ref = s.mode === "replay" ? [] : (s.reference || []);
+  // the legend first: it takes height from the chart, whose viewBox must match its final pixel box (1 unit = 1 px)
+  const key = (stroke, label) => `<span><svg viewBox="0 0 44 26"><line x1="2" x2="42" y1="13" y2="13" ${stroke}/></svg>${label}</span>`;
+  $("rlegend").innerHTML = (s.room_best.length ? key('stroke="#f3f6fb" stroke-width="16" stroke-opacity=".35"', "room best") : "") +
+    key('stroke="#a3b0c4" stroke-width="3" stroke-dasharray="8 6"', "seed baseline") +
+    (top.length ? key(`stroke="${TOP[0]}" stroke-width="5"`, `top ${top.length}, named`) : "") +
+    (runs.length > TOP.length ? key('stroke="#5b6b86" stroke-width="3"', "others") : "") +
+    (ref.length ? key('stroke="#a3b0c4" stroke-width="3" stroke-dasharray="2 8" stroke-linecap="round"', "recorded runs") : "");
+  const svg = $("race"), W = $("chart").clientWidth, H = $("chart").clientHeight;  // the box decides, not the viewBox
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  const n = Math.max(8, s.max_iteration, ...ref.map(r => r.curve.length ? r.curve[r.curve.length - 1][0] : 0));
+  const vals = [...runs.flatMap(r => r.curve.map(c => c[1])), ...ref.flatMap(r => r.curve.map(c => c[1])), s.baseline].filter(v => v != null);
+  const lo = Math.max(0, Math.floor(Math.min(1, ...vals) * 10) / 10 - 0.1), hi = 1;
+  const L = 96, R = top.length ? 250 : 24, T = 18, B = 50;
+  const x = i => L + i * (W - L - R) / n, y = v => T + (hi - v) * (H - T - B) / (hi - lo);
+  const line = (pts, attrs) => `<polyline fill="none" stroke-linejoin="round" ${attrs} points="${pts.map(c => x(c[0]).toFixed(1) + "," + y(c[1]).toFixed(1)).join(" ")}"/>`;
+  let g = "";
+  const step = hi - lo > 0.5 ? 0.2 : 0.1;
+  for (let v = hi; v >= lo - 1e-9; v -= step) {
+    g += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="#243047" stroke-width="2"/>`;
+    if (v > lo + 1e-9) g += `<text class="ax" x="${L - 12}" y="${y(v) + 9}" text-anchor="end" font-size="${FS}">${pct(v)}</text>`;  // the bottom one would touch "seed"
+  }
+  const every = n > 12 ? 2 : 1;
+  for (let i = 0; i <= n; i += every) g += `<text class="ax" x="${x(i)}" y="${H - 14}" text-anchor="middle" font-size="${FS}">${i === 0 ? "seed" : i}</text>`;
+  if (s.baseline != null) g += `<line x1="${L}" x2="${W - R}" y1="${y(s.baseline)}" y2="${y(s.baseline)}" stroke="#a3b0c4" stroke-width="3" stroke-dasharray="12 10"/>`;
+  ref.forEach(r => { g += line(r.curve, 'stroke="#a3b0c4" stroke-width="3" stroke-dasharray="2 8" stroke-linecap="round"'); });
+  runs.slice(TOP.length).reverse().forEach(r => { g += line(r.curve, 'stroke="#5b6b86" stroke-width="2" stroke-opacity=".6"'); });
+  if (s.room_best.length) g += line(s.room_best, 'stroke="#f3f6fb" stroke-width="16" stroke-opacity=".35" stroke-linecap="round"');  // a halo under the leaders
+  const ends = top.map(r => r.curve[r.curve.length - 1]);
+  const ly = stackLabels(ends.map(c => y(c[1])), FS + 6, T + FS / 2, H - B - 4);
+  top.slice().reverse().forEach((r, k) => { const i = top.length - 1 - k; g += line(r.curve, `stroke="${TOP[i]}" stroke-width="5"`); });
+  top.forEach((r, i) => {
+    const [cx, cy] = [x(ends[i][0]), y(ends[i][1])], lx = W - R + 18;
+    g += `<circle cx="${cx}" cy="${cy}" r="8" fill="${TOP[i]}"/>`;
+    // a dotted leader, so it never reads as the run going on to the last iteration
+    g += `<polyline fill="none" stroke="${TOP[i]}" stroke-width="2" stroke-dasharray="2 7" stroke-opacity=".8" points="${cx + 12},${cy} ${lx - 14},${cy} ${lx - 4},${ly[i]}"/>`;
+    const name = r.user.length > 12 ? r.user.slice(0, 11) + "…" : r.user;
+    g += `<text x="${lx}" y="${ly[i] + 9}" font-size="${FS}" fill="${TOP[i]}">${esc(name)} ${pct(ends[i][1])}</text>`;
+  });
+  svg.innerHTML = g;
+  $("race-note").textContent = runs.length ? `${s.totals.runs} run${s.totals.runs === 1 ? "" : "s"}` : "waiting for the first run";
+}
+
+function fixes(s) {
+  const max = Math.max(1, ...s.fixes.map(f => f.tried));
+  $("fixes").innerHTML = s.fixes.map(f =>
+    `<span class="fl">${esc(f.label)}</span><span class="fb"><i style="width:${(100 * f.tried / max).toFixed(1)}%"></i><b style="width:${(100 * f.kept / max).toFixed(1)}%"></b></span>` +
+    `<span class="fn">${f.tried} tried · <b>${f.kept} kept</b></span>`).join("") || '<span class="empty">No patches yet</span>';
+}
+
+function feed(s) {
+  const ul = $("feed");
+  ul.innerHTML = s.feed.map(f =>
+    `<li><div class="who"><b>${esc(f.user)}</b> · iteration ${f.iteration}` +
+    (f.delta != null ? ` · <span class="gain">${f.delta >= 0 ? "+" : "−"}${Math.round(Math.abs(f.delta) * 100)} pts</span>` : "") +
+    ` · +${f.added} −${f.removed} lines</div><div class="title">${esc(f.title)}</div>` +
+    (f.hypothesis ? `<div class="hyp">${esc(f.hypothesis)}</div>` : "") + "</li>").join("") || '<li class="empty">No kept patches yet</li>';
+  // show only whole cards: drop the oldest until the list fits its panel
+  while (ul.children.length > 1 && ul.scrollHeight > ul.clientHeight + 1) ul.lastElementChild.remove();
+}
+
+// Attendees' browsers share the venue IP with the loops, and the HF edge throttles busy IPs:
+// poll every 10 s by default (?every=3 on the projector), back off up to 60 s on errors and 429s.
+const EVERY = Math.max(2000, (parseFloat(new URLSearchParams(location.search).get("every")) || 0) * 1000 || 10000);
+let lastState = null, backoff = EVERY;
+function render(s) {
+  lastState = s;
+  header(s); fixes(s); feed(s); race(s);  // the chart last: it takes the height the other panels leave
+  if (!document.documentElement.dataset.drawn) document.documentElement.dataset.drawnAt = performance.now().toFixed(1);
+  document.documentElement.dataset.drawn = "1";
+}
+addEventListener("resize", () => { if (lastState) render(lastState); });
+async function tick() {
+  try {
+    const r = await fetch("api/evolve/state", {cache: "no-cache"});
+    if (!r.ok) throw new Error(r.status);
+    render(await r.json());
+    $("net").classList.remove("down");
+    backoff = EVERY;
+    setTimeout(tick, EVERY);
+  } catch (e) {
+    $("net").classList.add("down");
+    backoff = Math.min(backoff * 2, 60000);
+    setTimeout(tick, backoff);
+  }
+}
+const boot = JSON.parse($("boot").textContent);
+if (boot) { render(boot); setTimeout(tick, EVERY); } else tick();
+</script>
+</body>
+</html>

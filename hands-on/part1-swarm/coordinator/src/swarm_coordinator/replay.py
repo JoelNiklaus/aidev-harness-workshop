@@ -35,7 +35,33 @@ class Event:
     user: str
 
 
-class Replayer:
+class Ticker:
+    """Runs `step()` every tick in a daemon thread until `done` or `stop()`. Subclasses set `_stop` and `name`."""
+
+    name = "replay"
+    _stop: threading.Event
+
+    @property
+    def done(self) -> bool:
+        raise NotImplementedError
+
+    def step(self) -> int:
+        raise NotImplementedError
+
+    def run(self, tick_s: float = 0.5) -> None:
+        while not self.done and not self._stop.wait(tick_s):
+            self.step()
+
+    def start_thread(self) -> threading.Thread:
+        t = threading.Thread(target=self.run, name=self.name, daemon=True)
+        t.start()
+        return t
+
+    def stop(self) -> None:
+        self._stop.set()
+
+
+class Replayer(Ticker):
     def __init__(self, store: Store, results: list[dict[str, Any]], *, minutes: float = 20.0, concurrency: int = 150,
                  clock: Callable[[], float] = time.time):
         self.store, self.clock = store, clock
@@ -77,15 +103,3 @@ class Replayer:
             except Conflict:
                 pass  # the cell already holds a result (a replay into a live store); skip it
         return n
-
-    def run(self, tick_s: float = 0.5) -> None:
-        while not self.done and not self._stop.wait(tick_s):
-            self.step()
-
-    def start_thread(self) -> threading.Thread:
-        t = threading.Thread(target=self.run, name="replay", daemon=True)
-        t.start()
-        return t
-
-    def stop(self) -> None:
-        self._stop.set()

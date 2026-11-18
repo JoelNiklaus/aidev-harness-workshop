@@ -2,7 +2,7 @@
 
     HF_TOKEN=<an admin token of the org> uv run python -m swarm_coordinator.deploy [--hardware cpu-upgrade]
 
-Stages coordinator/ (code, lock), config/, replay/reference.json and the runner's README and agent prompt
+Stages coordinator/ (code, lock), config/, replay/{reference,evolve-recorded}.json and the runner's README and agent prompt
 (for /join) into a temp folder with a Dockerfile
 and the Space README, creates the bucket and the Space as private if missing (an existing one keeps
 its visibility, and the script refuses when it is public), sets the Space secret HF_TOKEN to the scoped
@@ -59,7 +59,7 @@ CMD ["coordinator/.venv/bin/coordinator", "--host", "0.0.0.0", "--port", "7860",
 """
 
 README = """---
-title: AI Dev NYC swarm board
+title: AI Dev NYC workshop boards
 emoji: 🐝
 colorFrom: yellow
 colorTo: gray
@@ -68,7 +68,8 @@ app_port: 7860
 pinned: false
 ---
 
-Coordinator and live board of the AI Dev NYC 2026 Part 1 swarm evaluation (Agent Harnesses workshop).
+Coordinator and live boards of the AI Dev NYC 2026 Agent Harnesses workshop: Part 1 swarm evaluation (/)
+and Part 2 evolve race (/evolve).
 API: see PROTOCOL.md in the workshop repo. Results persist to a private HF bucket.
 """
 
@@ -87,6 +88,7 @@ def stage(out: Path) -> Path:
     shutil.copy2(paths.prices_path(), out / "config" / "prices.json")
     (out / "replay").mkdir()
     shutil.copy2(paths.reference_path(), out / "replay" / "reference.json")
+    shutil.copy2(paths.evolve_replay_path(), out / "replay" / "evolve-recorded.json")
     (out / "runner").mkdir()
     for name in ("README.md", "AGENT_PROMPT.md"):  # the /join page's command and prompt
         shutil.copy2(paths.runner_dir() / name, out / "runner" / name)

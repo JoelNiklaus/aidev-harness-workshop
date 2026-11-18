@@ -1,0 +1,467 @@
+{
+ "source": "Part 2 Phase 2 evolve runs (config B, 17 Nov 2026): seed + 8 iterations + held-out each, GLM-5.3-Flash on TB2.1",
+ "runs": [
+  {
+   "name": "B1",
+   "user": "recorded-B1",
+   "events": [
+    {
+     "t": 211.37,
+     "schema": "aidev-evolve/1",
+     "run_id": "B1",
+     "kind": "seed",
+     "val_score": 0.4166666666666667,
+     "search_score": 0.0,
+     "spend_usd": 0.036913
+    },
+    {
+     "t": 580.19,
+     "schema": "aidev-evolve/1",
+     "run_id": "B1",
+     "kind": "iteration",
+     "iteration": 1,
+     "candidate": "c001",
+     "parent": "c000",
+     "title": "Time-based stop instead of 10 steps",
+     "hypothesis": "Hypothesis: db-wal-recovery, financial-document-processor and sparql-university ended at the 10-step cap after only 18-50 s of 180 s, still mid-work.",
+     "accepted": true,
+     "verdict": "kept",
+     "val_child": 0.875,
+     "val_parent": 0.47222222222222215,
+     "best_val": 0.875,
+     "fixed": [
+      "build-pmars",
+      "configure-git-webserver",
+      "constraints-scheduling",
+      "count-dataset-tokens",
+      "extract-elf",
+      "sqlite-with-gcov"
+     ],
+     "broke": [],
+     "diff": "--- agent.py (c000)\n+++ agent.py (c001)\n@@ -13,7 +13,8 @@\n SYSTEM_PROMPT = \"\"\"You are an AI agent that solves tasks in a Linux terminal.\n Use the bash tool to run commands. When the task is complete, reply with a short summary.\"\"\"\n \n-MAX_STEPS = 10\n+MAX_STEPS = 200  # a safety net only: the real limit is the clock\n+STOP_MARGIN = 5  # seconds kept free at the end\n MAX_OUTPUT_CHARS = 1000\n \n BASH_TOOL = {\n@@ -48,6 +49,8 @@\n         {\"role\": \"user\", \"content\": task},\n     ]\n     for step in range(MAX_STEPS):\n+        if env.time_left() < STOP_MARGIN:\n+            return\n         reply = env.llm(messages, tools=[BASH_TOOL])\n         messages.append(reply)\n         tool_calls = reply.get(\"tool_calls\") or []\n",
+     "spend_usd": 0.218918
+    },
+    {
+     "t": 789.36,
+     "schema": "aidev-evolve/1",
+     "run_id": "B1",
+     "kind": "iteration",
+     "iteration": 2,
+     "candidate": "c002",
+     "parent": "c001",
+     "title": "Show more output, keep head and tail",
+     "hypothesis": "Hypothesis: In sparql-university the model saw only the first 1000 chars of every output, silently cut, and spent ~8 of 15 calls re-reading the same file in pieces; it missed data (graduation dates) and finished unverified.",
+     "accepted": false,
+     "verdict": "dropped",
+     "val_child": 0.8333333333333334,
+     "val_parent": 0.8611111111111112,
+     "best_val": 0.8611111111111112,
+     "fixed": [],
+     "broke": [
+      "build-pmars"
+     ],
+     "diff": "--- agent.py (c001)\n+++ agent.py (c002)\n@@ -15,7 +15,7 @@\n \n MAX_STEPS = 200  # a safety net only: the real limit is the clock\n STOP_MARGIN = 5  # seconds kept free at the end\n-MAX_OUTPUT_CHARS = 1000\n+MAX_OUTPUT_CHARS = 4000\n \n BASH_TOOL = {\n     \"type\": \"function\",\n@@ -33,7 +33,10 @@\n \n def format_output(result):\n     \"\"\"What the model sees of a command's result.\"\"\"\n-    output = result.output[:MAX_OUTPUT_CHARS]\n+    output = result.output\n+    if len(output) > MAX_OUTPUT_CHARS:  # keep head and tail, say what was cut\n+        half = MAX_OUTPUT_CHARS // 2\n+        output = f\"{output[:half]}\\n[... {len(output) - 2 * half} chars cut; narrow the command (grep, sed -n, head) to see them ...]\\n{output[-half:]}\"\n     return f\"exit code: {result.exit_code}\\n{output}\"\n \n \n",
+     "spend_usd": 0.33055
+    },
+    {
+     "t": 1040.88,
+     "schema": "aidev-evolve/1",
+     "run_id": "B1",
+     "kind": "iteration",
+     "iteration": 3,
+     "candidate": "c003",
+     "parent": "c001",
+     "title": "Show stderr to the model",
+     "hypothesis": "Hypothesis: The harness discards stderr (2>/dev/null), so a failing command shows only \"exit code: 127\" with no message; in sparql-university the model could not see why its check failed, never validated its query, and finished wrong.",
+     "accepted": false,
+     "verdict": "dropped",
+     "val_child": 0.8333333333333334,
+     "val_parent": 0.875,
+     "best_val": 0.875,
+     "fixed": [
+      "build-pmars"
+     ],
+     "broke": [
+      "constraints-scheduling"
+     ],
+     "diff": "--- agent.py (c001)\n+++ agent.py (c003)\n@@ -39,7 +39,7 @@\n \n def run_tool_call(call, env):\n     args = json.loads(call[\"function\"][\"arguments\"])\n-    result = env.shell(\"{ \" + args[\"command\"] + \"\\n} 2>/dev/null\")  # only stdout: stderr is mostly noise\n+    result = env.shell(\"{ \" + args[\"command\"] + \"\\n} 2>&1\")  # stderr too: error messages explain why a command failed\n     return format_output(result)\n \n \n",
+     "spend_usd": 0.452172
+    },
+    {
+     "t": 1275.56,
+     "schema": "aidev-evolve/1",
+     "run_id": "B1",
+     "kind": "iteration",
+     "iteration": 4,
+     "candidate": "c004",
+     "parent": "c001",
+     "title": "Verify by running before finishing",
+     "hypothesis": "Hypothesis: sparql-university ended with a text answer after 51 s of 180 s; the final solution was never executed or checked against the requirements, and it was wrong. Time was left unused.",
+     "accepted": false,
+     "verdict": "dropped",
+     "val_child": 0.8333333333333334,
+     "val_parent": 0.8833333333333333,
+     "best_val": 0.8833333333333333,
+     "fixed": [
+      "build-pmars"
+     ],
+     "broke": [
+      "extract-elf"
+     ],
+     "diff": "--- agent.py (c001)\n+++ agent.py (c004)\n@@ -13,7 +13,11 @@\n SYSTEM_PROMPT = \"\"\"You are an AI agent that solves tasks in a Linux terminal.\n Use the bash tool to run commands. When the task is complete, reply with a short summary.\"\"\"\n \n-MAX_STEPS = 200  # a safety net only: the real limit is the clock\n+CHECK_PROMPT = \"\"\"Before you finish: re-read the task and list each requirement. Then verify the result by\n+actually running it (execute the program or query, run the tests, inspect the output file) and compare\n+with every requirement. Fix what fails. Only if everything is verified, reply with a short summary.\"\"\"\n+\n+MAX_STEPS = 200 # a safety net only: the real limit is the clock\n STOP_MARGIN = 5  # seconds kept free at the end\n MAX_OUTPUT_CHARS = 1000\n \n@@ -48,6 +52,7 @@\n         {\"role\": \"system\", \"content\": SYSTEM_PROMPT},\n         {\"role\": \"user\", \"content\": task},\n     ]\n+    checked = False\n     for step in range(MAX_STEPS):\n         if env.time_left() < STOP_MARGIN:\n             return\n@@ -55,7 +60,11 @@\n         messages.append(reply)\n         tool_calls = reply.get(\"tool_calls\") or []\n         if not tool_calls:\n-            return  # the model answered in text: we are done\n+            if checked or env.time_left() < 40:\n+                return  # the model answered in text: we are done\n+            checked = True  # once: make the model test its result before it may finish\n+            messages.append({\"role\": \"user\", \"content\": CHECK_PROMPT})\n+            continue\n         for call in tool_calls:\n             content = run_tool_call(call, env)\n             messages.append({\"role\": \"tool\", \"tool_call_id\": call[\"id\"], \"content\": content})\n",
+     "spend_usd": 0.636407
+    },
+    {
+     "t": 1530.62,
+     "schema": "aidev-evolve/1",
+     "run_id": "B1",
+     "kind": "iteration",
+     "iteration": 5,
+     "candidate": "c005",
+     "parent": "c001",
+     "title": "Tell the model when output is truncated",
+     "hypothesis": "Hypothesis: Outputs are silently cut at 1000 chars; in sparql-university the model re-read the data file in pieces, never saw the graduation dates, assumed it had seen everything and answered wrongly.",
+     "accepted": false,
+     "verdict": "dropped",
+     "val_child": 0.8333333333333334,
+     "val_parent": 0.8611111111111112,
+     "best_val": 0.8611111111111112,
+     "fixed": [
+      "configure-git-webserver"
+     ],
+     "broke": [
+      "build-pmars"
+     ],
+     "diff": "--- agent.py (c001)\n+++ agent.py (c005)\n@@ -34,6 +34,9 @@\n def format_output(result):\n     \"\"\"What the model sees of a command's result.\"\"\"\n     output = result.output[:MAX_OUTPUT_CHARS]\n+    if len(result.output) > MAX_OUTPUT_CHARS:\n+        cut = len(result.output) - MAX_OUTPUT_CHARS\n+        output += f\"\\n[TRUNCATED: {cut} more chars not shown. Do not assume the rest; use grep, head/tail or a smaller range.]\"\n     return f\"exit code: {result.exit_code}\\n{output}\"\n \n \n",
+     "spend_usd": 0.761413
+    },
+    {
+     "t": 1786.06,
+     "schema": "aidev-evolve/1",
+     "run_id": "B1",
+     "kind": "iteration",
+     "iteration": 6,
+     "candidate": "c006",
+     "parent": "c001",
+     "title": "Explicit work routine in system prompt",
+     "hypothesis": "Hypothesis: The sparql-university run ended on reasoning about data counts with the query never executed; the system prompt gives no working method (sparql-university trace, steps 13-15).",
+     "accepted": false,
+     "verdict": "dropped",
+     "val_child": 0.9166666666666666,
+     "val_parent": 0.8690476190476191,
+     "best_val": 0.8690476190476191,
+     "fixed": [
+      "build-pmars",
+      "configure-git-webserver",
+      "constraints-scheduling"
+     ],
+     "broke": [
+      "count-dataset-tokens"
+     ],
+     "diff": "--- agent.py (c001)\n+++ agent.py (c006)\n@@ -11,7 +11,14 @@\n import json\n \n SYSTEM_PROMPT = \"\"\"You are an AI agent that solves tasks in a Linux terminal.\n-Use the bash tool to run commands. When the task is complete, reply with a short summary.\"\"\"\n+Use the bash tool to run commands. When the task is complete, reply with a short summary.\n+\n+Work like this:\n+1. Before acting, list every requirement in the task (exact file names, paths, formats, edge cases).\n+2. Look at the real inputs first; never guess data, names or tool availability.\n+3. Build the result, then test it by executing it on the real data, e.g. run the program or query\n+   and compare its output with what the task asks for. Reasoning about the answer is not a test.\n+4. If a tool is missing or a check fails, fix the cause and rerun; do not stop on an untested result.\"\"\"\n \n MAX_STEPS = 200  # a safety net only: the real limit is the clock\n STOP_MARGIN = 5  # seconds kept free at the end\n",
+     "spend_usd": 0.932591
+    },
+    {
+     "t": 2032.33,
+     "schema": "aidev-evolve/1",
+     "run_id": "B1",
+     "kind": "iteration",
+     "iteration": 7,
+     "candidate": "c007",
+     "parent": "c001",
+     "title": "Show remaining time after every command",
+     "hypothesis": "Hypothesis: The model never sees the clock; runs end in text after 15-50 s with the answer unexecuted (sparql-university) or use 106-134 s without noticing the deadline (build-pov-ray, financial-document-processor).",
+     "accepted": false,
+     "verdict": "dropped",
+     "val_child": 0.75,
+     "val_parent": 0.84375,
+     "best_val": 0.84375,
+     "fixed": [
+      "configure-git-webserver",
+      "constraints-scheduling",
+      "extract-elf"
+     ],
+     "broke": [
+      "build-pmars",
+      "count-dataset-tokens"
+     ],
+     "diff": "--- agent.py (c001)\n+++ agent.py (c007)\n@@ -31,16 +31,18 @@\n }\n \n \n-def format_output(result):\n-    \"\"\"What the model sees of a command's result.\"\"\"\n+def format_output(result, time_left):\n+    \"\"\"What the model sees of a command's result, plus the clock.\"\"\"\n     output = result.output[:MAX_OUTPUT_CHARS]\n-    return f\"exit code: {result.exit_code}\\n{output}\"\n+    note = f\"[{int(time_left)} s left of the budget\"\n+    note += \"; wrap up: make sure the deliverable exists and works]\" if time_left < 45 else \"]\"\n+    return f\"exit code: {result.exit_code}\\n{output}\\n{note}\"\n \n \n def run_tool_call(call, env):\n     args = json.loads(call[\"function\"][\"arguments\"])\n     result = env.shell(\"{ \" + args[\"command\"] + \"\\n} 2>/dev/null\")  # only stdout: stderr is mostly noise\n-    return format_output(result)\n+    return format_output(result, env.time_left())\n \n \n def run(task, env):\n",
+     "spend_usd": 1.047861
+    },
+    {
+     "t": 2282.8,
+     "schema": "aidev-evolve/1",
+     "run_id": "B1",
+     "kind": "iteration",
+     "iteration": 8,
+     "candidate": "c008",
+     "parent": "c001",
+     "title": "Save full output to a searchable file",
+     "hypothesis": "Hypothesis: In sparql-university the model saw only the first 1000 chars of each output, re-read the data in pieces (8 of 15 calls), missed the graduation dates and answered wrongly; iterations 2 and 5 (bigger cap, a note) were dropped.",
+     "accepted": false,
+     "verdict": "dropped",
+     "val_child": 0.8333333333333334,
+     "val_parent": 0.8518518518518517,
+     "best_val": 0.8518518518518517,
+     "fixed": [
+      "build-pmars",
+      "configure-git-webserver",
+      "count-dataset-tokens",
+      "extract-elf"
+     ],
+     "broke": [
+      "constraints-scheduling"
+     ],
+     "diff": "--- agent.py (c001)\n+++ agent.py (c008)\n@@ -31,16 +31,21 @@\n }\n \n \n-def format_output(result):\n-    \"\"\"What the model sees of a command's result.\"\"\"\n-    output = result.output[:MAX_OUTPUT_CHARS]\n+def format_output(result, full, path):\n+    \"\"\"What the model sees of a command's result; long output is kept in a file it can search.\"\"\"\n+    output = full[:MAX_OUTPUT_CHARS]\n+    if len(full) > MAX_OUTPUT_CHARS:\n+        output += (f\"\\n[{len(full) - MAX_OUTPUT_CHARS} more chars not shown. Full output saved in {path}: \"\n+                   f\"use grep -n, sed -n 'A,Bp' or head/tail on it instead of re-running the command.]\")\n     return f\"exit code: {result.exit_code}\\n{output}\"\n \n \n-def run_tool_call(call, env):\n+def run_tool_call(call, env, n):\n     args = json.loads(call[\"function\"][\"arguments\"])\n-    result = env.shell(\"{ \" + args[\"command\"] + \"\\n} 2>/dev/null\")  # only stdout: stderr is mostly noise\n-    return format_output(result)\n+    path = f\"/tmp/out_{n}.txt\"\n+    result = env.shell(\"{ \" + args[\"command\"] + \"\\n} 2>/dev/null >\" + path)  # only stdout: stderr is mostly noise\n+    full = env.shell(f\"cat {path}\").output\n+    return format_output(result, full, path)\n \n \n def run(task, env):\n@@ -56,6 +61,6 @@\n         tool_calls = reply.get(\"tool_calls\") or []\n         if not tool_calls:\n             return  # the model answered in text: we are done\n-        for call in tool_calls:\n-            content = run_tool_call(call, env)\n+        for i, call in enumerate(tool_calls):\n+            content = run_tool_call(call, env, f\"{step}_{i}\")\n             messages.append({\"role\": \"tool\", \"tool_call_id\": call[\"id\"], \"content\": content})\n",
+     "spend_usd": 1.181824
+    },
+    {
+     "t": 2499.21,
+     "schema": "aidev-evolve/1",
+     "run_id": "B1",
+     "kind": "heldout",
+     "seed": 0.8125,
+     "best": 0.8125,
+     "best_candidate": "c001",
+     "n_tasks": 8,
+     "trials": 2,
+     "diff": 0.0,
+     "ci_low": -0.25,
+     "ci_high": 0.25,
+     "spend_usd": 1.290628
+    }
+   ]
+  },
+  {
+   "name": "B2",
+   "user": "recorded-B2",
+   "events": [
+    {
+     "t": 104.51,
+     "schema": "aidev-evolve/1",
+     "run_id": "B2",
+     "kind": "seed",
+     "val_score": 0.3333333333333333,
+     "search_score": 0.0,
+     "spend_usd": 0.039821
+    },
+    {
+     "t": 465.84,
+     "schema": "aidev-evolve/1",
+     "run_id": "B2",
+     "kind": "iteration",
+     "iteration": 1,
+     "candidate": "c001",
+     "parent": "c000",
+     "title": "Run until time budget, not 10 steps",
+     "hypothesis": "Hypothesis: all four transcripts end \"returned\" after exactly 10 model calls and only 18-32 s of the 180 s budget; the model was still exploring (listing files, checking tools) when the step cap cut it off.",
+     "accepted": true,
+     "verdict": "kept",
+     "val_child": 0.8333333333333334,
+     "val_parent": 0.5,
+     "best_val": 0.8333333333333334,
+     "fixed": [
+      "build-pmars",
+      "configure-git-webserver",
+      "constraints-scheduling",
+      "count-dataset-tokens",
+      "extract-elf",
+      "sqlite-with-gcov"
+     ],
+     "broke": [],
+     "diff": "--- agent.py (c000)\n+++ agent.py (c001)\n@@ -13,7 +13,8 @@\n SYSTEM_PROMPT = \"\"\"You are an AI agent that solves tasks in a Linux terminal.\n Use the bash tool to run commands. When the task is complete, reply with a short summary.\"\"\"\n \n-MAX_STEPS = 10\n+MAX_STEPS = 100  # a safety net: the time budget is the real limit\n+STOP_MARGIN = 10  # seconds kept free so the last command is not cut off\n MAX_OUTPUT_CHARS = 1000\n \n BASH_TOOL = {\n@@ -48,6 +49,8 @@\n         {\"role\": \"user\", \"content\": task},\n     ]\n     for step in range(MAX_STEPS):\n+        if env.time_left() < STOP_MARGIN:\n+            return\n         reply = env.llm(messages, tools=[BASH_TOOL])\n         messages.append(reply)\n         tool_calls = reply.get(\"tool_calls\") or []\n",
+     "spend_usd": 0.241008
+    },
+    {
+     "t": 655.37,
+     "schema": "aidev-evolve/1",
+     "run_id": "B2",
+     "kind": "iteration",
+     "iteration": 2,
+     "candidate": "c002",
+     "parent": "c001",
+     "title": "Show stderr and the tail of outputs",
+     "hypothesis": "Hypothesis: failures (build-pov-ray, financial-document-processor) lost information: stderr was discarded and long outputs were cut to the first 1000 chars, so compiler/linker errors (printed last) and tool diagnostics were hidden and the model guessed or looped.",
+     "accepted": false,
+     "verdict": "dropped",
+     "val_child": 0.8333333333333334,
+     "val_parent": 0.8611111111111112,
+     "best_val": 0.8611111111111112,
+     "fixed": [
+      "extract-elf"
+     ],
+     "broke": [
+      "build-pmars",
+      "count-dataset-tokens"
+     ],
+     "diff": "--- agent.py (c001)\n+++ agent.py (c002)\n@@ -15,7 +15,7 @@\n \n MAX_STEPS = 100  # a safety net: the time budget is the real limit\n STOP_MARGIN = 10  # seconds kept free so the last command is not cut off\n-MAX_OUTPUT_CHARS = 1000\n+MAX_OUTPUT_CHARS = 3000\n \n BASH_TOOL = {\n     \"type\": \"function\",\n@@ -33,13 +33,16 @@\n \n def format_output(result):\n     \"\"\"What the model sees of a command's result.\"\"\"\n-    output = result.output[:MAX_OUTPUT_CHARS]\n+    output = result.output\n+    if len(output) > MAX_OUTPUT_CHARS:  # errors and results come last: keep both ends\n+        half = MAX_OUTPUT_CHARS // 2\n+        output = output[:half] + f\"\\n[... {len(output) - 2 * half} chars cut ...]\\n\" + output[-half:]\n     return f\"exit code: {result.exit_code}\\n{output}\"\n \n \n def run_tool_call(call, env):\n     args = json.loads(call[\"function\"][\"arguments\"])\n-    result = env.shell(\"{ \" + args[\"command\"] + \"\\n} 2>/dev/null\")  # only stdout: stderr is mostly noise\n+    result = env.shell(\"{ \" + args[\"command\"] + \"\\n} 2>&1\")  # stderr carries the error messages\n     return format_output(result)\n \n \n",
+     "spend_usd": 0.344851
+    },
+    {
+     "t": 899.65,
+     "schema": "aidev-evolve/1",
+     "run_id": "B2",
+     "kind": "iteration",
+     "iteration": 3,
+     "candidate": "c003",
+     "parent": "c001",
+     "title": "Show the clock, force delivery near deadline",
+     "hypothesis": "Hypothesis: the model never sees the time budget; in financial-document-processor it spent 172 s of 180 s on OCR of one unreadable file and produced no output at all (also build-pov-ray finished unverified), so partial credit was impossible.",
+     "accepted": false,
+     "verdict": "dropped",
+     "val_child": 0.9166666666666666,
+     "val_parent": 0.8541666666666666,
+     "best_val": 0.8541666666666666,
+     "fixed": [
+      "build-pmars",
+      "extract-elf"
+     ],
+     "broke": [
+      "count-dataset-tokens"
+     ],
+     "diff": "--- agent.py (c001)\n+++ agent.py (c003)\n@@ -16,6 +16,7 @@\n MAX_STEPS = 100  # a safety net: the time budget is the real limit\n STOP_MARGIN = 10  # seconds kept free so the last command is not cut off\n MAX_OUTPUT_CHARS = 1000\n+WRAP_UP_AT = 70  # seconds left when the model is told to deliver what it has\n \n BASH_TOOL = {\n     \"type\": \"function\",\n@@ -35,6 +36,16 @@\n     \"\"\"What the model sees of a command's result.\"\"\"\n     output = result.output[:MAX_OUTPUT_CHARS]\n     return f\"exit code: {result.exit_code}\\n{output}\"\n+\n+\n+def clock_note(env):\n+    \"\"\"Keep the model aware of the deadline; near the end, demand a best-effort deliverable.\"\"\"\n+    left = int(env.time_left())\n+    note = f\"\\n[time left: {left} s]\"\n+    if left < WRAP_UP_AT:\n+        note += (\" WRAP UP NOW: stop investigating. Write every required output file/state with your\"\n+                 \" best guess (use placeholders for what you could not read), then finish.\")\n+    return note\n \n \n def run_tool_call(call, env):\n@@ -57,5 +68,5 @@\n         if not tool_calls:\n             return  # the model answered in text: we are done\n         for call in tool_calls:\n-            content = run_tool_call(call, env)\n+            content = run_tool_call(call, env) + clock_note(env)\n             messages.append({\"role\": \"tool\", \"tool_call_id\": call[\"id\"], \"content\": content})\n",
+     "spend_usd": 0.474644
+    },
+    {
+     "t": 1152.79,
+     "schema": "aidev-evolve/1",
+     "run_id": "B2",
+     "kind": "iteration",
+     "iteration": 4,
+     "candidate": "c004",
+     "parent": "c001",
+     "title": "Show stderr only when a command fails",
+     "hypothesis": "Hypothesis: stderr is thrown away, so failing commands return exit 2 and empty or vague output (build-pov-ray: compiler/linker errors hidden, repeated blind retries; financial-document-processor: tool failures invisible during OCR attempts).",
+     "accepted": false,
+     "verdict": "dropped",
+     "val_child": 0.8333333333333334,
+     "val_parent": 0.85,
+     "best_val": 0.85,
+     "fixed": [
+      "build-pmars",
+      "extract-elf"
+     ],
+     "broke": [
+      "count-dataset-tokens"
+     ],
+     "diff": "--- agent.py (c001)\n+++ agent.py (c004)\n@@ -39,8 +39,12 @@\n \n def run_tool_call(call, env):\n     args = json.loads(call[\"function\"][\"arguments\"])\n-    result = env.shell(\"{ \" + args[\"command\"] + \"\\n} 2>/dev/null\")  # only stdout: stderr is mostly noise\n-    return format_output(result)\n+    result = env.shell(\"{ \" + args[\"command\"] + \"\\n} 2>/tmp/.stderr\")  # stderr kept aside, not mixed in\n+    text = format_output(result)\n+    if result.exit_code != 0:  # a failure: show why (error messages are printed to stderr)\n+        err = env.shell(\"tail -c 1500 /tmp/.stderr\").output\n+        text += f\"\\nstderr (last 1500 chars):\\n{err}\"\n+    return text\n \n \n def run(task, env):\n",
+     "spend_usd": 0.606511
+    },
+    {
+     "t": 1407.01,
+     "schema": "aidev-evolve/1",
+     "run_id": "B2",
+     "kind": "iteration",
+     "iteration": 5,
+     "candidate": "c005",
+     "parent": "c001",
+     "title": "Verify requirements before declaring done",
+     "hypothesis": "Hypothesis: build-pov-ray ended with a confident \"build complete\" summary after only a sanity run and still got reward 0; the model never re-checked the task's explicit requirements (paths, names, formats) before stopping.",
+     "accepted": false,
+     "verdict": "dropped",
+     "val_child": 0.9166666666666666,
+     "val_parent": 0.8472222222222222,
+     "best_val": 0.8472222222222222,
+     "fixed": [
+      "build-pmars",
+      "count-dataset-tokens",
+      "extract-elf"
+     ],
+     "broke": [],
+     "diff": "--- agent.py (c001)\n+++ agent.py (c005)\n@@ -16,6 +16,12 @@\n MAX_STEPS = 100  # a safety net: the time budget is the real limit\n STOP_MARGIN = 10  # seconds kept free so the last command is not cut off\n MAX_OUTPUT_CHARS = 1000\n+VERIFY_MIN_TIME = 40  # only ask for a final check if this many seconds are left\n+\n+VERIFY_PROMPT = \"\"\"Before you finish: re-read the task statement. List every explicit requirement\n+(file paths, names, formats, values, commands that must work). Check each one now with a command,\n+on the real final state, as a hidden test would. Fix anything missing.\n+If everything is verified, reply with a short summary.\"\"\"\n \n BASH_TOOL = {\n     \"type\": \"function\",\n@@ -48,6 +54,7 @@\n         {\"role\": \"system\", \"content\": SYSTEM_PROMPT},\n         {\"role\": \"user\", \"content\": task},\n     ]\n+    verified = False\n     for step in range(MAX_STEPS):\n         if env.time_left() < STOP_MARGIN:\n             return\n@@ -55,7 +62,11 @@\n         messages.append(reply)\n         tool_calls = reply.get(\"tool_calls\") or []\n         if not tool_calls:\n-            return  # the model answered in text: we are done\n+            if verified or env.time_left() < VERIFY_MIN_TIME:\n+                return  # the model answered in text: we are done\n+            verified = True  # one self-check against the task before accepting \"done\"\n+            messages.append({\"role\": \"user\", \"content\": VERIFY_PROMPT})\n+            continue\n         for call in tool_calls:\n             content = run_tool_call(call, env)\n             messages.append({\"role\": \"tool\", \"tool_call_id\": call[\"id\"], \"content\": content})\n",
+     "spend_usd": 0.731169
+    },
+    {
+     "t": 1643.37,
+     "schema": "aidev-evolve/1",
+     "run_id": "B2",
+     "kind": "iteration",
+     "iteration": 6,
+     "candidate": "c006",
+     "parent": "c001",
+     "title": "Deliver early, switch approach, never stall",
+     "hypothesis": "Hypothesis: financial-document-processor spent ~25 of 53 calls retrying OCR variants on one unreadable file and delivered nothing; build-pov-ray also ended unchecked against the task's wording. The model has no working discipline in its prompt.",
+     "accepted": false,
+     "verdict": "dropped",
+     "val_child": 0.75,
+     "val_parent": 0.8333333333333334,
+     "best_val": 0.8333333333333334,
+     "fixed": [
+      "build-pmars"
+     ],
+     "broke": [
+      "count-dataset-tokens",
+      "extract-elf"
+     ],
+     "diff": "--- agent.py (c001)\n+++ agent.py (c006)\n@@ -11,7 +11,15 @@\n import json\n \n SYSTEM_PROMPT = \"\"\"You are an AI agent that solves tasks in a Linux terminal.\n-Use the bash tool to run commands. When the task is complete, reply with a short summary.\"\"\"\n+Use the bash tool to run commands. When the task is complete, reply with a short summary.\n+\n+Working rules:\n+- Time is short (about 3 minutes). First produce a complete, working deliverable in the exact\n+  places and formats the task names, even if rough. Only then improve it.\n+- If an approach fails twice, or one item eats more than about 5 commands, stop and switch to a\n+  different approach, or make a best guess for that item and move on to the rest.\n+- Never leave required outputs missing: a best-guess output beats none.\n+- Before you finish, check the result against the task's exact wording.\"\"\"\n \n MAX_STEPS = 100  # a safety net: the time budget is the real limit\n STOP_MARGIN = 10  # seconds kept free so the last command is not cut off\n",
+     "spend_usd": 0.909764
+    },
+    {
+     "t": 1857.41,
+     "schema": "aidev-evolve/1",
+     "run_id": "B2",
+     "kind": "iteration",
+     "iteration": 7,
+     "candidate": "c007",
+     "parent": "c001",
+     "title": "Periodic progress checkpoint in tool results",
+     "hypothesis": "Hypothesis: financial-document-processor spent ~45 calls on OCR variants of one file and delivered nothing; build-pov-ray declared done without tracking what remained. Static prompt rules (iter 6) and a late deadline warning (iter 3) did not work; the model needs a recurring in-context prompt to take stock.",
+     "accepted": false,
+     "verdict": "dropped",
+     "val_child": 1.0,
+     "val_parent": 0.84375,
+     "best_val": 0.84375,
+     "fixed": [
+      "build-pmars",
+      "configure-git-webserver",
+      "count-dataset-tokens",
+      "extract-elf"
+     ],
+     "broke": [],
+     "diff": "--- agent.py (c001)\n+++ agent.py (c007)\n@@ -16,6 +16,14 @@\n MAX_STEPS = 100  # a safety net: the time budget is the real limit\n STOP_MARGIN = 10  # seconds kept free so the last command is not cut off\n MAX_OUTPUT_CHARS = 1000\n+CHECKPOINT_EVERY = 8  # tool calls between progress checkpoints\n+\n+CHECKPOINT = (\n+    \"\\n[checkpoint: {n} commands used, {t:.0f} s left] Before the next command, state in one line: \"\n+    \"which parts of the task are DONE and written to the required place, and which remain. \"\n+    \"If you have spent several commands on one sub-problem without progress, drop it, use your best \"\n+    \"guess for it, and finish the remaining parts first.\"\n+)\n \n BASH_TOOL = {\n     \"type\": \"function\",\n@@ -48,6 +56,7 @@\n         {\"role\": \"system\", \"content\": SYSTEM_PROMPT},\n         {\"role\": \"user\", \"content\": task},\n     ]\n+    calls = 0\n     for step in range(MAX_STEPS):\n         if env.time_left() < STOP_MARGIN:\n             return\n@@ -58,4 +67,7 @@\n             return  # the model answered in text: we are done\n         for call in tool_calls:\n             content = run_tool_call(call, env)\n+            calls += 1\n+            if calls % CHECKPOINT_EVERY == 0:\n+                content += CHECKPOINT.format(n=calls, t=env.time_left())\n             messages.append({\"role\": \"tool\", \"tool_call_id\": call[\"id\"], \"content\": content})\n",
+     "spend_usd": 1.023691
+    },
+    {
+     "t": 2106.21,
+     "schema": "aidev-evolve/1",
+     "run_id": "B2",
+     "kind": "iteration",
+     "iteration": 8,
+     "candidate": "c008",
+     "parent": "c001",
+     "title": "Detect repeated-command loops, force new approach",
+     "hypothesis": "Hypothesis: financial-document-processor spent 25+ calls re-running tesseract variants on one unreadable file and delivered nothing; build-pov-ray also repeated near-identical fix attempts.",
+     "accepted": false,
+     "verdict": "dropped",
+     "val_child": 0.9166666666666666,
+     "val_parent": 0.8425925925925926,
+     "best_val": 0.8425925925925926,
+     "fixed": [
+      "build-pmars",
+      "configure-git-webserver",
+      "count-dataset-tokens",
+      "extract-elf"
+     ],
+     "broke": [],
+     "diff": "--- agent.py (c001)\n+++ agent.py (c008)\n@@ -9,6 +9,7 @@\n \"\"\"\n \n import json\n+import re\n \n SYSTEM_PROMPT = \"\"\"You are an AI agent that solves tasks in a Linux terminal.\n Use the bash tool to run commands. When the task is complete, reply with a short summary.\"\"\"\n@@ -43,7 +44,23 @@\n     return format_output(result)\n \n \n+def main_program(command):\n+    \"\"\"The program name of the last command in a pipeline or && chain.\"\"\"\n+    last = re.split(r\"&&|\\|\\||[|;]\", command.strip())[-1].split()\n+    return last[0] if last else \"\"\n+\n+\n+def stuck_note(history):\n+    \"\"\"After 4 commands in a row with the same main program, tell the model to change approach.\"\"\"\n+    if len(history) >= 4 and len(set(history[-4:])) == 1:\n+        return (f\"\\n[harness: your last 4 commands all ran `{history[-1]}` and results are not improving. \"\n+                \"Try a different tool or method, or accept the best result so far \"\n+                \"and finish the other required outputs.]\")\n+    return \"\"\n+\n+\n def run(task, env):\n+    history = []\n     messages = [\n         {\"role\": \"system\", \"content\": SYSTEM_PROMPT},\n         {\"role\": \"user\", \"content\": task},\n@@ -58,4 +75,6 @@\n             return  # the model answered in text: we are done\n         for call in tool_calls:\n             content = run_tool_call(call, env)\n+            history.append(main_program(json.loads(call[\"function\"][\"arguments\"])[\"command\"]))\n+            content += stuck_note(history)\n             messages.append({\"role\": \"tool\", \"tool_call_id\": call[\"id\"], \"content\": content})\n",
+     "spend_usd": 1.132241
+    },
+    {
+     "t": 2315.52,
+     "schema": "aidev-evolve/1",
+     "run_id": "B2",
+     "kind": "heldout",
+     "seed": 0.5625,
+     "best": 0.75,
+     "best_candidate": "c001",
+     "n_tasks": 8,
+     "trials": 2,
+     "diff": 0.1875,
+     "ci_low": 0.0,
+     "ci_high": 0.4375,
+     "spend_usd": 1.229181
+    }
+   ]
+  }
+ ]
+}

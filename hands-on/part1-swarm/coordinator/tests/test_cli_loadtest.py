@@ -93,3 +93,45 @@ def test_loadtest_fills_the_grid_without_double_claims(files):
     assert report["errors"] == 0
     assert report["latency_ms"]["claim"]["n"] == 90 + 25  # one 204 per runner at the end
     assert report["latency_ms"]["submit"]["p95"] >= 0
+
+
+# ---- Part 2: the evolve board in the same process -----------------------------------------------------
+
+def test_live_mode_restores_evolve_events_from_the_bucket_and_shows_the_recorded_backdrop(files):
+    api = FakeBucketApi()
+    api.files["evolve/alice/alice-r1/seed-000.json"] = json.dumps({"schema": "aidev-evolve/1", "run_id": "alice-r1", "kind": "seed", "iteration": 0,
+                                                                   "val_score": 0.4, "search_score": 0.0, "spend_usd": 0.1,
+                                                                   "user": "alice", "received_at": 1.0}).encode()
+    c = build(parse(files), env={"SWARM_BUCKET": "agent-harness-workshop/aidev-swarm-results", "HF_TOKEN": "x"}, hub_api=api)
+    assert [e["user"] for e in c.evolve_store.events()] == ["alice"]
+    assert c.evolve_replayer is None
+    from fastapi.testclient import TestClient
+    st = TestClient(c.app).get("/api/evolve/state").json()
+    assert [r["label"] for r in st["reference"]] == ["recorded B1", "recorded B2"]
+    assert st["totals"]["attendees"] == 1
+
+
+def test_replay_mode_streams_the_recorded_evolve_runs(files):
+    import time as _time
+    from fastapi.testclient import TestClient
+
+    c = build(parse(["--replay", "--replay-minutes", "0.01", *files]), env={})
+    with TestClient(c.app) as client:
+        for _ in range(40):
+            if len(c.evolve_store.events()) == 20:
+                break
+            _time.sleep(0.1)
+        assert len(c.evolve_store.events()) == 20  # B1 and B2: seed + 8 iterations + held-out each
+        assert client.post("/api/evolve/submit", json={}, headers={"Authorization": "Bearer x"}).status_code == 503  # read-only
+
+
+def test_evolve_loadtest_posts_every_attendees_events_and_the_board_counts_them(files):
+    from swarm_coordinator.loadtest import run_evolve_loadtest
+
+    c = build(parse(["--fake-auth", *files]), env={})
+    transport = httpx.ASGITransport(app=c.app)
+    report = asyncio.run(run_evolve_loadtest("http://test", attendees=30, interval_s=0.05, iterations=3, viewers=2, transport=transport))
+    assert report["errors"] == 0 and report["rate_limited"] == 0
+    assert report["latency_ms"]["submit"]["n"] == 30 * 4  # seed + 3 iterations each
+    assert report["board"]["attendees"] == 30 and report["board"]["iterations"] == 90
+    assert report["latency_ms"]["state"]["n"] > 0

@@ -17,7 +17,8 @@ def test_stage_holds_everything_the_image_needs(tmp_path):
     for need in ["Dockerfile", "README.md", "coordinator/pyproject.toml", "coordinator/uv.lock",
                  "coordinator/src/swarm_coordinator/app.py", "coordinator/src/swarm_coordinator/static/board.html",
                  "coordinator/src/swarm_coordinator/data/harnesses.json",
-                 "config/grid.json", "config/prices.json", "replay/reference.json"]:
+                 "config/grid.json", "config/prices.json", "replay/reference.json",
+                 "coordinator/src/swarm_coordinator/static/evolve.html", "replay/evolve-recorded.json"]:
         assert need in names, need
     assert not any("/tests/" in n or ".venv" in n or "__pycache__" in n for n in names)
     readme = (out / "README.md").read_text()
