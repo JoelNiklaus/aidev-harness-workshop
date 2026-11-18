@@ -26,10 +26,13 @@ uvx --from "https://github.com/JoelNiklaus/aidev-harness-workshop/releases/downl
 ## Part 2 in the room
 
 ```bash
-uvx --from "https://github.com/JoelNiklaus/aidev-harness-workshop/releases/download/evolve-v0.2.1/aidev_evolve-0.2.1-py3-none-any.whl" aidev-evolve run --proposer claude --model sonnet
+W="https://github.com/JoelNiklaus/aidev-harness-workshop/releases/download/evolve-v0.3.0/aidev_evolve-0.3.0-py3-none-any.whl"
+uvx --from "$W" aidev-evolve check                    # HF login, your coding agent, the room board
+uvx --from "$W" aidev-evolve run --proposer claude    # or --proposer codex
+uvx --from "$W" aidev-evolve replay                   # a recorded real run, offline
 ```
 
-Use `--proposer codex` for Codex, or `--proposer manual` to paste the prompt into any coding agent. `aidev-evolve replay` plays a recorded real run without network.
+`run` prints the room board's address and streams every iteration to it. Use `--proposer manual` to paste the prompt into any coding agent. Leave the laptop open: the loop runs about 30 minutes and ends with a held-out check.
 
 ## Layout
 

@@ -36,5 +36,11 @@ validation split (`src/aidev_evolve/data/splits.json`), so every attendee's curv
 
 ## Client behaviour (built)
 
-- `aidev-evolve run --board <coordinator URL>` posts the events; without `--board` nothing is sent.
-- A failed POST prints one dim line and the loop goes on (best effort, 10 s timeout, no retry queue yet).
+- `aidev-evolve run` posts the events to the coordinator (`board.ROOM_URL`) by default; `--board <url>` points
+  elsewhere, `--no-board` sends nothing. It prints `<board>/evolve` first.
+- Every event goes to `<run folder>/outbox.jsonl` first; the client then delivers the outbox in order (10 s timeout
+  per POST). A network error, 5xx, 401, 408 or 429 leaves the rest queued for the next event; another 4xx drops
+  that one event. At the end of the run it retries 4 times (5, 10, 15 s apart); `run --resume` sends whatever is
+  left. The server must therefore stay idempotent on `(user, run_id, kind, iteration)`, and may receive events
+  minutes late, in a burst.
+- `aidev-evolve check` calls `GET /api/evolve/state` once (200 = reachable; anything else is a warning only).

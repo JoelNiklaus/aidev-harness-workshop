@@ -7,6 +7,7 @@ from typing import Any
 RESET, BOLD, DIM, RED, GREEN, YELLOW, CYAN = "\033[0m", "\033[1m", "\033[2m", "\033[31m", "\033[32m", "\033[33m", "\033[36m"
 BARS = " ▁▂▃▄▅▆▇█"
 MAX_DIFF_LINES = 60
+HYPOTHESIS_WIDTH = 150  # one line on a laptop terminal
 
 
 def paint(text: str, code: str, color: bool) -> str:
@@ -56,13 +57,25 @@ def diff_block(diff: str, color: bool = False) -> str:
     return "\n".join("    " + line for line in out) + "\n"
 
 
+def one_line(text: str, width: int = HYPOTHESIS_WIDTH) -> str:
+    text = " ".join(text.split())
+    return text if len(text) <= width else text[: width - 1].rstrip() + "…"
+
+
+def proposal_block(h: dict[str, Any], color: bool = False) -> str:
+    """What the proposer changed, shown as soon as it is done, so the attendee reads it while the Job runs."""
+    out = f"  proposer ({h.get('proposer_s', 0):.0f} s): {paint(h.get('title') or '', BOLD, color)}\n"
+    if h.get("hypothesis"):
+        out += f"  {paint(one_line(h['hypothesis']), CYAN, color)}\n"
+    if h.get("diff"):
+        out += diff_block(h["diff"], color)
+    return out
+
+
 def iteration_card(h: dict[str, Any], curve: list[float], color: bool = False) -> str:
+    """The result of one iteration (the diff was shown by proposal_block before the evaluation)."""
     head = f"\n{paint(f'Iteration {h['iteration']}', BOLD, color)}  {h['candidate']} from {h['parent']}: {paint(h.get('title') or '', BOLD, color)}\n"
     body = ""
-    if h.get("hypothesis"):
-        body += f"  {h['hypothesis']}\n"
-    if h.get("diff"):
-        body += diff_block(h["diff"], color)
     verdict = h["verdict"]
     if "val_child" in h:  # evaluated: kept, dropped, or dropped after the re-measure
         delta = h["val_child"] - h["val_parent"]

@@ -127,9 +127,12 @@ class Evolver:
 
     def _submit(self, event: dict[str, Any]) -> None:
         try:
-            self.board.submit({"run_id": self.run_id, **event})
+            waiting = self.board.submit({"run_id": self.run_id, **event})
         except Exception as e:  # noqa: BLE001 - the room board never stops the loop
             self.write(show.paint(f"  (room board unreachable: {type(e).__name__})\n", show.DIM, self.color))
+            return
+        if waiting:  # a QueuedBoard keeps undelivered events in the run folder and retries with the next one
+            self.write(show.paint(f"  (room board offline: {waiting} updates queued, sent when it is back; your loop goes on)\n", show.DIM, self.color))
 
     def _eval(self, eval_id: str, runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
         cands = {r["candidate"] for r in runs}
@@ -212,6 +215,8 @@ class Evolver:
         title, patch = proposer.read_patch_notes(work)
         diff = "".join(difflib.unified_diff(self.source(parent).splitlines(True), new_src.splitlines(True), f"agent.py ({parent})", f"agent.py ({cand})"))
         h.update(title=title, patch=patch, hypothesis=next((l for l in patch.splitlines() if l.startswith("Hypothesis")), ""), diff=diff)
+        if pres.ok:
+            self.write(show.proposal_block(h, self.color))  # read while the Job runs
         if not pres.ok:
             h.update(verdict="skipped: proposer failed", detail=pres.error)
         elif new_src == self.source(parent):
@@ -224,7 +229,6 @@ class Evolver:
             self._finish(h)
             return h
         self._save_candidate(cand, new_src, parent, patch, diff)
-        self.write(f"  proposer: {title} ({pres.seconds:.0f} s)\n")
         ev = f"e{i:03d}"
         try:
             child_runs = ([{"candidate": cand, "tasks": self.splits["search"] + self.splits["validation"], "trials": 1}] if self.val_trials == 1 else

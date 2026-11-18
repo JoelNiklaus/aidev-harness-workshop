@@ -6,7 +6,8 @@ tell me if you disagree). Dates 17 Nov 2026.
 ## What an attendee does
 
 ```bash
-uvx --from "<wheel URL>" aidev-evolve run --proposer claude     # or codex, or manual
+uvx --from "<wheel URL>" aidev-evolve check                     # HF login, your coding agent, the room board
+uvx --from "<wheel URL>" aidev-evolve run --proposer claude     # or codex, or manual; posts to <board>/evolve
 uvx --from "<wheel URL>" aidev-evolve replay                     # offline: a recorded real run
 ```
 
