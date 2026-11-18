@@ -7,6 +7,7 @@ import hashlib
 import json
 import logging
 import math
+import re
 import time
 from collections.abc import Callable
 from importlib import resources
@@ -27,8 +28,18 @@ log = logging.getLogger("swarm.app")
 
 STATE_TTL_S = 2.0
 EVOLVE_PER_MINUTE, EVOLVE_BURST = 6, 10  # an attendee sends ~1 event per 4 min; a resumed run may flush a few at once
+CLAIM_AGAIN_S = 30  # every free cell is taken, but a leased one returns if its runner dies: ask again after this
+# Runners older than 0.4.0 heartbeat every 2 min against a 90 s lease, so they would lose their cells: they may not claim.
+MIN_RUNNER = (0, 4, 0)
+RUNNER_UA = re.compile(r"^aidev-swarm/(\d+)\.(\d+)\.(\d+)")
 BOOT_OPEN = b'<script id="boot" type="application/json">'
 BOOT_SLOT = BOOT_OPEN + b"null</script>"
+
+
+def runner_ok(user_agent: str | None) -> bool:
+    """A claim must come from a runner (User-Agent aidev-swarm/X.Y.Z) that speaks the short-lease protocol."""
+    m = RUNNER_UA.match(user_agent or "")
+    return bool(m) and tuple(int(g) for g in m.groups()) >= MIN_RUNNER
 
 
 class CachedJson:
@@ -114,9 +125,15 @@ def create_app(store: Store, auth: Any, *, reference: list[dict[str, Any]], meta
     @app.post("/api/claim")
     async def claim(request: Request, n: int = 1) -> Response:
         who = await user(request)
+        if not runner_ok(request.headers.get("user-agent")):
+            need = ".".join(map(str, MIN_RUNNER))
+            return JSONResponse({"detail": f"this runner is too old for the workshop coordinator (needs aidev-swarm >= {need}); "
+                                           "launch again with the current command from the board's /join page"}, status_code=426)
         got = store.claim(who, n)
         if not got:
-            return Response(status_code=204)
+            # nothing free: ask again later while leased cells may still come back, stop when the grid is full
+            headers = {"Retry-After": str(CLAIM_AGAIN_S)} if store.leased_open() else None
+            return Response(status_code=204, headers=headers)
         log.info("claim %s -> %s", who, ",".join(c["cell_id"] for c in got))
         return JSONResponse(got if n > 1 else got[0])
 

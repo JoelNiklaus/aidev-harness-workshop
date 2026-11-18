@@ -40,8 +40,9 @@ def problems(state: dict[str, Any], user: str, run_id: str) -> list[str]:
     if run is None:
         out.append(f"run {run_id} of {user} is not on the board")
     else:
-        if [c[0] for c in run["curve"]] != [0, 1, 2]:
-            out.append(f"curve has iterations {[c[0] for c in run['curve']]}, expected [0, 1, 2]")
+        xs = sorted({c[0] for c in run["curve"]})  # a step line: a kept patch's iteration appears twice
+        if xs != [0, 1, 2]:
+            out.append(f"curve has iterations {xs}, expected [0, 1, 2]")
         if run["heldout"] is None:
             out.append("held-out result missing")
         if not any(f["run_id"] == run_id for f in state["feed"]):

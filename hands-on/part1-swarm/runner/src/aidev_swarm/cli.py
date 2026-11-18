@@ -14,16 +14,18 @@ to the workshop coordinator; it is never printed.
 from __future__ import annotations
 
 import argparse
+import atexit
 import contextlib
 import json
 import os
+import random
 import signal
 import sys
 import threading
 import time
 import urllib.parse
 from collections.abc import Callable, Iterator, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from importlib import resources
 from pathlib import Path
 from typing import Any
@@ -33,6 +35,10 @@ from aidev_swarm import __version__, check, launch
 WHOAMI = "https://huggingface.co/api/whoami-v2"
 DEFAULT_COORDINATOR = "https://agent-harness-workshop-aidev-swarm.hf.space"  # Space agent-harness-workshop/aidev-swarm (coordinator deploy.DEFAULT_SPACE)
 MAX_FAILURES_IN_A_ROW = 3
+# The coordinator's lease is 90 s (store.LEASE_S): a beat every 30 s survives two lost beats, and a dead runner's
+# cell returns ~90 s after its last beat. 500 runners at one beat per 24-30 s send about 19 requests/s, below the
+# ~30/s from one IP that the HF edge took without a 429 (coordinator/PROGRESS.md).
+HEARTBEAT_S = 30
 
 
 def data_text(name: str) -> str:
@@ -87,7 +93,7 @@ class Deps:
     sandbox_echo: Callable[[str, str], str] = check.sandbox_echo
     cancel_job: Callable[[str, str, str], None] = check.cancel_job
     sleep: Callable[[float], None] = time.sleep
-    heartbeat_s: float = 120.0
+    heartbeat_s: float = HEARTBEAT_S
     check_poll_s: float = 3.0
     check_wait_s: float = 300.0
 
@@ -125,11 +131,25 @@ def _say(msg: str) -> None:
     print(f"[aidev-swarm {time.strftime('%H:%M:%S')}] {msg}", flush=True)
 
 
+def beat_wait(every_s: float, rng: random.Random) -> float:
+    """80-100% of the interval at random, so runners launched in the same minute do not beat in step."""
+    return every_s * rng.uniform(0.8, 1.0)
+
+
 def _heartbeats(coord: Any, cid: str, every_s: float, stop: threading.Event, started: float) -> None:
-    while not stop.wait(every_s):
+    """Runs in its own thread, so the lease stays renewed whatever the trial does."""
+    from aidev_swarm.coordinator import LeaseLost
+
+    rng, n = random.Random(), 0
+    while not stop.wait(beat_wait(every_s, rng)):
         try:
             coord.heartbeat(cid)
-            _say(f"still running ({(time.monotonic() - started) / 60:.0f} min)")
+            n += 1
+            if n % 10 == 0:  # about every 5 min
+                _say(f"still running ({(time.monotonic() - started) / 60:.0f} min)")
+        except LeaseLost as e:
+            _say(f"lease lost on {cid} ({str(e)[:120]}): the cell expired and went to another runner; "
+                 f"this trial's result counts only if that runner gives it back")
         except Exception as e:  # noqa: BLE001 - a lost heartbeat must not kill the trial; the next beat tries again
             _say(f"heartbeat failed: {type(e).__name__}: {str(e)[:120]}")
 
@@ -146,12 +166,14 @@ def cell_id(harness: str, task: str, trial: int) -> str:
 
 @contextlib.contextmanager
 def _sigterm_as_interrupt() -> Iterator[None]:
-    """A cancelled or timed-out HF Job gets SIGTERM: treat it like Ctrl-C, so the cell is released."""
+    """A cancelled or timed-out HF Job gets SIGTERM: treat it like Ctrl-C, so the cell is released. Only the first
+    signal interrupts; later ones are ignored so they cannot cut the release short (SIGKILL follows anyway)."""
     if threading.current_thread() is not threading.main_thread():
         yield
         return
 
     def interrupt(signum, frame):
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
         raise KeyboardInterrupt
 
     before = signal.signal(signal.SIGTERM, interrupt)
@@ -173,17 +195,24 @@ class Session:
     user: str
     workdir: Path
     board: str = ""
+    held: set[str] = field(default_factory=set)  # cells this run holds a lease on: released on every way out
 
-    def release(self, cid: str, why: str) -> None:
-        """Give the cell back; when the coordinator cannot be reached, its lease expires instead (40 min)."""
+    def release(self, cid: str, why: str, *, quick: bool = False) -> None:
+        """Give the cell back; when the coordinator cannot be reached, its lease expires instead (90 s)."""
+        self.held.discard(cid)
         if self.coord is None:
             _say(why)
             return
         try:
-            self.coord.release(cid)
+            self.coord.release(cid, quick=quick)
             _say(f"{why}: cell released")
         except Exception as e:  # noqa: BLE001 - the original failure is the news; never mask it
             _say(f"{why}; releasing the cell failed too ({type(e).__name__}), so its lease expires on its own")
+
+    def release_held(self, why: str) -> None:
+        """On the way out (exception, SIGTERM, interpreter exit): give back every cell still held, fast."""
+        for cid in sorted(self.held):
+            self.release(cid, why, quick=True)
 
     # Results the coordinator did not take (HF edge rate limit, outage) wait here for the next try.
     @property
@@ -239,7 +268,7 @@ def _one(claim: dict[str, Any], s: Session, *, hold_on_failure: bool = False) ->
         lookup = s.deps.sandbox_id or _make_sandbox_id(s.token)
         result = build_result(claim, trial_dir, s.prices[claim["model"]], hf_user=s.user, runner_version=__version__, sandbox_id=lookup(cid, s.user))
     except KeyboardInterrupt:
-        s.release(cid, "interrupted")
+        s.release(cid, "interrupted", quick=True)
         return 130, None
     except Exception as e:  # noqa: BLE001
         return failed(f"trial crashed ({type(e).__name__}: {str(e)[:200]})")
@@ -252,9 +281,11 @@ def _one(claim: dict[str, Any], s: Session, *, hold_on_failure: bool = False) ->
         return failed(f"infrastructure failure before any model call ({result['error'][:200]})")
     try:
         s.coord.submit(cid, result)
+        s.held.discard(cid)
     except Exception as e:  # noqa: BLE001 - keep the finished result: on screen and on disk for the next try
         from aidev_swarm.coordinator import LeaseLost
 
+        s.held.discard(cid)  # no release: the kept result is sent again, and the stopped heartbeat lets the lease run out
         print(json.dumps(result, indent=2))
         kept = "" if isinstance(e, LeaseLost) else f"; kept in {s.keep_unsent(cid, result)} and sent again before the next claim"
         _say(f"result not accepted by the coordinator ({type(e).__name__}: {str(e)[:200]}); it is printed above{kept}")
@@ -271,6 +302,7 @@ def _claim_next(s: Session, held: str | None) -> dict[str, Any] | None:
     from aidev_swarm.coordinator import AtLimit
 
     def first(got: list[dict[str, Any]]) -> dict[str, Any] | None:
+        s.held.update(c["cell_id"] for c in got)
         for extra in got[1:]:  # ?n=2 can hand out two new cells when this user held none: run one, give the other back
             s.release(extra["cell_id"], f"returning the extra cell {extra['cell_id']}")
         return got[0] if got else None
@@ -284,32 +316,52 @@ def _claim_next(s: Session, held: str | None) -> dict[str, Any] | None:
             s.release(held, "skipped after its setup failure")
             return first(got)
     try:
-        return s.coord.claim(1)
+        got = s.coord.claim(1)
     except AtLimit:
         return first(s.coord.claim(2))
+    return first([got] if got else [])
 
 
 def _run_cells(s: Session, url: str, limit: int | None) -> int:
     """Claim and run cells until `limit` trials ran (None: until the grid is full). In a multi-trial run, a setup
-    failure skips to the next cell; MAX_FAILURES_IN_A_ROW failed trials in a row stop the run."""
-    from aidev_swarm.coordinator import AtLimit
+    failure skips to the next cell; MAX_FAILURES_IN_A_ROW failed trials in a row stop the run. Whatever ends the
+    run (an exception, SIGTERM from a cancelled Job), the cells it still holds are given back on the way out."""
+    try:
+        return _claim_and_run(s, url, limit)
+    except KeyboardInterrupt:  # Ctrl-C or SIGTERM outside a trial (a trial handles its own)
+        _say("interrupted")
+        return 130
+    finally:
+        s.release_held("stopping")
+
+
+def _claim_and_run(s: Session, url: str, limit: int | None) -> int:
+    from aidev_swarm.coordinator import AllTaken, AtLimit
 
     held: str | None = None
     ran = in_a_row = rc = 0
+    waiting = False
     while limit is None or ran < limit:
         s.resend_unsent()
         try:
             claim = _claim_next(s, held)
+        except AllTaken as e:
+            if held:
+                s.release(held, "skipped after its setup failure")
+                held = None
+            if not waiting:
+                _say(f"every free cell is taken; waiting in case a running trial's cell comes back (asking every {e.retry_after:.0f} s)")
+                waiting = True
+            s.deps.sleep(e.retry_after)
+            continue
         except AtLimit as e:
             print(f"You already hold {len(e.held)} cells ({', '.join(e.held)}): other runs of yours are working on them. "
-                  f"Wait for them (or stop them with `hf jobs cancel`); a lease expires 40 min after its last heartbeat.", file=sys.stderr)
+                  f"Wait for them (or stop them with `hf jobs cancel`); a lease expires 90 s after its last heartbeat.", file=sys.stderr)
             return 1
         except Exception as e:  # noqa: BLE001
-            if held:
-                s.release(held, "stopping")
             print(f"The coordinator at {url} did not hand out a cell ({type(e).__name__}: {str(e)[:200]}). Try again in a minute.", file=sys.stderr)
             return 1
-        held = None
+        held, waiting = None, False
         if claim is None:
             _say(f"nothing left to claim: the grid is full. Board: {url}")
             return 0
@@ -451,5 +503,9 @@ def main(argv: list[str] | None = None, deps: Deps | None = None, environ: Mappi
         _say(f"ready: HF user {user} can pay; would claim from {url} (model {grid['model']}, {len(grid['harnesses'])} harnesses, {len(grid['tasks'])} tasks). Nothing claimed.")
         return 0
     session = Session(deps, deps.coordinator(url, token), grid, prices, token, user, _workdir(environ), board=url)
-    with _sigterm_as_interrupt():
-        return _run_cells(session, url, None if args.loop else (args.n or 1))
+    atexit.register(session.release_held, "exiting")  # backstop for an exit that bypasses the finally in _run_cells
+    try:
+        with _sigterm_as_interrupt():
+            return _run_cells(session, url, None if args.loop else (args.n or 1))
+    finally:
+        atexit.unregister(session.release_held)

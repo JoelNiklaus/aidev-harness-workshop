@@ -92,3 +92,9 @@ def test_join_page_fails_loudly_when_the_prompt_lost_the_command(tmp_path):
 def test_staged_space_renders_the_same_page(tmp_path):
     out = stage(tmp_path / "space")
     assert join.page(out / "runner") == join.page(RUNNER)
+
+
+def test_join_page_never_names_the_room(client):
+    # Joel: "the room" is not an actor or a label on anything attendees read
+    page = client.get("/join").text
+    assert not re.search(r"\bthe room\b|\broom's\b", page, re.I)

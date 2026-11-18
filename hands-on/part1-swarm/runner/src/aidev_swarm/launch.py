@@ -17,7 +17,7 @@ from aidev_swarm import __version__
 JOB_IMAGE = "ghcr.io/astral-sh/uv:python3.12-bookworm"  # uv + Python 3.12 + git (Harbor fetches tasks and hlb by git) + curl
 GITHUB_REPO = "JoelNiklaus/aidev-harness-workshop"  # public: the runner wheel is a release asset, so attendees need no access to anything private
 FLAVOR = "cpu-basic"
-TRIAL_S = 45 * 60  # a lease is 40 min; a subset trial takes <= ~20 min plus up to 18 min harness install
+TRIAL_S = 45 * 60  # a subset trial takes <= ~20 min plus up to 18 min harness install
 SETUP_S = 15 * 60  # Job start, package install, slack
 LOOP_TIMEOUT_S = 3 * 3600
 JOB_LABEL = {"aidev-swarm": "runner"}

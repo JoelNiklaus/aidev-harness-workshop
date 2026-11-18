@@ -84,7 +84,7 @@ button.ok{{background:#22c55e}}
 <body>
 <main>
 <h1>Join the swarm</h1>
-<p class="lead">Your coding agent starts one job on Hugging Face that runs trials for the room's board. Your laptop can close afterwards.</p>
+<p class="lead">Your coding agent starts one job on Hugging Face that runs trials for the shared board on the projector. Your laptop can close afterwards.</p>
 <a class="board" href="/">&#8592; Live board</a>
 
 <section>

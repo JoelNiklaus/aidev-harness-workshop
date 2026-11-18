@@ -54,7 +54,7 @@ class Store:
         return {"runs": rs, "feed": feed[:30], "totals": totals}
 
 
-PAGE = """<!doctype html><html><head><meta charset="utf-8"><title>Evolve the harness: the room</title>
+PAGE = """<!doctype html><html><head><meta charset="utf-8"><title>Evolve the harness together</title>
 <style>body{background:#111;color:#eee;font:26px system-ui;margin:24px}h1{font-size:40px;margin:0 0 12px}
 .row{display:flex;gap:32px}.feed{flex:1;max-width:40%}.item{margin:10px 0}.kept{color:#7CFC9A}.drop{color:#888}
 #totals{font-size:28px;color:#bbb}svg text{fill:#ddd;font-size:22px}</style></head><body>

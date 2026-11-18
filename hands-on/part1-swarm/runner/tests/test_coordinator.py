@@ -187,3 +187,59 @@ def test_bad_request_422_is_not_retried():
     with pytest.raises(CoordinatorError, match="422"):
         c.submit("x", {"cell_id": "x"})
     assert len(calls) == 1
+
+
+def test_every_request_names_the_runner_version_in_the_user_agent():
+    """The coordinator takes claims only from runners that speak the short-lease protocol (PROTOCOL.md)."""
+    from aidev_swarm import __version__
+
+    seen = []
+
+    def handler(request):
+        seen.append(request.headers["user-agent"])
+        return httpx.Response(200, json={"ok": True})
+
+    c = Coordinator("https://swarm.example", TOKEN, transport=httpx.MockTransport(handler))
+    c.heartbeat("x")
+    assert seen == [f"aidev-swarm/{__version__}"]
+
+
+def test_a_204_with_retry_after_means_every_free_cell_is_taken_for_now():
+    from aidev_swarm.coordinator import AllTaken
+
+    c = Coordinator("https://swarm.example", TOKEN, transport=httpx.MockTransport(lambda r: httpx.Response(204, headers={"Retry-After": "30"})))
+    with pytest.raises(AllTaken) as e:
+        c.claim()
+    assert e.value.retry_after == 30
+
+
+def test_a_426_old_runner_refusal_is_not_retried_and_shows_the_coordinators_reason():
+    calls = []
+
+    def handler(request):
+        calls.append(1)
+        return httpx.Response(426, json={"detail": "this runner is too old (needs aidev-swarm >= 0.4.0)"})
+
+    c = Coordinator("https://swarm.example", TOKEN, transport=httpx.MockTransport(handler))
+    with pytest.raises(CoordinatorError, match="too old"):
+        c.claim()
+    assert len(calls) == 1
+
+
+def test_a_quick_release_on_the_way_out_gives_up_within_seconds():
+    """A cancelled Job has seconds before SIGKILL; if the release does not land, the short lease expires instead."""
+    clock = FakeClock()
+    c = Coordinator("https://swarm.example", TOKEN, transport=httpx.MockTransport(rate_limited_for(10**9, clock)), sleep=clock.sleep, clock=clock.time)
+    with pytest.raises(CoordinatorError):
+        c.release("x", quick=True)
+    assert clock.t <= 8
+
+
+def test_heartbeat_retries_end_before_the_next_beat_is_due():
+    from aidev_swarm.cli import HEARTBEAT_S
+
+    clock = FakeClock()
+    c = Coordinator("https://swarm.example", TOKEN, transport=httpx.MockTransport(rate_limited_for(10**9, clock)), sleep=clock.sleep, clock=clock.time)
+    with pytest.raises(CoordinatorError):
+        c.heartbeat("x")
+    assert clock.t <= HEARTBEAT_S

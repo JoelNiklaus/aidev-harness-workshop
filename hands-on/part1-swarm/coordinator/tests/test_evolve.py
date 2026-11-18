@@ -185,12 +185,28 @@ def _events(*pairs):
     return s.events()
 
 
-def test_state_curves_start_at_the_seed_and_follow_best_val():
-    ev = _events(("alice", seed(val=0.4)), ("alice", it(1, accepted=True, best=0.8)), ("alice", it(2, best=0.78)))
+def test_state_curve_is_a_step_line_of_each_runs_current_harness():
+    # best_val is the current harness's pooled validation score: dropped patches re-measure it (up or down).
+    # The line changes level only at a kept patch; each level is that harness's latest score.
+    ev = _events(("alice", seed(val=0.4)), ("alice", it(1, best=0.42)), ("alice", it(2, accepted=True, best=0.8)),
+                 ("alice", it(3, best=0.78)), ("alice", it(4, best=0.79)))
     st = evolve.build_state(ev, reference=[])
     (run,) = st["runs"]
-    assert run["curve"] == [[0, 0.4], [1, 0.8], [2, 0.78]]
-    assert run["user"] == "alice" and run["kept"] == 1 and run["iterations"] == 2 and run["best"] == 0.8
+    assert run["curve"] == [[0, 0.42], [2, 0.42], [2, 0.79], [4, 0.79]]
+    assert run["user"] == "alice" and run["kept"] == 1 and run["iterations"] == 4 and run["current"] == 0.79
+
+
+def test_state_curve_of_a_seed_only_run_is_one_point():
+    (run,) = evolve.build_state(_events(("alice", seed(val=0.4))), reference=[])["runs"]
+    assert run["curve"] == [[0, 0.4]] and run["current"] == 0.4
+
+
+def test_champion_curve_never_moves_between_kept_patches():
+    ev = [seed(val=0.3)] + [it(i, accepted=i in (2, 5), best=0.3 + i / 20) for i in range(1, 8)]
+    curve = evolve.champion_curve(ev)
+    flat = [(a, b) for a, b in zip(curve, curve[1:]) if a[0] != b[0]]
+    assert flat and all(a[1] == b[1] for a, b in flat)  # horizontal between keeps
+    assert sorted({a[0] for a, b in zip(curve, curve[1:]) if a[0] == b[0]}) == [2, 5]  # vertical steps only at keeps
 
 
 def test_state_totals_count_attendees_iterations_kept_and_latest_spend_per_run():
@@ -200,15 +216,16 @@ def test_state_totals_count_attendees_iterations_kept_and_latest_spend_per_run()
     assert t == {"attendees": 2, "runs": 3, "iterations": 2, "kept": 1, "spend_usd": pytest.approx(0.8)}
 
 
-def test_state_room_best_is_the_best_any_run_reached_by_each_iteration():
+def test_state_leader_is_the_highest_current_harness_at_each_iteration():
     ev = _events(("alice", seed(val=0.4)), ("alice", it(1, best=0.4)), ("alice", it(2, accepted=True, best=0.9)),
                  ("bob", seed("bob-r1", val=0.5)), ("bob", it(1, run_id="bob-r1", accepted=True, best=0.7)))
     st = evolve.build_state(ev, reference=[])
-    assert st["room_best"] == [[0, 0.5], [1, 0.7], [2, 0.9]]
-    assert st["baseline"] == pytest.approx(0.45)  # mean seed validation score of the room
+    assert st["leader"] == [[0, 0.5], [1, 0.5], [1, 0.7], [2, 0.7], [2, 0.9]]
+    assert "room_best" not in st
+    assert st["baseline"] == pytest.approx(0.45)  # mean seed validation score of all runs
 
 
-def test_state_baseline_falls_back_to_the_recorded_runs_when_the_room_is_empty():
+def test_state_baseline_falls_back_to_the_recorded_runs_when_no_run_has_started():
     ref = [{"label": "recorded B1", "curve": [[0, 0.42], [1, 0.88]]}, {"label": "recorded B2", "curve": [[0, 0.33], [1, 0.83]]}]
     st = evolve.build_state([], reference=ref)
     assert st["baseline"] == pytest.approx(0.375)
@@ -243,5 +260,14 @@ def test_state_lists_at_most_max_runs_best_first():
         pairs += [(f"u{i}", seed(f"u{i}-r", val=i / 1000))]
     st = evolve.build_state(_events(*pairs), reference=[])
     assert len(st["runs"]) == evolve.MAX_RUNS
-    assert st["runs"][0]["best"] == pytest.approx((evolve.MAX_RUNS + 4) / 1000)
+    assert st["runs"][0]["current"] == pytest.approx((evolve.MAX_RUNS + 4) / 1000)
     assert st["totals"]["runs"] == evolve.MAX_RUNS + 5
+
+
+def test_feed_hypothesis_is_the_whole_first_line_not_cut_mid_sentence():
+    # the page fits it to two lines at a sentence or clause boundary; the server must not cut it first
+    long = ("Hypothesis: all four transcripts end \"returned\" after exactly 10 model calls and only 18-32 s of the 180 s budget; "
+            "the model was still exploring (listing files, checking tools) when the step cap cut it off.")
+    ev = _events(("alice", seed()), ("alice", it(1, accepted=True, best=0.8, hypothesis=long)))
+    (f,) = evolve.build_state(ev, reference=[])["feed"]
+    assert f["hypothesis"] == long.removeprefix("Hypothesis: ") and "…" not in f["hypothesis"]

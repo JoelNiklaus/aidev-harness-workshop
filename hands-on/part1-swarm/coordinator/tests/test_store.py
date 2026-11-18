@@ -1,14 +1,25 @@
 from __future__ import annotations
 
+import logging
+import re
 import threading
+from pathlib import Path
 
 import pytest
 
 from conftest import GRID, PRICES, MemorySinkSpy, make_result
 from swarm_coordinator.grid import Grid, cell_id
-from swarm_coordinator.store import AtLimit, Conflict, Invalid, NotFound, Store
+from swarm_coordinator.store import LEASE_S, AtLimit, Conflict, Invalid, NotFound, Store
 
-LEASE = 40 * 60
+LEASE = LEASE_S
+RUNNER_CLI = Path(__file__).resolve().parents[2] / "runner" / "src" / "aidev_swarm" / "cli.py"
+
+
+def runner_heartbeat_s() -> float:
+    """The runner's heartbeat interval (runner/src/aidev_swarm/cli.py HEARTBEAT_S): the lease is sized from it."""
+    m = re.search(r"^HEARTBEAT_S = (\d+(?:\.\d+)?)", RUNNER_CLI.read_text(), re.M)
+    assert m, "runner cli.py lost its HEARTBEAT_S constant"
+    return float(m.group(1))
 
 
 def ids(claims):
@@ -91,6 +102,58 @@ def test_heartbeat_extends_the_lease(store, clock):
     store.heartbeat(c["cell_id"], "alice")
     clock.advance(LEASE - 10)  # past the original expiry
     assert ids(store.claim("bob")) == ["opencode__t2__0"]
+
+
+# ---------------------------------------------------------------- short leases (Joel, 18 Nov: a dead job's cell returns at once)
+
+
+def test_a_dead_runners_cell_returns_to_the_queue_within_two_minutes(store, clock):
+    c = store.claim("alice")[0]
+    clock.advance(30)
+    store.heartbeat(c["cell_id"], "alice")  # its last beat, then the Job is killed (no release)
+    clock.advance(LEASE_S + 1)
+    assert LEASE_S + 1 <= 120
+    assert ids(store.claim("bob")) == [c["cell_id"]]
+
+
+def test_the_lease_outlasts_two_missed_runner_heartbeats():
+    beat = runner_heartbeat_s()
+    assert 10 <= beat and 2 * beat < LEASE_S <= 120
+
+
+def test_a_slow_trial_that_keeps_heartbeating_never_loses_its_lease(store, clock):
+    """A 20-minute trial beats every HEARTBEAT_S (one beat lost now and then); nobody else ever gets its cell."""
+    beat = runner_heartbeat_s()
+    c = store.claim("alice")[0]
+    t = 0.0
+    for k in range(int(20 * 60 / beat)):
+        clock.advance(beat)
+        t += beat
+        if k % 7 != 3:  # every seventh beat is lost on the way
+            store.heartbeat(c["cell_id"], "alice")
+        got = store.claim(f"bob{k}")
+        assert c["cell_id"] not in ids(got), f"alice lost her lease after {t:.0f} s"
+        for g in got:
+            store.release(g["cell_id"], f"bob{k}")
+    store.submit(c["cell_id"], "alice", make_result(c["cell_id"]))
+    assert [r["cell_id"] for r in store.results()] == [c["cell_id"]]
+
+
+def test_a_state_read_shows_an_expired_lease_as_free(store, clock):
+    c = store.claim("alice")[0]
+    assert [le["cell_id"] for le in store.snapshot()["leases"]] == [c["cell_id"]]
+    clock.advance(LEASE_S + 1)
+    assert store.snapshot()["leases"] == []
+
+
+def test_leased_open_counts_cells_someone_is_still_working_on(store, clock):
+    a = store.claim("alice")[0]
+    store.claim("bob")
+    assert store.leased_open() == 2
+    store.submit(a["cell_id"], "alice", make_result(a["cell_id"]))
+    assert store.leased_open() == 1
+    clock.advance(LEASE_S + 1)
+    assert store.leased_open() == 0
 
 
 def test_heartbeat_by_another_user_conflicts(store):
@@ -191,6 +254,28 @@ def test_late_result_after_expiry_is_accepted_when_nobody_took_the_cell(store, c
     assert len(store.results()) == 1
 
 
+def test_late_result_after_the_cell_was_reclaimed_is_rejected_and_logged(store, clock, caplog):
+    c = store.claim("alice")[0]
+    clock.advance(LEASE + 1)
+    assert ids(store.claim("bob")) == [c["cell_id"]]
+    with caplog.at_level(logging.WARNING, logger="swarm.store"), pytest.raises(Conflict):
+        store.submit(c["cell_id"], "alice", make_result(c["cell_id"]))
+    assert store.results() == []
+    assert any("late result" in r.getMessage() and "alice" in r.getMessage() and c["cell_id"] in r.getMessage() and "bob" in r.getMessage()
+               for r in caplog.records)
+    store.submit(c["cell_id"], "bob", make_result(c["cell_id"], user="bob"))
+    assert [r["hf_user"] for r in store.results()] == ["bob"]
+
+
+def test_late_result_is_accepted_when_the_reclaimer_gave_the_cell_back(store, clock):
+    c = store.claim("alice")[0]
+    clock.advance(LEASE + 1)
+    store.claim("bob")
+    store.release(c["cell_id"], "bob")
+    store.submit(c["cell_id"], "alice", make_result(c["cell_id"]))
+    assert [r["hf_user"] for r in store.results()] == ["alice"]
+
+
 def test_submit_on_unknown_cell_is_not_found(store):
     with pytest.raises(NotFound):
         store.submit("nope__t1__0", "alice", make_result("nope__t1__0"))
@@ -238,6 +323,22 @@ def test_restart_rebuilds_from_the_sink(grid, clock):
     assert ids(s2.claim("carol")) == ["opencode__t1__1"]
     s2.submit(b["cell_id"], "bob", make_result(b["cell_id"]))
     assert len(s2.results()) == 2
+
+
+def test_restored_leases_get_a_fresh_lease_so_live_runners_survive_a_slow_restart(grid, clock):
+    """A Space restart takes longer than a lease: a saved lease restarts its clock at the restore, so a live
+    runner's next heartbeat keeps its cell; a runner that died meanwhile loses it one lease later."""
+    sink = MemorySinkSpy()
+    s1 = Store(grid, PRICES, clock=clock, sink=sink)
+    a, b = s1.claim("alice")[0], s1.claim("bob")[0]
+    clock.advance(5 * 60)  # the restart
+    s2 = Store(grid, PRICES, clock=clock, sink=sink)
+    s2.restore()
+    assert a["cell_id"] not in ids(s2.claim("carol"))
+    clock.advance(LEASE_S - 5)
+    s2.heartbeat(a["cell_id"], "alice")
+    clock.advance(10)  # bob never beat again
+    assert ids(s2.claim("dave")) == [b["cell_id"]]
 
 
 def test_restore_keeps_results_of_cells_outside_the_grid_out_of_the_queue(grid, clock):

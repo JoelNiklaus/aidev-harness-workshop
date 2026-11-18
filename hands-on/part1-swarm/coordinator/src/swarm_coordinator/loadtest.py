@@ -6,6 +6,13 @@
 Reports latency per endpoint (p50/p95/max), errors, and whether any cell was handed out twice
 (client side: every claim response logged per cell; server side: the store's max claims per cell).
 
+    uv run swarm-loadtest --runners 500 --trial-s 60 180 --kill-frac 0.1
+
+Runners "run" each trial for a random time in --trial-s while heartbeating every --heartbeat-s (30 s, as the
+runner); --kill-frac of them die mid-trial without releasing (a killed Job). The report gives the seconds from
+each death to the next claim of its cell, and checks that no cell was handed out twice while its holder lived
+and that no cell counted two results.
+
     uv run swarm-loadtest --evolve --attendees 500 --interval 30 --iterations 6
 
 Part 2: N attendees' evolve loops post a seed event, then one iteration event (with a 4 KB diff) every
@@ -28,6 +35,10 @@ from typing import Any
 
 import httpx
 
+from .app import MIN_RUNNER
+
+HEADERS = {"User-Agent": f"aidev-swarm/{'.'.join(map(str, MIN_RUNNER))} (loadtest)"}  # the coordinator takes claims only from current runners
+
 
 def percentile(xs: list[float], p: float) -> float:
     if not xs:
@@ -49,15 +60,33 @@ def fake_result(cell: dict[str, Any], user: str, i: int) -> dict[str, Any]:
             "cost_usd": 0.0, "error": None, "hf_user": user, "runner_version": "loadtest", "sandbox_id": None, "trajectory_url": None}
 
 
-async def _drive(base_url: str, users: list[str], *, transport: httpx.AsyncBaseTransport | None = None, heartbeats: int = 1,
-                 think_s: float = 0.0, viewers: int = 0, timeout_s: float = 60.0) -> dict[str, Any]:
-    """Run the given fake runners (and viewers) to the end of the grid; raw latencies, claims and errors."""
+def _doomed(n: int, kill_frac: float) -> set[int]:
+    """The runners that die mid-trial: round(kill_frac * n) of them, spread evenly over the list."""
+    k = round(n * kill_frac)
+    return {round(j * n / k) for j in range(k)} if k else set()
+
+
+async def _drive(base_url: str, users: list[str], *, transport: httpx.AsyncBaseTransport | None = None, viewers: int = 0,
+                 timeout_s: float = 60.0, trial_s: tuple[float, float] = (0.0, 0.0), heartbeat_s: float = 30.0,
+                 kill: set[int] | None = None, wait_s: float | None = None, seed: int = 0) -> dict[str, Any]:
+    """Run the given fake runners (and viewers) to the end of the grid; raw latencies, claims, submits, deaths and errors.
+
+    A runner claims, "runs" its trial for a random time in `trial_s` while heartbeating every `heartbeat_s`, and
+    submits. The runners whose index is in `kill` die once, partway through their first trial: no release, no more
+    heartbeats (a SIGKILLed Job). A 204 with Retry-After (leased cells may come back) waits `wait_s` (default: the
+    header) and claims again; a plain 204 (grid full) ends the runner."""
+    import random
+
+    rng = random.Random(seed)
     lat: dict[str, list[float]] = defaultdict(list)
-    claims: dict[str, list[str]] = defaultdict(list)
+    claims: dict[str, list[list[Any]]] = defaultdict(list)  # cell -> [[user, unix time], ...]
+    submits: dict[str, int] = defaultdict(int)  # cell -> accepted submits
+    deaths: dict[str, list[Any]] = {}  # cell -> [user, unix time of death]
     errors: list[str] = []
     stop = asyncio.Event()
+    kill = kill or set()
     limits = httpx.Limits(max_connections=len(users) + viewers + 10, max_keepalive_connections=len(users) + viewers + 10)
-    async with httpx.AsyncClient(base_url=base_url, transport=transport, timeout=timeout_s, limits=limits) as client:
+    async with httpx.AsyncClient(base_url=base_url, transport=transport, timeout=timeout_s, limits=limits, headers=HEADERS) as client:
 
         async def call(kind: str, path: str, user: str, **kw: Any) -> httpx.Response | None:
             t0 = time.perf_counter()
@@ -73,17 +102,37 @@ async def _drive(base_url: str, users: list[str], *, transport: httpx.AsyncBaseT
 
         async def runner(i: int, user: str) -> None:
             await asyncio.sleep((i % 50) * 0.002)  # a small ramp, as attendees do not start in the same ms
+            doomed = i in kill
             for j in range(10_000):
                 r = await call("claim", "/api/claim", user)
-                if r is None or r.status_code == 204 or r.status_code >= 400:
+                if r is None or r.status_code >= 400:
                     return
+                if r.status_code == 204:
+                    if "retry-after" not in r.headers:
+                        return
+                    await asyncio.sleep(wait_s if wait_s is not None else float(r.headers["retry-after"]))
+                    continue
                 cell = r.json()
-                claims[cell["cell_id"]].append(user)
-                for _ in range(heartbeats):
-                    await asyncio.sleep(think_s)
-                    await call("heartbeat", f"/api/heartbeat/{cell['cell_id']}", user)
-                await asyncio.sleep(think_s)
-                await call("submit", f"/api/submit/{cell['cell_id']}", user, json=fake_result(cell, user, j))
+                cid = cell["cell_id"]
+                claims[cid].append([user, time.time()])
+                dur = rng.uniform(*trial_s)
+                die_after = dur * rng.uniform(0.2, 0.8) if doomed else None
+                ran, beats = 0.0, 0
+                while ran < (die_after if doomed else dur) or (not doomed and beats == 0):
+                    step = min(heartbeat_s, (die_after if doomed else dur) - ran)
+                    if step > 0:
+                        await asyncio.sleep(step)
+                        ran += step
+                    if doomed and ran >= die_after:
+                        break
+                    await call("heartbeat", f"/api/heartbeat/{cid}", user)
+                    beats += 1
+                if doomed:
+                    deaths[cid] = [user, time.time()]
+                    return
+                r = await call("submit", f"/api/submit/{cid}", user, json=fake_result(cell, user, j))
+                if r is not None and r.status_code == 200:
+                    submits[cid] += 1
 
         async def viewer() -> None:
             while not stop.is_set():
@@ -103,57 +152,91 @@ async def _drive(base_url: str, users: list[str], *, transport: httpx.AsyncBaseT
         wall = time.perf_counter() - t0
         stop.set()
         await asyncio.gather(*views)
-    return {"lat": dict(lat), "claims": dict(claims), "errors": errors, "wall": wall}
+    return {"lat": dict(lat), "claims": dict(claims), "submits": dict(submits), "deaths": deaths, "errors": errors, "wall": wall}
 
 
-def _drive_in_process(base_url: str, users: list[str], heartbeats: int, viewers: int) -> dict[str, Any]:
-    return asyncio.run(_drive(base_url, users, heartbeats=heartbeats, viewers=viewers))
+def _drive_in_process(base_url: str, users: list[str], viewers: int, kw: dict[str, Any]) -> dict[str, Any]:
+    return asyncio.run(_drive(base_url, users, viewers=viewers, **kw))
 
 
 def merge(raws: list[dict[str, Any]]) -> dict[str, Any]:
     lat: dict[str, list[float]] = defaultdict(list)
-    claims: dict[str, list[str]] = defaultdict(list)
+    claims: dict[str, list[list[Any]]] = defaultdict(list)
+    submits: dict[str, int] = defaultdict(int)
+    deaths: dict[str, list[Any]] = {}
     errors: list[str] = []
     for r in raws:
         for k, v in r["lat"].items():
             lat[k] += v
         for c, us in r["claims"].items():
             claims[c] += us
+        for c, n in r["submits"].items():
+            submits[c] += n
+        deaths.update(r["deaths"])
         errors += r["errors"]
-    return {"lat": dict(lat), "claims": dict(claims), "errors": errors, "wall": max((r["wall"] for r in raws), default=0.0)}
+    for us in claims.values():
+        us.sort(key=lambda u: u[1])
+    return {"lat": dict(lat), "claims": dict(claims), "submits": dict(submits), "deaths": deaths, "errors": errors,
+            "wall": max((r["wall"] for r in raws), default=0.0)}
 
 
-async def run_loadtest(base_url: str, n_runners: int = 300, *, transport: httpx.AsyncBaseTransport | None = None,
-                       heartbeats: int = 1, viewers: int = 0, procs: int = 1) -> dict[str, Any]:
+def reclaims(claims: dict[str, list[list[Any]]], deaths: dict[str, list[Any]]) -> tuple[list[float], list[str]]:
+    """Seconds from each death to the next claim of its cell, and the cells claimed twice without a death in between."""
+    waits, unexpected = [], []
+    for cid, us in claims.items():
+        us = sorted(us, key=lambda u: u[1])
+        for (u1, _), (_, t2) in zip(us, us[1:]):
+            dead = deaths.get(cid)
+            if dead and dead[0] == u1:
+                waits.append(t2 - dead[1])
+            else:
+                unexpected.append(cid)
+    return waits, sorted(set(unexpected))
+
+
+async def run_loadtest(base_url: str, n_runners: int = 300, *, transport: httpx.AsyncBaseTransport | None = None, viewers: int = 0,
+                       procs: int = 1, trial_s: tuple[float, float] = (0.0, 0.0), heartbeat_s: float = 30.0, kill_frac: float = 0.0,
+                       wait_s: float | None = None) -> dict[str, Any]:
     """procs > 1 spreads the runners over processes, so the load generator is not the bottleneck
     (one Python process with hundreds of connections saturates its own core first)."""
     users = [f"loadtest-{i:04d}" for i in range(n_runners)]
+    doomed = _doomed(n_runners, kill_frac)
     if procs <= 1:
-        raw = await _drive(base_url, users, transport=transport, heartbeats=heartbeats, viewers=viewers)
+        raw = await _drive(base_url, users, transport=transport, viewers=viewers, trial_s=trial_s, heartbeat_s=heartbeat_s,
+                           kill=doomed, wait_s=wait_s)
     else:
         from concurrent.futures import ProcessPoolExecutor
         loop = asyncio.get_running_loop()
         with ProcessPoolExecutor(procs) as ex:
-            parts = [users[i::procs] for i in range(procs)]
-            raws = await asyncio.gather(*(loop.run_in_executor(ex, _drive_in_process, base_url, part, heartbeats, viewers // procs + (i < viewers % procs))
-                                          for i, part in enumerate(parts)))
+            idx = [list(range(n_runners))[i::procs] for i in range(procs)]
+            raws = await asyncio.gather(*(loop.run_in_executor(
+                ex, _drive_in_process, base_url, [users[k] for k in part], viewers // procs + (i < viewers % procs),
+                {"trial_s": trial_s, "heartbeat_s": heartbeat_s, "wait_s": wait_s, "seed": i,
+                 "kill": {pos for pos, k in enumerate(part) if k in doomed}})
+                for i, part in enumerate(idx)))
         raw = merge(list(raws))
     lat, claims, errors, wall = raw["lat"], raw["claims"], raw["errors"], raw["wall"]
+    waits, unexpected = reclaims(claims, raw["deaths"])
     async with httpx.AsyncClient(base_url=base_url, transport=transport, timeout=60) as client:
         # /api/state is cached for 2 s: ask until it reflects the last submit (or give up after ~4 s)
-        submitted = len(lat.get("submit", []))
+        submitted = sum(raw["submits"].values())
         for _ in range(8):
             final = (await client.get("/api/state")).json()
             if final["counts"]["done"] >= submitted:
                 break
             await asyncio.sleep(0.5)
+    sent = sum(len(v) for k, v in lat.items() if k != "state")
     return {
-        "runners": n_runners, "viewers": viewers, "procs": procs, "wall_s": round(wall, 2),
-        "requests": sum(len(v) for v in lat.values()),
-        "rps": round(sum(len(v) for k, v in lat.items() if k != "state") / wall, 1) if wall else None,
+        "runners": n_runners, "viewers": viewers, "procs": procs, "trial_s": list(trial_s), "heartbeat_s": heartbeat_s,
+        "wall_s": round(wall, 2), "requests": sum(len(v) for v in lat.values()),
+        "rps": round(sent / wall, 1) if wall else None,
+        "heartbeat_rps": round(len(lat.get("heartbeat", [])) / wall, 1) if wall else None,
         "latency_ms": latency_summary(lat),
         "errors": len(errors), "error_samples": errors[:5],
-        "cells_claimed": len(claims), "double_claimed": sorted(c for c, us in claims.items() if len(us) > 1),
+        "killed": len(raw["deaths"]), "reclaimed": len(waits),
+        "reclaim_s": {"p50": round(percentile(waits, 50), 2), "max": round(max(waits), 2)} if waits else None,
+        "cells_claimed": len(claims), "unexpected_reclaims": unexpected,
+        "double_counted": sorted(c for c, n in raw["submits"].items() if n > 1),
         "cells_total": final["counts"]["cells_total"], "cells_done": final["counts"]["done"],
         "server_max_claims_per_cell": final["counts"]["max_claims_per_cell"],
     }
@@ -242,7 +325,10 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--url", help="an already running coordinator started with --fake-auth (default: start one locally)")
     ap.add_argument("--runners", type=int, default=300)
     ap.add_argument("--viewers", type=int, default=20)
-    ap.add_argument("--heartbeats", type=int, default=1)
+    ap.add_argument("--trial-s", type=float, nargs=2, default=(0.0, 0.0), metavar=("MIN", "MAX"), help="fake trial length range")
+    ap.add_argument("--heartbeat-s", type=float, default=30.0, help="runner heartbeat interval (the runner's HEARTBEAT_S)")
+    ap.add_argument("--kill-frac", type=float, default=0.0, help="share of runners that die mid-trial without releasing")
+    ap.add_argument("--lease-s", type=float, help="lease of the locally started coordinator (default: the store's)")
     ap.add_argument("--procs", type=int, default=6, help="load-generator processes")
     ap.add_argument("--out", help="write the report JSON here")
     ap.add_argument("--evolve", action="store_true", help="Part 2: evolve submissions instead of claims")
@@ -255,7 +341,8 @@ def main(argv: list[str] | None = None) -> None:
     if not url:
         port = _free_port()
         env = {k: v for k, v in os.environ.items() if k not in ("SWARM_BUCKET", "SPACE_ID")}
-        proc = subprocess.Popen([sys.executable, "-m", "swarm_coordinator.cli", "--fake-auth", "--port", str(port)], env=env)
+        lease = ["--lease-s", str(a.lease_s)] if a.lease_s else []
+        proc = subprocess.Popen([sys.executable, "-m", "swarm_coordinator.cli", "--fake-auth", "--port", str(port), *lease], env=env)
         url = f"http://127.0.0.1:{port}"
         for _ in range(100):
             try:
@@ -267,7 +354,8 @@ def main(argv: list[str] | None = None) -> None:
         if a.evolve:
             report = asyncio.run(run_evolve_loadtest(url, a.attendees, interval_s=a.interval, iterations=a.iterations, viewers=a.viewers))
         else:
-            report = asyncio.run(run_loadtest(url, a.runners, heartbeats=a.heartbeats, viewers=a.viewers, procs=a.procs))
+            report = asyncio.run(run_loadtest(url, a.runners, viewers=a.viewers, procs=a.procs, trial_s=tuple(a.trial_s),
+                                              heartbeat_s=a.heartbeat_s, kill_frac=a.kill_frac))
     finally:
         if proc:
             proc.terminate()
@@ -280,7 +368,8 @@ def main(argv: list[str] | None = None) -> None:
     if a.evolve:
         ok = report["errors"] == 0 and report["rate_limited"] == 0 and report["board"]["iterations"] == a.attendees * a.iterations
     else:
-        ok = not report["double_claimed"] and report["server_max_claims_per_cell"] <= 1 and report["errors"] == 0 and report["cells_done"] == report["cells_total"]
+        ok = (not report["unexpected_reclaims"] and not report["double_counted"] and report["reclaimed"] == report["killed"]
+              and report["errors"] == 0 and report["cells_done"] == report["cells_total"])
     sys.exit(0 if ok else 1)
 
 

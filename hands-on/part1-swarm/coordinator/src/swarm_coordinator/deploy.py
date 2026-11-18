@@ -1,13 +1,14 @@
-"""Deploy the coordinator as a PRIVATE Docker Space (results in a PRIVATE bucket), both in the workshop org.
+"""Deploy the coordinator as a public Docker Space (results in a PRIVATE bucket), both in the workshop org.
 
     HF_TOKEN=<an admin token of the org> uv run python -m swarm_coordinator.deploy [--hardware cpu-upgrade]
 
 Stages coordinator/ (code, lock), config/, replay/{reference,evolve-recorded}.json and the runner's README and agent prompt
 (for /join) into a temp folder with a Dockerfile
-and the Space README, creates the bucket and the Space as private if missing (an existing one keeps
-its visibility, and the script refuses when it is public), sets the Space secret HF_TOKEN to the scoped
+and the Space README, creates the bucket (private) and the Space (public: board and /join, Joel 18 Nov) if
+missing (an existing Space keeps its visibility; the script refuses a public bucket), sets the Space secret HF_TOKEN to the scoped
 org token in `space-token.txt` (`SPACE_HF_TOKEN=`, gitignored; read here, never printed) and SWARM_BUCKET as a
-variable, requests the hardware, and uploads. Rerun after grid.json changes.
+variable, requests the hardware, and uploads. Rerun after grid.json changes. The upload rebuilds and starts the Space,
+so a paused Space wakes up (and bills) after a deploy.
 """
 
 from __future__ import annotations
@@ -106,9 +107,7 @@ def deploy(space: str, bucket: str, *, hardware: str = "cpu-basic", api: Any = N
     api.create_bucket(bucket, private=True, exist_ok=True)
     if not api.bucket_info(bucket).private:
         raise SystemExit(f"bucket {bucket} is public; refusing to write results there")
-    api.create_repo(space, repo_type="space", space_sdk="docker", private=True, exist_ok=True, space_hardware=hardware)
-    if not api.space_info(space).private:
-        raise SystemExit(f"space {space} is public; refusing to deploy (Joel approves going public)")
+    api.create_repo(space, repo_type="space", space_sdk="docker", private=False, exist_ok=True, space_hardware=hardware)
     if api.get_space_runtime(space).requested_hardware != hardware:
         api.request_space_hardware(space, hardware)
     api.add_space_secret(space, "HF_TOKEN", token)

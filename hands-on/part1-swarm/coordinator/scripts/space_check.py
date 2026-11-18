@@ -22,7 +22,10 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from swarm_coordinator import deploy, paths  # noqa: E402
+from swarm_coordinator.app import MIN_RUNNER  # noqa: E402
 from swarm_coordinator.grid import Grid  # noqa: E402
+
+USER_AGENT = f"aidev-swarm/{'.'.join(map(str, MIN_RUNNER))} (space-check)"  # the coordinator takes claims only from current runners
 
 
 def synthetic_result(claim: dict[str, Any], user: str) -> dict[str, Any]:
@@ -60,7 +63,7 @@ def main(argv: list[str] | None = None) -> int:
     a = ap.parse_args(argv)
     token = os.environ["HF_TOKEN"]
     api, url, grid = HfApi(token=token), deploy.space_url(a.space), Grid.load(paths.grid_path())
-    http = httpx.Client(base_url=url, headers={"Authorization": f"Bearer {token}"}, timeout=60)
+    http = httpx.Client(base_url=url, headers={"Authorization": f"Bearer {token}", "User-Agent": USER_AGENT}, timeout=60)
     user = api.whoami()["name"]
 
     def wait_running() -> None:

@@ -26,7 +26,7 @@ from .evolve_replay import EvolveReplayer, load_recorded, reference_curves
 from .grid import Grid
 from .replay import Replayer, load_results
 from .sink import BucketSink, NullSink
-from .store import Store
+from .store import LEASE_S, Store
 
 log = logging.getLogger("swarm")
 
@@ -45,7 +45,7 @@ def parse(argv: list[str] | None = None) -> argparse.Namespace:
     ap.add_argument("--evolve-recorded", default=str(paths.evolve_replay_path()), help="recorded evolve runs (replay and live backdrop)")
     ap.add_argument("--replay-concurrency", type=int, default=150, help="virtual runners in the replay")
     ap.add_argument("--fake-auth", action="store_true", help="load tests only: the bearer token is the username")
-    ap.add_argument("--lease-s", type=float, default=40 * 60)
+    ap.add_argument("--lease-s", type=float, default=LEASE_S, help="lease length; load tests shorten it")
     return ap.parse_args(argv)
 
 

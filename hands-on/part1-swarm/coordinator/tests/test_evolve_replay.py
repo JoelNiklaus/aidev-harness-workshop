@@ -54,13 +54,13 @@ def test_replayed_events_build_the_board_like_live_ones():
     rp.step()
     st = evolve.build_state(store.events(), reference=[], mode="replay")
     assert st["totals"]["attendees"] == 2 and st["totals"]["kept"] == 2
-    assert st["room_best"] == [[0, 0.42], [1, 0.88], [2, 0.88]]
+    assert st["leader"] == [[0, 0.42], [1, 0.42], [1, 0.86], [2, 0.86]]
 
 
-def test_reference_curves_are_the_recorded_seed_and_best_val_points():
+def test_reference_curves_are_the_same_step_lines_as_live_runs():
     ref = reference_curves(recorded())
-    assert ref == [{"label": "recorded B1", "curve": [[0, 0.42], [1, 0.88], [2, 0.86]]},
-                   {"label": "recorded B2", "curve": [[0, 0.33], [1, 0.83]]}]
+    assert ref == [{"label": "recorded B1", "curve": [[0, 0.42], [1, 0.42], [1, 0.86], [2, 0.86]]},
+                   {"label": "recorded B2", "curve": [[0, 0.33], [1, 0.33], [1, 0.83]]}]
 
 
 def test_replay_needs_a_positive_duration():

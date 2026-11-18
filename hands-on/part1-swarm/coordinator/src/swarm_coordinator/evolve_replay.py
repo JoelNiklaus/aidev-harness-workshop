@@ -27,13 +27,8 @@ def load_recorded(path: str | Path) -> list[dict[str, Any]]:
 
 
 def reference_curves(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Each recorded run's race curve: the seed's validation score at 0, then best_val per iteration."""
-    out = []
-    for r in runs:
-        curve = [[0, e["val_score"]] if e["kind"] == "seed" else [e["iteration"], e["best_val"]]
-                 for e in r["events"] if e["kind"] in ("seed", "iteration")]
-        out.append({"label": f"recorded {r['name']}", "curve": curve})
-    return out
+    """Each recorded run's race line, built like a live run's (`evolve.champion_curve`)."""
+    return [{"label": f"recorded {r['name']}", "curve": evolve.champion_curve(r["events"])} for r in runs]
 
 
 class EvolveReplayer(Ticker):

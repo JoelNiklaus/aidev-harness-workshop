@@ -83,3 +83,20 @@ def test_shipped_reference_covers_every_grid_cell_and_nothing_else():
     missing = {(h, t) for h in grid.harnesses for t in grid.tasks} - cells
     assert not missing, f"reference lacks {sorted(missing)[:5]}"
     assert {t for _, t in cells} <= set(grid.tasks)
+
+
+def test_virtual_runners_heartbeat_so_a_long_replayed_trial_keeps_its_lease(grid, clock):
+    """Leases last 90 s; a replayed trial runs minutes. The virtual runner beats like a real one, so the board
+    shows the cell as running until its result lands."""
+    from swarm_coordinator.store import LEASE_S
+
+    store = Store(grid, PRICES, clock=clock, sink=MemorySinkSpy())
+    rp = Replayer(store, results_for(grid), minutes=10, concurrency=4, clock=clock)
+    rp.step()
+    first = {le["cell_id"] for le in store.snapshot()["leases"]}
+    for _ in range(int(3 * LEASE_S / 0.5)):  # the ticker steps every 0.5 s; first results land at 200 s
+        clock.advance(0.5)
+        if clock.t - rp.start >= 199:
+            break
+        rp.step()
+    assert {le["cell_id"] for le in store.snapshot()["leases"]} == first

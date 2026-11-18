@@ -60,9 +60,9 @@ def test_default_space_serves_the_runners_default_coordinator():
 
 
 class FakeHub:
-    def __init__(self, *, bucket_private=True, space_private=True, hardware="cpu-basic"):
+    def __init__(self, *, bucket_private=True, hardware="cpu-basic"):
         self.calls, self.secrets, self.variables = [], {}, {}
-        self.bucket_private, self.space_private, self.hardware = bucket_private, space_private, hardware
+        self.bucket_private, self.hardware = bucket_private, hardware
 
     def create_bucket(self, bucket, private, exist_ok):
         self.calls.append(("create_bucket", bucket, private))
@@ -72,9 +72,6 @@ class FakeHub:
 
     def create_repo(self, space, **kw):
         self.calls.append(("create_repo", space, kw.get("private")))
-
-    def space_info(self, space):
-        return type("S", (), {"private": self.space_private})()
 
     def get_space_runtime(self, space):
         return type("R", (), {"requested_hardware": self.hardware, "hardware": self.hardware})()
@@ -119,13 +116,19 @@ def test_deploy_refuses_without_a_scoped_token_before_any_hub_call(tmp_path, con
     assert hub.calls == [] and hub.secrets == {}
 
 
-def test_deploy_refuses_public_storage_or_space(tmp_path):
-    with pytest.raises(SystemExit, match="public"):
-        deploy.deploy("org/space", "org/results", api=FakeHub(bucket_private=False), token_file=token_file(tmp_path))
-    hub = FakeHub(space_private=False)
+def test_deploy_refuses_a_public_results_bucket(tmp_path):
+    hub = FakeHub(bucket_private=False)
     with pytest.raises(SystemExit, match="public"):
         deploy.deploy("org/space", "org/results", api=hub, token_file=token_file(tmp_path))
     assert hub.secrets == {} and ("upload", "org/space") not in hub.calls
+
+
+def test_deploy_serves_a_public_space_and_creates_a_missing_one_public(tmp_path):
+    """Joel, 18 Nov: the Space (board, /join) is public; only the results bucket stays private."""
+    hub = FakeHub()  # an existing public Space keeps its visibility: deploy no longer reads it
+    assert deploy.deploy("org/space", "org/results", api=hub, token_file=token_file(tmp_path)) == "abc123"
+    assert ("create_repo", "org/space", False) in hub.calls and ("create_bucket", "org/results", True) in hub.calls
+    assert ("upload", "org/space") in hub.calls
 
 
 def test_deploy_requests_the_hardware_of_an_existing_space(tmp_path):

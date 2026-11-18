@@ -79,6 +79,10 @@ def main() -> None:
                     const onMarker = texts.filter(a => marks.some(m => hit(a.b, m))).map(a => a.t);
                     return {min_font_px: Math.min(...texts.map(a => a.px)), text_overlaps: pairs, text_on_marker: onMarker, n_text: texts.length};
                 })()""")
+                # /evolve patch feed: each hypothesis must fit two lines and end at a sentence or clause boundary
+                out["feed_hypotheses"] = page.evaluate("""[...document.querySelectorAll('.feed .hyp')].map(e => ({
+                    lines: Math.round(e.getBoundingClientRect().height / parseFloat(getComputedStyle(e).lineHeight)),
+                    cut_mid_sentence: e.textContent.endsWith('…'), text: e.textContent}))""")
                 out["ellipsized"] = page.evaluate("""[...document.querySelectorAll('body *')].filter(e => e.offsetParent && e.scrollWidth > e.clientWidth + 1 && getComputedStyle(e).textOverflow === 'ellipsis').map(e => e.textContent.trim())""")
                 if a.shot:
                     Path(a.shot).parent.mkdir(parents=True, exist_ok=True)

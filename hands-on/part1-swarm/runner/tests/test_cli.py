@@ -42,8 +42,9 @@ class FakeCoordinator:
         self.submitted[cell_id] = result
         self.held.discard(cell_id)
 
-    def release(self, cell_id):
+    def release(self, cell_id, quick=False):
         self.log.append(("release", cell_id))
+        self.quick_releases = getattr(self, "quick_releases", []) + ([cell_id] if quick else [])
         self.held.discard(cell_id)
 
 
@@ -433,3 +434,118 @@ def test_a_held_failed_cell_is_released_when_the_next_claim_fails():
     h.coord.claim = flaky
     assert main(h, "run", "--coordinator", "https://c", "--loop") == 1
     assert ("release", "opencode|nginx-request-logging|0") in h.coord.log
+
+
+# ---------------------------------------------------------------- dead jobs give their cells back fast (Joel, 18 Nov)
+
+
+def test_the_runner_heartbeats_every_30_s_with_jitter_so_500_runners_do_not_beat_in_step():
+    import random
+
+    assert cli.HEARTBEAT_S == 30 and cli.Deps().heartbeat_s == cli.HEARTBEAT_S
+    waits = [cli.beat_wait(30, random.Random(k)) for k in range(200)]
+    assert 24 <= min(waits) and max(waits) <= 30 and max(waits) - min(waits) > 3
+
+
+def test_an_interrupt_during_the_submit_still_gives_the_cell_back():
+    h = Harness([cell()])
+
+    def cancelled(cell_id, result):
+        raise KeyboardInterrupt  # SIGTERM from `hf jobs cancel` while the result is on its way
+
+    h.coord.submit = cancelled
+    assert main(h, "run", "--coordinator", "https://c") == 130
+    assert ("release", "opencode|nginx-request-logging|0") in h.coord.log
+
+
+def test_any_other_exit_from_the_trial_gives_the_cell_back_quickly():
+    def exits(claim, workdir):
+        raise SystemExit(3)
+
+    h = Harness([cell()], trial=exits)
+    with pytest.raises(SystemExit):
+        main(h, "run", "--coordinator", "https://c")
+    assert h.coord.quick_releases == ["opencode|nginx-request-logging|0"]
+
+
+def test_the_exit_hook_releases_the_cells_held_at_that_moment(monkeypatch):
+    hooks = []
+    monkeypatch.setattr(cli.atexit, "register", lambda fn, *a: hooks.append((fn, a)))
+    monkeypatch.setattr(cli.atexit, "unregister", lambda fn: None)
+    h = Harness([cell()])
+
+    def interpreter_exits(claim, workdir):
+        fn, a = hooks[-1]
+        fn(*a)  # what the interpreter runs at exit while this cell is held
+        return copy_trial(workdir)
+
+    h._trial = interpreter_exits
+    main(h, "run", "--coordinator", "https://c")
+    assert h.coord.log[:2] == [("claim", 1), ("release", "opencode|nginx-request-logging|0")]
+    assert h.coord.quick_releases == ["opencode|nginx-request-logging|0"]
+
+
+def test_a_second_sigterm_does_not_interrupt_the_release():
+    import os
+    import signal
+
+    h = Harness([cell()])
+    plain = h.coord.release
+
+    def release(cell_id, quick=False):
+        os.kill(os.getpid(), signal.SIGTERM)  # the Job runtime signals again
+        plain(cell_id, quick)
+
+    def cancelled(claim, workdir):
+        os.kill(os.getpid(), signal.SIGTERM)
+        raise AssertionError("SIGTERM did not interrupt the trial")
+
+    h.coord.release = release
+    h._trial = cancelled
+    before = signal.signal(signal.SIGTERM, lambda *a: (_ for _ in ()).throw(AssertionError("outer handler ran")))
+    try:
+        assert main(h, "run", "--coordinator", "https://c") == 130
+        assert ("release", "opencode|nginx-request-logging|0") in h.coord.log
+    finally:
+        signal.signal(signal.SIGTERM, before)
+
+
+def test_when_every_free_cell_is_taken_the_runner_waits_and_takes_one_that_comes_back(capsys):
+    from aidev_swarm.coordinator import AllTaken
+
+    h = Harness([cell(0)])
+    plain, sleeps, calls = h.coord.claim, [], []
+
+    def busy_then_free(n=1):
+        calls.append(n)
+        if len(calls) <= 2:
+            raise AllTaken(30)
+        return plain(n)
+
+    h.coord.claim = busy_then_free
+    deps = h.deps()
+    deps.sleep = sleeps.append
+    rc = cli.main(["run", "--coordinator", "https://c"], deps=deps, environ={"HF_TOKEN": TOKEN, "AIDEV_SWARM_WORKDIR": str(WORKDIR)})
+    assert rc == 0 and sleeps == [30, 30] and list(h.coord.submitted) == ["opencode|nginx-request-logging|0"]
+    assert capsys.readouterr().out.count("waiting") == 1  # said once, not every 30 s
+
+
+def test_a_lost_lease_is_reported_by_the_heartbeat(capsys):
+    from aidev_swarm.coordinator import LeaseLost
+
+    h = Harness([cell()])
+    seen = threading.Event()
+
+    def lost(cell_id):
+        seen.set()
+        raise LeaseLost("/api/heartbeat/x: the lease belongs to someone else")
+
+    h.coord.heartbeat = lost
+
+    def slow(claim, workdir):
+        assert seen.wait(5)
+        return copy_trial(workdir)
+
+    h._trial = slow
+    main(h, "run", "--coordinator", "https://c")
+    assert "lease lost" in capsys.readouterr().out

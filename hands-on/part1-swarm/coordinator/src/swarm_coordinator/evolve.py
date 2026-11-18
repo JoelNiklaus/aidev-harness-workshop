@@ -4,7 +4,8 @@
 - `EvolveStore`: SQLite in one process, idempotent on (user, run_id, kind, iteration); each event also goes to
   the sink as `evolve/<user>/<run_id>/<kind>-<iteration>.json`, from which a restarted Space rebuilds it.
 - `RateLimiter`: a token bucket per user (the client sends about one event per 4-5 minutes).
-- `build_state`: the board payload: race curves, room best, seed baseline, feed of kept patches, fix tally, totals.
+- `champion_curve`: a run's race line: the validation pass rate of its current harness, a step at each kept patch.
+- `build_state`: the board payload: race curves, the leading run, seed baseline, feed of kept patches, fix tally, totals.
 """
 
 from __future__ import annotations
@@ -233,11 +234,54 @@ def diff_size(diff: str | None) -> tuple[int, int]:
     return added, removed
 
 
-def one_line(hypothesis: str | None, max_len: int = 120) -> str:
-    """The hypothesis's first sentence-line, without the 'Hypothesis:' label, capped for the projector."""
+def one_line(hypothesis: str | None) -> str:
+    """The hypothesis's first line, without the 'Hypothesis:' label. Not shortened: the page fits it to two
+    lines at a sentence or clause boundary (`hypCandidates`), which needs the whole line."""
     line = (hypothesis or "").strip().splitlines()[0].strip() if (hypothesis or "").strip() else ""
-    line = re.sub(r"^hypothesis:\s*", "", line, flags=re.I)  # not re-capitalised: it often starts with a task or file name
-    return line if len(line) <= max_len else line[:max_len - 1].rstrip() + "…"
+    return re.sub(r"^hypothesis:\s*", "", line, flags=re.I)  # not re-capitalised: it often starts with a task or file name
+
+
+# ---- race curves ------------------------------------------------------------------------------------
+
+
+def steps(levels: list[tuple[int, float]]) -> list[list[float]]:
+    """A step line through (x, level) points sorted by x: flat to the next x, then vertical to its level."""
+    out: list[list[float]] = []
+    for x, v in levels:
+        if out and out[-1][0] != x:  # flat to x: stretch the last flat run instead of adding a point on it
+            if len(out) >= 2 and out[-2][1] == out[-1][1] and out[-2][0] != out[-1][0]:
+                out[-1][0] = x
+            else:
+                out.append([x, out[-1][1]])
+        if not out or out[-1][1] != v:
+            out.append([x, v])
+    return out
+
+
+def champion_curve(events: list[dict[str, Any]]) -> list[list[float]]:
+    """One run's race line from its seed and iteration events (any order): the validation pass rate of the
+    run's current harness. `best_val` is that harness's pooled score, so it moves when a dropped patch's
+    iteration re-measures it; the line shows each harness at its latest score and steps only at a kept patch."""
+    pts = sorted((0, e["val_score"], True) if e["kind"] == "seed" else (e["iteration"], e["best_val"], e["accepted"])
+                 for e in events if e["kind"] in ("seed", "iteration"))
+    segments: list[list[Any]] = []  # [start x, last x, latest score]
+    for x, v, kept in pts:
+        if kept or not segments:
+            segments.append([x, x, v])
+        else:
+            segments[-1][1:] = [x, v]
+    levels = [(x, seg[2]) for seg in segments for x in (seg[0], seg[1])]
+    return steps(levels)
+
+
+def level_at(curve: list[list[float]], x: int) -> float | None:
+    """The curve's level just after x (after a step at x), None before the curve starts."""
+    v = None
+    for cx, cy in curve:
+        if cx > x:
+            break
+        v = cy
+    return v
 
 
 # ---- board payload ----------------------------------------------------------------------------------
@@ -250,14 +294,14 @@ def build_state(events: list[dict[str, Any]], reference: list[dict[str, Any]], *
     tally: dict[str, list[int]] = defaultdict(lambda: [0, 0])
     for e in events:
         key = (e["user"], e["run_id"])
-        r = runs.setdefault(key, {"run_id": e["run_id"], "user": e["user"], "points": {}, "kept": 0, "iterations": 0, "spend_usd": 0.0,
+        r = runs.setdefault(key, {"run_id": e["run_id"], "user": e["user"], "events": [], "kept": 0, "iterations": 0, "spend_usd": 0.0,
                                   "heldout": None, "last_at": 0.0})
         r["spend_usd"] = max(r["spend_usd"], e.get("spend_usd") or 0.0)  # spend only grows; the latest is the largest
         r["last_at"] = max(r["last_at"], e["received_at"])
         if e["kind"] == "seed":
-            r["points"][0] = e["val_score"]
+            r["events"].append(e)
         elif e["kind"] == "iteration":
-            r["points"][e["iteration"]] = e["best_val"]
+            r["events"].append(e)
             r["iterations"] += 1
             r["kept"] += e["accepted"]
             row = tally[fix_category(e.get("title"), e.get("hypothesis"))]
@@ -274,26 +318,28 @@ def build_state(events: list[dict[str, Any]], reference: list[dict[str, Any]], *
 
     out_runs = []
     for r in runs.values():
-        curve = [[x, r["points"][x]] for x in sorted(r["points"])]
-        out_runs.append({"run_id": r["run_id"], "user": r["user"], "curve": curve, "best": max((y for _, y in curve), default=None),
-                         "seed": r["points"].get(0), "kept": r["kept"], "iterations": r["iterations"], "spend_usd": round(r["spend_usd"], 4),
+        curve = champion_curve(r["events"])
+        seed = next((e["val_score"] for e in r["events"] if e["kind"] == "seed"), None)
+        out_runs.append({"run_id": r["run_id"], "user": r["user"], "curve": curve, "current": curve[-1][1] if curve else None,
+                         "seed": seed, "kept": r["kept"], "iterations": r["iterations"], "spend_usd": round(r["spend_usd"], 4),
                          "heldout": r["heldout"], "last_at": r["last_at"]})
 
     max_x = max((c[0] for r in out_runs for c in r["curve"]), default=0)
-    room_best = []
+    levels = []
     for x in range(max_x + 1):
-        ys = [y for r in out_runs for cx, y in r["curve"] if cx <= x]
+        ys = [v for r in out_runs if (v := level_at(r["curve"], x)) is not None]
         if ys:
-            room_best.append([x, max(ys)])
+            levels.append((x, max(ys)))
+    leader = steps(levels)  # the highest current harness at each iteration
     seeds = [r["seed"] for r in out_runs if r["seed"] is not None]
     if not seeds:
-        seeds = [c[1] for ref in reference for c in ref["curve"] if c[0] == 0]
+        seeds = [c[1] for ref in reference for c in ref["curve"][:1] if c[0] == 0]
     baseline = sum(seeds) / len(seeds) if seeds else None
 
     totals = {"attendees": len({r["user"] for r in out_runs}), "runs": len(out_runs), "iterations": sum(r["iterations"] for r in out_runs),
               "kept": sum(r["kept"] for r in out_runs), "spend_usd": round(sum(r["spend_usd"] for r in out_runs), 4)}
-    out_runs.sort(key=lambda r: (-(r["best"] if r["best"] is not None else -1), -r["last_at"]))
+    out_runs.sort(key=lambda r: (-(r["current"] if r["current"] is not None else -1), -r["last_at"]))
     fixes = sorted(({"label": k, "tried": v[0], "kept": v[1]} for k, v in tally.items()), key=lambda f: (-f["tried"], -f["kept"], f["label"]))
     feed.reverse()  # events come in arrival order: newest first
-    return {"mode": mode, "totals": totals, "runs": out_runs[:MAX_RUNS], "room_best": room_best, "baseline": baseline,
+    return {"mode": mode, "totals": totals, "runs": out_runs[:MAX_RUNS], "leader": leader, "baseline": baseline,
             "reference": reference, "feed": feed[:FEED_LEN], "fixes": fixes[:FIXES_LEN], "max_iteration": max_x}

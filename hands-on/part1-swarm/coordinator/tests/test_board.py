@@ -38,7 +38,12 @@ def test_scatter_legend_names_room_and_reference_markers():
     legend = re.search(r'<div class="plegend"[^>]*>(.*?)</div>', BOARD, re.S)
     assert legend, "the scatter needs a legend outside the plot"
     text = re.sub(r"<[^>]+>", " ", legend.group(1))
-    assert "this room" in text and "Harness Leaderboard" in text
+    assert "workshop runs" in text and "Harness Leaderboard" in text
+
+
+def test_board_never_names_the_room_as_an_actor_or_label():
+    shown = re.sub(r"//[^\n]*", "", BOARD)  # comments are not shown; aria-labels are (read aloud)
+    assert not re.search(r"\b(the|this) room\b|\bRoom leaderboard", shown, re.I)
 
 
 # ---- label placement -------------------------------------------------------------------------------

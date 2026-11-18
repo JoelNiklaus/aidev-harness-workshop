@@ -1,13 +1,16 @@
 """The claim queue: SQLite in one process, every operation under one lock (atomic by construction).
 
-Leases last 40 minutes (PROTOCOL.md); an expired lease puts its cell back at its place in the
-order. Results and the active leases go to the sink (the private HF bucket on the Space), from
-which a restarted coordinator rebuilds its state (`restore`).
+Leases are short (LEASE_S, PROTOCOL.md) and the runner renews its lease with a heartbeat every 30 s,
+so the cell of a runner that dies without releasing it (a killed Job) returns to the queue about a
+minute and a half after its last heartbeat. Expiry is lazy: every claim and every state read treats
+a lease past its expiry as free, so no sweeper runs. Results and the active leases go to the sink
+(the private HF bucket on the Space), from which a restarted coordinator rebuilds its state (`restore`).
 """
 
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 import threading
 import time
@@ -17,7 +20,9 @@ from typing import Any, Protocol
 
 from .grid import Grid
 
-LEASE_S = 40 * 60
+log = logging.getLogger("swarm.store")
+
+LEASE_S = 90  # > 2 heartbeats of the runner (cli.HEARTBEAT_S = 30): one lost beat never costs a live trial its cell
 MAX_N = 2
 
 RESULT_FIELDS = {
@@ -198,6 +203,8 @@ class Store:
                 raise Conflict(f"{cid} already has a result")
             holder = self._active(row, now)
             if holder is not None and holder != user:
+                # typically a late result: the sender's lease expired and the cell went to someone else meanwhile
+                log.warning("late result for %s from %s rejected: %s holds the cell now", cid, user, holder)
                 raise Conflict(f"the lease on {cid} belongs to someone else")
             stored = {**result, "hf_user": user, "cost_usd_reported": result["cost_usd"],
                       "cost_usd": round(cost_usd(result, self.price), 6), "received_at": iso(now)}
@@ -209,6 +216,12 @@ class Store:
             return stored
 
     # ------------------------------------------------------------ reads and restart
+
+    def leased_open(self) -> int:
+        """Cells without a result under a live lease: they come back if their runner dies."""
+        with self._lock:
+            return self._db.execute("SELECT COUNT(*) FROM cells WHERE done=0 AND lease_user IS NOT NULL AND lease_expires>?",
+                                    (self.clock(),)).fetchone()[0]
 
     def results(self) -> list[dict[str, Any]]:
         with self._lock:
@@ -224,7 +237,7 @@ class Store:
             return {"now": now, "leases": leases, "results": results, "max_claims": max_claims, "version": self.version}
 
     def restore(self) -> int:
-        """Rebuild results and live leases from the sink (after a Space restart). Returns the results loaded."""
+        """Rebuild results and the saved leases from the sink (after a Space restart). Returns the results loaded."""
         if self.sink is None:
             return 0
         results, leases = self.sink.load()
@@ -234,10 +247,11 @@ class Store:
                 self._db.execute("INSERT OR REPLACE INTO results(cell_id, hf_user, received, json) VALUES (?,?,?,?)",
                                  (r["cell_id"], r.get("hf_user"), _parse_ts(r.get("received_at"), now), json.dumps(r)))
                 self._db.execute("UPDATE cells SET done=1 WHERE cell_id=?", (r["cell_id"],))
+            # A restart outlasts a short lease: every saved lease starts a fresh one now, so a live runner's next
+            # heartbeat keeps its cell and a dead runner's cell returns one lease later.
             for le in leases:
-                if le["expires"] > now:
-                    self._db.execute("UPDATE cells SET lease_user=?, lease_expires=?, n_claims=n_claims+1 WHERE cell_id=? AND done=0",
-                                     (le["user"], le["expires"], le["cell_id"]))
+                self._db.execute("UPDATE cells SET lease_user=?, lease_expires=?, n_claims=n_claims+1 WHERE cell_id=? AND done=0",
+                                 (le["user"], max(le["expires"], now + self.lease_s), le["cell_id"]))
             self.version += 1
         return len(results)
 

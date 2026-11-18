@@ -1,7 +1,7 @@
 """Replay: stream recorded results into the board as if a room of runners produced them.
 
 Offline fallback (no network needed): virtual runners claim the cells in the grid's claim order,
-each "runs" for its recorded wall time, and the whole schedule is squeezed into `minutes`. The
+each "runs" for its recorded wall time (heartbeating like a real runner), and the whole schedule is squeezed into `minutes`. The
 events go through the same Store as live claims, so the board cannot tell the difference except
 for the REPLAY badge and the runner names (`replay-000`, ...).
 """
@@ -20,6 +20,7 @@ from typing import Any
 from .store import Conflict, Store
 
 MIN_WALL_S = 30.0
+BEAT_S = 30.0  # virtual runners heartbeat like the real runner (cli.HEARTBEAT_S): a replayed trial outlasts a lease
 
 
 def load_results(path: str | Path) -> list[dict[str, Any]]:
@@ -81,6 +82,8 @@ class Replayer(Ticker):
         self.events = sorted((Event(round(t * scale, 3), k, c, u) for t, k, c, u in virtual), key=lambda e: (e.at, e.kind != "submit"))
         self.start = clock()
         self._next = 0
+        self._holding: dict[str, str] = {}  # cell -> virtual runner, between its claim and its submit
+        self._beat_at = 0.0
         self._stop = threading.Event()
 
     @property
@@ -98,8 +101,17 @@ class Replayer(Ticker):
             try:
                 if e.kind == "claim":
                     self.store.lease(e.cell_id, e.user)
+                    self._holding[e.cell_id] = e.user
                 else:
+                    self._holding.pop(e.cell_id, None)
                     self.store.submit(e.cell_id, e.user, {**self.results[e.cell_id], "hf_user": e.user})
             except Conflict:
                 pass  # the cell already holds a result (a replay into a live store); skip it
+        if now - self._beat_at >= BEAT_S:
+            self._beat_at = now
+            for cid, user in list(self._holding.items()):
+                try:
+                    self.store.heartbeat(cid, user)
+                except Conflict:
+                    self._holding.pop(cid, None)
         return n

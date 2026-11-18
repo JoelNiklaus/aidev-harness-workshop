@@ -43,3 +43,9 @@ def test_state_problems_accepts_a_clean_board_and_names_every_deviation():
     dirty["harnesses"][0]["reference"] = None
     problems = space_check.state_problems(dirty, done=0, grid=s.grid)
     assert any("done" in p for p in problems) and any("reference" in p for p in problems)
+
+
+def test_the_live_check_claims_as_a_current_runner():
+    from swarm_coordinator.app import runner_ok
+
+    assert runner_ok(space_check.USER_AGENT)

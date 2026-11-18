@@ -29,8 +29,11 @@ class Mono:
         return self.t
 
 
-def H(user):
-    return {"Authorization": f"Bearer tok-{user}"}
+RUNNER_UA = "aidev-swarm/0.4.0"
+
+
+def H(user, ua=RUNNER_UA):
+    return {"Authorization": f"Bearer tok-{user}", "User-Agent": ua}
 
 
 @pytest.fixture
@@ -82,6 +85,30 @@ def test_claim_204_when_nothing_is_left(client):
         assert client.post("/api/claim", headers=H(f"u{i}")).status_code == 200
     r = client.post("/api/claim", headers=H("late"))
     assert r.status_code == 204 and r.content == b""
+
+
+def test_claim_204_says_when_to_ask_again_while_leased_cells_may_still_come_back(client, store):
+    for i in range(12):
+        assert client.post("/api/claim", headers=H(f"u{i}")).status_code == 200
+    r = client.post("/api/claim", headers=H("late"))
+    assert r.status_code == 204 and int(r.headers["retry-after"]) > 0
+    for c in store.snapshot()["leases"]:
+        store.submit(c["cell_id"], c["user"], make_result(c["cell_id"], user=c["user"]))
+    r = client.post("/api/claim", headers=H("late"))
+    assert r.status_code == 204 and "retry-after" not in r.headers  # the grid is full: stop
+
+
+@pytest.mark.parametrize("ua", ["python-httpx/0.28.1", "aidev-swarm/0.3.1", "testclient", ""])
+def test_a_claim_from_a_runner_older_than_the_short_lease_protocol_is_426(client, ua):
+    """0.3.1 beats every 2 min against a 90 s lease: it would lose its cells. It must not claim at all."""
+    r = client.post("/api/claim", headers=H("alice", ua=ua))
+    assert r.status_code == 426 and "aidev-swarm" in r.json()["detail"] and "/join" in r.json()["detail"]
+    assert client.get("/api/state").json()["counts"]["running"] == 0
+
+
+@pytest.mark.parametrize("ua", ["aidev-swarm/0.4.0", "aidev-swarm/0.4.12", "aidev-swarm/1.0.0 (job)"])
+def test_current_runners_may_claim(client, ua):
+    assert client.post("/api/claim", headers=H("alice", ua=ua)).status_code == 200
 
 
 def test_full_cycle_heartbeat_submit(client):
@@ -168,3 +195,14 @@ def test_board_polls_gently_by_default_and_backs_off(client):
 
 def test_healthz(client):
     assert client.get("/healthz").json()["ok"] is True
+
+
+def test_the_current_runner_version_may_claim():
+    """Drift guard: the runner in this repo (runner/src/aidev_swarm/__init__.py) passes the coordinator's version gate."""
+    from pathlib import Path
+
+    from swarm_coordinator.app import runner_ok
+
+    init = Path(__file__).resolve().parents[2] / "runner" / "src" / "aidev_swarm" / "__init__.py"
+    version = re.search(r'__version__ = "([^"]+)"', init.read_text()).group(1)
+    assert runner_ok(f"aidev-swarm/{version}")

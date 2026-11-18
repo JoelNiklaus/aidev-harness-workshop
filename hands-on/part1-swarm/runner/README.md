@@ -23,7 +23,7 @@ uvx --from "<WHEEL_URL>" aidev-swarm launch --n 2    # or exactly 2 trials
 URL. Or paste `AGENT_PROMPT.md` into your coding agent and let it do this. In the room, the coordinator's
 `/join` page (the slide's QR code) shows both with Copy buttons.
 
-`<WHEEL_URL>` is today `https://github.com/JoelNiklaus/aidev-harness-workshop/releases/download/swarm-v0.3.1/aidev_swarm-0.3.1-py3-none-any.whl`
+`<WHEEL_URL>` is today `https://github.com/JoelNiklaus/aidev-harness-workshop/releases/download/swarm-v0.4.0/aidev_swarm-0.4.0-py3-none-any.whl`
 (a release asset of this public repo: no login needed; the Job downloads the same file). The laptop install is
 26 MB (httpx and huggingface_hub; 4 s with an empty uv cache). Harbor and the harness wiring (about 290 MB)
 install only inside the Job (the `run` extra, about 8 s there).
@@ -49,14 +49,20 @@ The coordinator defaults to `https://agent-harness-workshop-aidev-swarm.hf.space
   key; only the meter inside the sandbox holds your token. Sandboxes run in your namespace.
 - `result.py` builds the protocol's Result from the trial folder: tokens from the meter log, cost =
   tokens x `data/prices.json` (cached input at its rate).
-- `coordinator.py` speaks the protocol (claim, heartbeat every 2 min, submit, release). Transient errors
-  (429 from the HF edge's per-IP limit, 5xx, network) are retried with capped backoff: submit for 35 min,
-  claim 10 min, heartbeat 1 min (the next beat retries), release 2 min. A result the coordinator still
-  does not take is kept in `<workdir>/unsent/` and sent again before the next claim.
+- `coordinator.py` speaks the protocol (claim, heartbeat, submit, release; User-Agent `aidev-swarm/<version>`,
+  the coordinator refuses claims from runners older than 0.4.0). Transient errors (429 from the HF edge's
+  per-IP limit, 5xx, network) are retried with capped backoff: submit for 35 min, claim 10 min, heartbeat
+  25 s (the next beat retries), release 2 min (6 s on the way out of a cancelled Job). A result the
+  coordinator still does not take is kept in `<workdir>/unsent/` and sent again before the next claim.
+- Leases are short: a background thread heartbeats every 24-30 s (random, so runners do not beat in step)
+  and the coordinator frees a cell 90 s after its last heartbeat, so the cell of a Job that dies without a
+  word (SIGKILL, lost node) returns to the queue within about 1.5 min. A slow trial keeps its cell as long
+  as it heartbeats, however long it runs. When every free cell is taken (204 with Retry-After), a looping
+  runner waits and asks again, so it picks up cells that come back; a plain 204 means the grid is full.
 - In a multi-trial run, a trial that fails before any model call (setup, sandbox start) keeps its lease,
   the next cell is claimed (`?n=2`) and only then the failed cell is released, so the queue does not hand
-  it straight back. Three failed trials in a row stop the run. A cancelled or timed-out Job (SIGTERM),
-  Ctrl-C and crashes release the cell.
+  it straight back. Three failed trials in a row stop the run. Every way out the runner can catch gives
+  its cells back at once: a cancelled or timed-out Job (SIGTERM), Ctrl-C, crashes, and an exit hook.
 - A user can hold two leases: a second runner of the same attendee claims with `?n=2` after a 409.
 
 ## Develop

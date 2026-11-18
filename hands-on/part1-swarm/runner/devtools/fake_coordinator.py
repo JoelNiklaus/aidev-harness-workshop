@@ -3,8 +3,8 @@
     python devtools/fake_coordinator.py --port 8765 [--grid ../config/grid.json] [--harnesses pi opencode] [--tasks t1 t2] [--trials 1]
                                         [--host 0.0.0.0] [--max-leases 25]
 
-Hands out cells (ids `<harness>__<task>__<trial>`, as the real coordinator) one harness after the next, breadth-first over trials within a harness, 40-minute
-leases, and keeps results in memory (GET /api/state shows them, with the number of distinct client IPs).
+Hands out cells (ids `<harness>__<task>__<trial>`, as the real coordinator) one harness after the next, breadth-first over trials within a harness, 90-second
+leases (renewed by heartbeats, as the real coordinator), and keeps results in memory (GET /api/state shows them, with the number of distinct client IPs).
 Lease limit per user as in the real coordinator (`?n=` caps the user's live leases, at most 2); `--max-leases`
 raises it, so one account can run a many-Job dry run (the real coordinator has no such switch). Tokens are checked for presence only
 (no whoami call) and never stored: the username is "user-<n>" per distinct token.
@@ -22,7 +22,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
-LEASE_S = 40 * 60
+LEASE_S = 90  # the real coordinator's store.LEASE_S
 
 
 def cells(grid: dict[str, Any]) -> list[dict[str, Any]]:

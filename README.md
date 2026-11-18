@@ -10,7 +10,7 @@ You need a Hugging Face account with credits and a fine-grained token with the p
 
 ```bash
 uvx hf auth login
-uvx --from "https://github.com/JoelNiklaus/aidev-harness-workshop/releases/download/swarm-v0.3.1/aidev_swarm-0.3.1-py3-none-any.whl" aidev-swarm check
+uvx --from "https://github.com/JoelNiklaus/aidev-harness-workshop/releases/download/swarm-v0.4.0/aidev_swarm-0.4.0-py3-none-any.whl" aidev-swarm check
 ```
 
 `check` makes one GLM-5.3-Flash call, runs one tiny HF Job and one command in an HF Sandbox (about 15 s, well under one cent) and ends with `ready: ...`. It claims no workshop task.
@@ -18,7 +18,7 @@ uvx --from "https://github.com/JoelNiklaus/aidev-harness-workshop/releases/downl
 ## Part 1 in the room
 
 ```bash
-uvx --from "https://github.com/JoelNiklaus/aidev-harness-workshop/releases/download/swarm-v0.3.1/aidev_swarm-0.3.1-py3-none-any.whl" aidev-swarm launch
+uvx --from "https://github.com/JoelNiklaus/aidev-harness-workshop/releases/download/swarm-v0.4.0/aidev_swarm-0.4.0-py3-none-any.whl" aidev-swarm launch
 ```
 
 `launch` submits one cpu-basic HF Job in your own namespace and returns in about a second. The Job claims a cell (harness, task, trial), runs it with [Harbor](https://github.com/laude-institute/harbor) in an HF Sandbox, submits the result to the board and claims the next one. Your laptop can close. Or paste [`AGENT_PROMPT.md`](hands-on/part1-swarm/runner/AGENT_PROMPT.md) into your coding agent and let it run and watch the Job.

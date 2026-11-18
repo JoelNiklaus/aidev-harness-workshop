@@ -24,12 +24,21 @@ def test_no_text_smaller_than_the_projector_minimum():
 
 
 def test_page_has_the_four_parts_the_brief_asks_for():
-    for heading in ("Race · best validation pass rate by iteration", "Most common fixes", "Newest kept patches"):
+    assert "<h1>Evolve the harness together<" in PAGE and "<title>Evolve the harness together</title>" in PAGE
+    for heading in ("Validation pass rate of each run's current harness", "Most common fixes", "Newest kept patches"):
         assert heading in PAGE
     for label in ("attendees", "iterations", "patches kept", "HF credits"):
         assert f'<div class="lab">{label}' in PAGE
-    for key in ("room best", "seed baseline"):
+    for key in ("leading run", "seed baseline"):
         assert key in PAGE  # race legend, under the plot
+
+
+def test_page_never_names_the_room_and_never_calls_a_line_best():
+    # Joel: "the room" is not an actor or a label; a line that can step down must not be called "best"
+    shown = re.sub(r"//[^\n]*|/\*.*?\*/", "", PAGE, flags=re.S)
+    assert not re.search(r"\bthe room\b|room best", shown, re.I)
+    assert not re.search(r"best validation", shown, re.I)
+    assert "s.room_best" not in PAGE and "s.leader" in PAGE
 
 
 def test_untrusted_text_goes_through_esc():
@@ -64,3 +73,45 @@ def test_labels_piled_at_the_bottom_are_pushed_up_inside_the_bounds():
     s = sorted(out)
     assert s[-1] <= 590 and s[0] >= 13
     assert all(b - a >= 32 for a, b in zip(s, s[1:]))
+
+
+# ---- patch feed: the hypothesis fits two lines and ends at a sentence or clause boundary --------------
+
+def _cands(text):
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("node not installed: the hypothesis cut runs in the page's JavaScript")
+    src = re.search(r"// <hypCandidates>(.*?)// </hypCandidates>", PAGE, re.S).group(1)
+    prog = src + "\nprocess.stdout.write(JSON.stringify(hypCandidates(process.argv[1])));\n"
+    out = subprocess.run([node, "-e", prog, text], capture_output=True, text=True, timeout=20, check=True)
+    return json.loads(out.stdout)
+
+
+B1 = ("db-wal-recovery, financial-document-processor and sparql-university ended at the 10-step cap after only "
+      "18-50 s of 180 s, still mid-work.")
+B2 = ('all four transcripts end "returned" after exactly 10 model calls and only 18-32 s of the 180 s budget; '
+      "the model was still exploring (listing files, checking tools) when the step cap cut it off.")
+
+
+def test_hypothesis_candidates_end_at_a_boundary_longest_first():
+    for text in (B1, B2):
+        c = _cands(text)
+        assert c[0] == text and c == sorted(c, key=len, reverse=True)
+        for s in c:
+            assert s[-1] in ".!?" and "…" not in s and len(s.split()) >= 4, s
+            assert text.startswith(s[:-1].rstrip()), s  # a prefix of the hypothesis, closed with a full stop
+            assert s.count("(") == s.count(")"), s
+
+
+def test_hypothesis_candidates_cut_at_semicolons_and_conjunctions_not_inside_a_list():
+    c = _cands(B2)
+    assert 'all four transcripts end "returned" after exactly 10 model calls and only 18-32 s of the 180 s budget.' in c
+    assert 'all four transcripts end "returned" after exactly 10 model calls.' in c
+    assert all(not s.startswith("db-wal-recovery.") and s != "db-wal-recovery, financial-document-processor." for s in _cands(B1))
+    assert B1 in _cands(B1)
+    # before a subordinate word (after, when, until, ...): the main clause alone is still a sentence
+    assert "db-wal-recovery, financial-document-processor and sparql-university ended at the 10-step cap." in _cands(B1)
+
+
+def test_hypothesis_without_a_boundary_has_only_itself():
+    assert _cands("runs end at the step cap") == ["runs end at the step cap"]
