@@ -37,10 +37,10 @@ Change `--harness` (for example `pi`, `openclaw`, `codex`) or `--task` (any task
 ## Part 2 in the room
 
 ```bash
-W="https://github.com/JoelNiklaus/aidev-harness-workshop/releases/download/evolve-v0.4.0/aidev_evolve-0.4.0-py3-none-any.whl"
+W="https://github.com/JoelNiklaus/aidev-harness-workshop/releases/download/evolve-v0.5.0/aidev_evolve-0.5.0-py3-none-any.whl"
 uvx --from "$W" aidev-evolve check                                     # HF login, your coding agent, the workshop board
-uvx --from "$W" aidev-evolve strategies                                # four optimization strategies to pick from
-uvx --from "$W" aidev-evolve run --strategy baseline --proposer claude # or failures-first, small-diffs, two-candidates; --proposer codex
+uvx --from "$W" aidev-evolve strategies                                # six optimization strategies to pick from
+uvx --from "$W" aidev-evolve run --proposer claude                     # default strategy code-audit; --strategy <preset>; --proposer codex
 uvx --from "$W" aidev-evolve replay                                    # a recorded real run, offline
 ```
 

@@ -1,4 +1,7 @@
-# Show stderr and the tail of outputs
-Hypothesis: failures (build-pov-ray, financial-document-processor) lost information: stderr was discarded and long outputs were cut to the first 1000 chars, so compiler/linker errors (printed last) and tool diagnostics were hidden and the model guessed or looped.
-Change: commands run with 2>&1; output limit 1000 -> 3000 chars, and over-long output keeps head and tail with a "chars cut" marker.
-Expected: fewer blind retries on build/tool errors, faster fixes; could cost more input tokens per step and add some stderr noise.
+# Verify before finishing, show clock, harden calls
+Hypothesis: runs end on the first text answer without a check (count-dataset-tokens, sparql-university FAIL with successful-looking transcripts); bn-fit-modify hit the timeout with no clock; bad tool arguments would crash the run.
+Change: prompt asks for exact requirements and a final check.
+Change: one verification nudge when the model first answers in text and more than 40 s remain.
+Change: every tool result ends with "[N s left]".
+Change: malformed tool arguments return an error message instead of raising.
+Expected: fixes premature unchecked finishes and helps timeout awareness; could cost 10-20 s on tasks already right, or make the model over-edit a correct result.

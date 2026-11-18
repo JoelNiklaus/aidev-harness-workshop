@@ -19,6 +19,7 @@ import difflib
 import json
 import shutil
 import time
+from collections import Counter
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, fields
@@ -29,6 +30,7 @@ from typing import Any
 from aidev_evolve import __version__, audit, digest, proposer, runtime, show, stats
 from aidev_evolve import strategy as strategies
 from aidev_evolve.launch import EvalJobError
+from aidev_evolve.providers import REFERENCE
 from aidev_evolve.runtime import ShellResult
 
 SEED_SOURCE = resources.files("aidev_evolve.seed").joinpath("agent.py").read_text()
@@ -63,14 +65,15 @@ class Evolver:
                  board: Any = None, write: Callable[[str], None] = print, budget_s: float | None = None, seed_source: str = SEED_SOURCE,
                  color: bool = False, run_id: str | None = None, proposer_name: str = "claude", clock: Callable[[], float] = time.monotonic,
                  resume: bool = False, strategy: strategies.Strategy | None = None, session_s: float | None = None,
-                 parallel_proposals: bool = False):
+                 parallel_proposals: bool = False, providers: list[str] | None = None):
         self.run_dir = Path(run_dir)
         self.splits = splits or default_splits()
         self.evaluate, self.propose, self.board = evaluate, propose, board or NullBoard()
         self._write, self.color, self.clock = write, color, clock
         self.budget_s = budget_s or self.splits.get("budget_s")  # the budget the splits were selected for (a resumed run: its config)
         self.session_s, self.parallel_proposals = session_s, parallel_proposals
-        self._use(strategy or strategies.load("baseline"))
+        self.providers = list(providers or [REFERENCE])  # the attendee's GLM provider first, then the fallback (providers.order)
+        self._use(strategy or strategies.load(strategies.DEFAULT))
         self.run_id = run_id or self.run_dir.name
         self.t0 = clock()
         self.records: list[dict[str, Any]] = []
@@ -81,7 +84,7 @@ class Evolver:
             return
         (self.run_dir / "config.json").write_text(json.dumps({"run_id": self.run_id, "version": __version__, "splits": self.splits, "budget_s": self.budget_s,
                                                               "model": "zai-org/GLM-5.3-Flash", "effort": "low", "proposer": proposer_name,
-                                                              "session_s": session_s, "strategy": {**asdict(self.strategy), **self.strategy.event()}}, indent=2))
+                                                              "providers": self.providers, "session_s": session_s, "strategy": {**asdict(self.strategy), **self.strategy.event()}}, indent=2))
         self.state: dict[str, Any] = {"run_id": self.run_id, "incumbent": "c000", "iteration": 0, "margin": None, "flip_rate": None,
                                       "history": [], "spend_usd": 0.0, "proposer_usd": 0.0, "heldout": None, "curve": [], "search_eval": {}}
         self._save_candidate("c000", seed_source, None, "", "")
@@ -95,6 +98,7 @@ class Evolver:
         self.state = json.loads((self.run_dir / "state.json").read_text())
         config = json.loads((self.run_dir / "config.json").read_text())
         self.splits, self.budget_s, self.session_s = config["splits"], config["budget_s"], config.get("session_s")
+        self.providers = config["providers"]
         self._use(strategies.Strategy(**{f.name: config["strategy"][f.name] for f in fields(strategies.Strategy)}))
         rec_path = self.run_dir / "records.jsonl"
         self.records = [json.loads(l) for l in rec_path.read_text().splitlines() if l.strip()] if rec_path.exists() else []
@@ -134,7 +138,7 @@ class Evolver:
 
     def _submit(self, event: dict[str, Any]) -> None:
         try:
-            waiting = self.board.submit({"run_id": self.run_id, **event, "strategy": self.strategy.event()})
+            waiting = self.board.submit({"run_id": self.run_id, **event, "provider": self.providers[0], "strategy": self.strategy.event()})
         except Exception as e:  # noqa: BLE001 - the workshop board never stops the loop
             self.write(show.paint(f"  (workshop board unreachable: {type(e).__name__})\n", show.DIM, self.color))
             return
@@ -143,7 +147,7 @@ class Evolver:
 
     def _eval(self, eval_id: str, runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
         cands = {r["candidate"] for r in runs}
-        spec = {"candidates": {c: self.source(c) for c in cands}, "runs": runs, "budget_s": self.budget_s}
+        spec = {"candidates": {c: self.source(c) for c in cands}, "runs": runs, "budget_s": self.budget_s, "providers": self.providers}
         n = sum(len(r["tasks"]) * r["trials"] for r in runs)
         self.write(f"  evaluating {n} trials in one HF Job ({', '.join(sorted(cands))})...\n")
 
@@ -315,7 +319,16 @@ class Evolver:
         self._finish(h)
         return h
 
+    def _provider_calls(self, evals: set[str]) -> dict[str, int]:
+        """Who answered the model calls of these evaluations (the attendee's provider and any fallback)."""
+        calls: Counter[str] = Counter()
+        for r in self.records:
+            if r["eval"] in evals:
+                calls.update(r.get("provider_calls") or {})
+        return dict(sorted(calls.items()))
+
     def _finish(self, h: dict[str, Any]) -> None:
+        h["provider_calls"] = self._provider_calls({f"e{h['iteration']:03d}", f"e{h['iteration']:03d}r"})
         self.state["curve"].append(self.val_score(self.state["incumbent"]))
         h["best_val"] = self.state["curve"][-1]
         h["spend_usd"] = round(self.state["spend_usd"], 6)
@@ -330,7 +343,8 @@ class Evolver:
         self._submit({"kind": "iteration", "iteration": h["iteration"], "candidate": h["candidate"], "parent": h["parent"], "title": h.get("title"),
                       "accepted": h["verdict"] == "kept", "verdict": h["verdict"], "val_child": h.get("val_child"), "val_parent": h.get("val_parent"),
                       "best_val": h["best_val"], "fixed": h.get("fixed", []), "broke": h.get("broke", []), "diff": (h.get("diff") or "")[:8000],
-                      "hypothesis": h.get("hypothesis") or None, "siblings": h.get("siblings", []), "spend_usd": h["spend_usd"]})
+                      "hypothesis": h.get("hypothesis") or None, "siblings": h.get("siblings", []), "spend_usd": h["spend_usd"],
+                      "provider_calls": h["provider_calls"]})
         self._save()
 
     def heldout(self, trials: int = 1) -> dict[str, Any]:
@@ -346,7 +360,8 @@ class Evolver:
         counts = {t: [sum(seed_pt[t]), len(seed_pt[t]), sum(best_pt[t]), len(best_pt[t])] for t in tasks if t in seed_pt and t in best_pt}
         kept = [h["title"] for h in self.state["history"] if h["verdict"] == "kept"]
         res = {"seed": stats.score(seed_pt), "best": stats.score(best_pt), "best_candidate": best, "n_tasks": len(tasks), "trials": trials,
-               "diff": pd.diff, "ci_low": pd.ci_low, "ci_high": pd.ci_high, "per_task": counts, "kept": kept}
+               "diff": pd.diff, "ci_low": pd.ci_low, "ci_high": pd.ci_high, "per_task": counts, "kept": kept,
+               "provider_calls": self._provider_calls({"heldout"})}
         self.state["heldout"] = res
         self.write(show.heldout_summary(res, self.color))
         self.write(show.spend_line(self.state["spend_usd"], self.state["proposer_usd"], self.color))

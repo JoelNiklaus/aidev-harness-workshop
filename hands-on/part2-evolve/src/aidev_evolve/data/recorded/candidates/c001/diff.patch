@@ -1,21 +1,50 @@
 --- agent.py (c000)
 +++ agent.py (c001)
-@@ -13,7 +13,8 @@
+@@ -13,12 +13,8 @@
  SYSTEM_PROMPT = """You are an AI agent that solves tasks in a Linux terminal.
  Use the bash tool to run commands. When the task is complete, reply with a short summary."""
  
 -MAX_STEPS = 10
-+MAX_STEPS = 100  # a safety net: the time budget is the real limit
-+STOP_MARGIN = 10  # seconds kept free so the last command is not cut off
- MAX_OUTPUT_CHARS = 1000
+-MAX_OUTPUT_CHARS = 1000
+-MAX_TASK_CHARS = 1000  # long task texts waste context
+-COMMAND_TIMEOUT_S = 10  # a stuck command must not eat the whole budget
+-# After every command, kill whatever it left running, so no stray program survives into the next step.
+-CLEANUP = '; rc=$?; for p in /proc/[0-9]*; do p=${p#/proc/}; [ "$p" -gt $$ ] && kill -9 "$p" 2>/dev/null; done; exit $rc'
++MAX_OUTPUT_CHARS = 6000  # long output keeps its head and its tail
++MAX_COMMAND_S = 150  # one command may run long (installs), but never past the budget
  
  BASH_TOOL = {
-@@ -48,6 +49,8 @@
-         {"role": "user", "content": task},
+     "type": "function",
+@@ -36,22 +32,26 @@
+ 
+ def format_output(result):
+     """What the model sees of a command's result."""
+-    output = result.output[:MAX_OUTPUT_CHARS]
+-    return f"exit code: {result.exit_code}\n{output}"
++    output = result.output
++    if len(output) > MAX_OUTPUT_CHARS:
++        half = MAX_OUTPUT_CHARS // 2
++        output = output[:half] + f"\n[... {len(output) - 2 * half} chars cut ...]\n" + output[-half:]
++    note = "\n[command timed out and was killed]" if result.timed_out else ""
++    return f"exit code: {result.exit_code}\n{output}{note}"
+ 
+ 
+ def run_tool_call(call, env):
+     args = json.loads(call["function"]["arguments"])
+-    result = env.shell("{ " + args["command"] + "\n} 2>/dev/null" + CLEANUP, timeout=COMMAND_TIMEOUT_S)  # only stdout: stderr is mostly noise
+-    return format_output(result)
++    timeout = max(5, min(MAX_COMMAND_S, int(env.time_left()) - 10))
++    return format_output(env.shell(args["command"], timeout=timeout))
+ 
+ 
+ def run(task, env):
+     messages = [
+         {"role": "system", "content": SYSTEM_PROMPT},
+-        {"role": "user", "content": task[:MAX_TASK_CHARS]},
++        {"role": "user", "content": task},
      ]
-     for step in range(MAX_STEPS):
-+        if env.time_left() < STOP_MARGIN:
-+            return
+-    for step in range(MAX_STEPS):
++    while env.time_left() > 8:  # the time budget is the only limit
          reply = env.llm(messages, tools=[BASH_TOOL])
          messages.append(reply)
          tool_calls = reply.get("tool_calls") or []

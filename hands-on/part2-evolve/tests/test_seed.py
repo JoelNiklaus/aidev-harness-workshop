@@ -72,7 +72,12 @@ def test_bundled_splits_carry_their_budget_and_selection_record():
     assert splits["budget_s"] == 180
     every = splits["search"] + splits["validation"] + splits["heldout"]
     assert len(every) == len(set(every)) and "headless-terminal" not in every
-    assert all(splits["calibration"][t]["kind"] == "headroom" for t in splits["validation"][:4])
+    # Phase 4 (splits E): each seed weakness bites validation tasks (so its fix can be kept) and held-out tasks (so
+    # finding it shows in the strategy ranking); "bites" = fixing it adds >= 2 of 4 passes in the paired sweep.
+    cal = splits["calibration"]
+    for weakness in ("step limit", "stray-process kill", "task cut"):
+        assert sum(weakness in cal[t]["bites"] for t in splits["validation"]) >= 2, weakness
+        assert sum(weakness in cal[t]["bites"] for t in splits["heldout"]) >= 2, weakness
 
 
 def test_seed_kills_every_command_after_ten_seconds():
@@ -87,6 +92,29 @@ def test_seed_kills_every_command_after_ten_seconds():
     llm = script_llm([tool_call("c1", "make -j4"), {"role": "assistant", "content": "done"}])
     runtime.run_agent(SEED, "build it", shell=shell, llm=llm, budget_s=180)
     assert timeouts and all(t == 10 for t in timeouts)
+
+
+def test_seed_kills_whatever_a_command_left_running():
+    """Phase 4 seed E: a server the model started (and checked) is gone after its command; no transcript shows it
+    failing, only the cleanup appended to every command (sweep 19 Nov: -8 pts with the other weaknesses fixed)."""
+    seen = []
+
+    def shell(cmd, timeout=None):
+        seen.append(cmd)
+        return ShellResult(0, "ok\n")
+
+    llm = script_llm([tool_call("nohup python -m http.server 8000 &"), {"role": "assistant", "content": "done"}])
+    runtime.run_agent(SEED, "serve it", shell=shell, llm=llm, budget_s=180)
+    assert "nohup python -m http.server 8000 &" in seen[0] and "kill -9" in seen[0].split("http.server 8000 &", 1)[1]
+
+
+def test_seed_cuts_the_task_text_at_1000_chars():
+    """Phase 4 seed E: requirements at the end of a long task never reach the model (-19 pts with the rest fixed)."""
+    task = "Do the work. " * 100 + "Write the result to /app/out.json."
+    llm = script_llm([{"role": "assistant", "content": "done"}])
+    runtime.run_agent(SEED, task, shell=lambda c, t: ShellResult(0, ""), llm=llm, budget_s=100)
+    user = [m for m in llm.calls[0]["messages"] if m["role"] == "user"][0]["content"]
+    assert len(user) == 1000 and "/app/out.json" not in user
 
 
 def test_bundled_held_out_set_is_every_pool_task_the_loop_never_sees():

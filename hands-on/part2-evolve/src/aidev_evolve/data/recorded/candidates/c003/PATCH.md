@@ -1,4 +1,0 @@
-# Show the clock, force delivery near deadline
-Hypothesis: the model never sees the time budget; in financial-document-processor it spent 172 s of 180 s on OCR of one unreadable file and produced no output at all (also build-pov-ray finished unverified), so partial credit was impossible.
-Change: every tool result gets a "[time left: N s]" line; under 70 s left it adds a WRAP UP NOW instruction to write all required outputs with best guesses and finish.
-Expected: fixes tasks that die mid-investigation with nothing delivered (financial-document-processor-style rabbit holes); could make the model quit too early on hard builds or write low-quality guesses.

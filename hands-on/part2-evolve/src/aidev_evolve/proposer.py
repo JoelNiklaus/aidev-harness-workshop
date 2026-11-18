@@ -77,12 +77,12 @@ class ProposerResult:
 
 
 def build_prompt(*, iteration: int, budget_s: float, approach: str | None = None, hint: str = "") -> str:
-    """The fixed header, the strategy's approach (its proposer_prompt.md; default: the baseline preset), an optional
+    """The fixed header, the strategy's approach (its proposer_prompt.md; default: the default preset), an optional
     hint for a second candidate, then the fixed rules."""
     if approach is None:
         from aidev_evolve import strategy
 
-        approach = strategy.load("baseline").prompt
+        approach = strategy.load(strategy.DEFAULT).prompt
     extra = f"\n{hint.strip()}\n" if hint.strip() else ""
     return HEADER.format(iteration=iteration, budget_s=budget_s) + "\n" + approach.strip() + "\n" + extra + RULES
 

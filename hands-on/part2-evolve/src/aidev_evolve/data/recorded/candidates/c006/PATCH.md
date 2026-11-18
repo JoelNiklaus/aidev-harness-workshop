@@ -1,4 +1,0 @@
-# Deliver early, switch approach, never stall
-Hypothesis: financial-document-processor spent ~25 of 53 calls retrying OCR variants on one unreadable file and delivered nothing; build-pov-ray also ended unchecked against the task's wording. The model has no working discipline in its prompt.
-Change: SYSTEM_PROMPT gains four working rules: deliver a rough complete result first, switch approach after two failures or ~5 commands on one item, best guess beats missing output, check the exact task wording at the end.
-Expected: fixes rabbit holes that end with nothing delivered (partial credit, skipped hard items); could make the model give up on a hard step too early or add a few seconds of final checking.

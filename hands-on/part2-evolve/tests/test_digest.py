@@ -30,6 +30,23 @@ def test_one_trajectory_reads_like_a_transcript():
     assert "model saw 1,013 chars" in md  # what the harness passed on
 
 
+def _first_messages(t, user_text):
+    t["steps"][0]["new_messages"] = [{"role": "system", "content": "You are an agent."}, {"role": "user", "content": user_text}]
+    return t
+
+
+def test_the_first_step_says_what_the_model_received_of_the_task():
+    # A harness can cut or rewrite the task before the model sees it: the transcript must make that visible.
+    t = traj()
+    task = t["task"] + " Then write the report to /app/out.txt in JSON."
+    t["task"] = task
+    md = digest.render(rec("x", "fail", _first_messages(t, task[:30])))
+    assert f"model received 30 of the task's {len(task)} chars" in md
+    t2 = traj()
+    md2 = digest.render(rec("x", "fail", _first_messages(t2, t2["task"])))
+    assert "of the task's" not in md2  # the whole task arrived: nothing to report
+
+
 def test_long_trajectories_are_cut_to_a_budget_keeping_the_end():
     md = digest.render(rec("x", "fail", traj(n=60)), max_chars=12_000)
     assert len(md) <= 12_500

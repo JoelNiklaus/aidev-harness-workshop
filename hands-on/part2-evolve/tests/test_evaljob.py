@@ -44,6 +44,19 @@ def test_one_harbor_job_per_candidate_with_the_source_as_agent_kwarg(tmp_path):
     assert cfgs[0]["verifier"]["override_timeout_sec"] == evaljob.VERIFIER_CAP_S  # one hung test run cannot hold the iteration for 15 min
 
 
+def test_the_attendees_provider_order_reaches_every_agent(tmp_path):
+    cfgs = evaljob.harbor_configs(spec(providers=["novita", "zai-org"]), tmp_path, run_id="r1")
+    assert all(c["agents"][0]["kwargs"]["providers"] == ["novita", "zai-org"] for c in cfgs)
+    assert evaljob.harbor_configs(spec(), tmp_path / "b", run_id="r1")[0]["agents"][0]["kwargs"]["providers"] == ["zai-org"]  # devtools specs
+
+
+def test_record_carries_which_providers_answered(tmp_path):
+    d = write_trial(tmp_path, "r1-c001", "fix-git", 0, reward=1.0)
+    t = d / "agent" / "evolve-trajectory.json"
+    t.write_text(json.dumps({**json.loads(t.read_text()), "provider_calls": {"novita": 5, "zai-org": 1}}))
+    assert evaljob.record(d, "c001")["provider_calls"] == {"novita": 5, "zai-org": 1}
+
+
 def test_a_verifier_timeout_is_not_scored(tmp_path):
     t = write_trial(tmp_path, "j", "a", 0, reward=None, exception={"exception_type": "VerifierTimeoutError", "exception_message": "240 s"})
     assert evaljob.record(t, "c")["outcome"] == "infra"

@@ -1,4 +1,4 @@
-"""A small terminal agent: the starting harness for aidev-evolve.
+"""Seed E with the step limit and the stray-process kill fixed: only the 1,000-char task cut (W3) left.
 
 The loop: send the conversation to the model, run the bash commands it asks for, append the output,
 repeat until the model answers without a tool call or the step limit is reached.
@@ -13,10 +13,11 @@ import json
 SYSTEM_PROMPT = """You are an AI agent that solves tasks in a Linux terminal.
 Use the bash tool to run commands. When the task is complete, reply with a short summary."""
 
-MAX_STEPS = 100  # a safety net: the time budget is the real limit
-STOP_MARGIN = 10  # seconds kept free so the last command is not cut off
+MAX_STEPS = 100  # the real limit is the clock
+SAFETY_MARGIN_S = 10
 MAX_OUTPUT_CHARS = 1000
-WRAP_UP_AT = 70  # seconds left when the model is told to deliver what it has
+MAX_TASK_CHARS = 1000  # long task texts waste context
+COMMAND_TIMEOUT_S = 10  # a stuck command must not eat the whole budget
 
 BASH_TOOL = {
     "type": "function",
@@ -38,35 +39,25 @@ def format_output(result):
     return f"exit code: {result.exit_code}\n{output}"
 
 
-def clock_note(env):
-    """Keep the model aware of the deadline; near the end, demand a best-effort deliverable."""
-    left = int(env.time_left())
-    note = f"\n[time left: {left} s]"
-    if left < WRAP_UP_AT:
-        note += (" WRAP UP NOW: stop investigating. Write every required output file/state with your"
-                 " best guess (use placeholders for what you could not read), then finish.")
-    return note
-
-
 def run_tool_call(call, env):
     args = json.loads(call["function"]["arguments"])
-    result = env.shell("{ " + args["command"] + "\n} 2>/dev/null")  # only stdout: stderr is mostly noise
+    result = env.shell("{ " + args["command"] + "\n} 2>/dev/null", timeout=COMMAND_TIMEOUT_S)  # only stdout: stderr is mostly noise
     return format_output(result)
 
 
 def run(task, env):
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": task},
+        {"role": "user", "content": task[:MAX_TASK_CHARS]},
     ]
     for step in range(MAX_STEPS):
-        if env.time_left() < STOP_MARGIN:
-            return
+        if env.time_left() < SAFETY_MARGIN_S:
+            return  # out of time: stop cleanly
         reply = env.llm(messages, tools=[BASH_TOOL])
         messages.append(reply)
         tool_calls = reply.get("tool_calls") or []
         if not tool_calls:
             return  # the model answered in text: we are done
         for call in tool_calls:
-            content = run_tool_call(call, env) + clock_note(env)
+            content = run_tool_call(call, env)
             messages.append({"role": "tool", "tool_call_id": call["id"], "content": content})

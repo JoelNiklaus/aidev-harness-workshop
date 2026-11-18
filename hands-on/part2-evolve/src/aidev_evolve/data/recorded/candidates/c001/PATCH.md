@@ -1,4 +1,4 @@
-# Run until time budget, not 10 steps
-Hypothesis: all four transcripts end "returned" after exactly 10 model calls and only 18-32 s of the 180 s budget; the model was still exploring (listing files, checking tools) when the step cap cut it off.
-Change: MAX_STEPS 10 -> 100 as a safety net; the loop now stops when env.time_left() drops below a 10 s margin.
-Expected: tasks needing more than 10 commands (build, recovery, multi-step data work) get time to finish; could burn time on hopeless tasks, or hit the time limit mid-command.
+# Remove step, timeout, output and kill limits
+Hypothesis: runs stop at 10 steps with 100+ s unused, installs die at 10 s, stderr is hidden, output and task are cut (all 4 FAIL transcripts, e.g. configure-git-webserver, sparql-university).
+Change: loop until time_left < 8 s instead of 10 steps; command timeout up to 150 s, bounded by time left, and a timeout note; stderr kept (no `2>/dev/null`); output cap 6000 chars keeping head and tail; full task text; removed the kill-everything CLEANUP so started servers survive.
+Expected: fixes runs cut by the step and timeout limits or blind to errors; could break if a hung command eats up to 150 s, or if leftover processes interfere between steps.

@@ -6,6 +6,7 @@ import httpx
 import pytest
 
 from aidev_evolve import llm as llm_mod
+from aidev_evolve import providers
 
 
 def reply_json(content="ok", tool_calls=None, usage=None):
@@ -16,8 +17,8 @@ def reply_json(content="ok", tool_calls=None, usage=None):
             "usage": usage or {"prompt_tokens": 50, "completion_tokens": 5, "prompt_tokens_details": {"cached_tokens": 20}}}
 
 
-def make(handler, sleeps=None):
-    return llm_mod.RouterLLM("hf_dummy", route="zai-org/GLM-5.3-Flash:zai-org", effort="low",
+def make(handler, sleeps=None, pool=None):
+    return llm_mod.RouterLLM("hf_dummy", pool=pool or providers.Pool(["zai-org"]), effort="low",
                              client=httpx.Client(transport=httpx.MockTransport(handler)), sleep=(sleeps.append if sleeps is not None else lambda s: None))
 
 
@@ -73,6 +74,61 @@ def test_gives_up_with_timeout_error_when_retries_would_pass_the_deadline():
     sleeps = []
     with pytest.raises(TimeoutError):
         make(lambda r: httpx.Response(503, json={}), sleeps)([], None, timeout=3)
+
+
+def routed(codes):
+    """A router fake: answers each call with the next status code and records which provider it was sent to."""
+    codes, seen = iter(codes), []
+
+    def handler(request):
+        seen.append(json.loads(request.content)["model"].split(":", 1)[1])
+        c = next(codes)
+        if c == "timeout":
+            raise httpx.ReadTimeout("slow", request=request)
+        return httpx.Response(c, json=reply_json() if c == 200 else {"error": "busy"})
+
+    return handler, seen
+
+
+def test_calls_go_to_the_attendees_first_provider_and_are_counted():
+    handler, seen = routed([200, 200])
+    llm = make(handler, pool=providers.Pool(["novita", "zai-org"]))
+    llm([], None, timeout=30)
+    llm([], None, timeout=30)
+    assert seen == ["novita", "novita"] and llm.provider_calls == {"novita": 2}
+
+
+@pytest.mark.parametrize("failure", [429, 500, 503, "timeout"])
+def test_a_busy_provider_is_retried_at_once_on_the_next_one(failure):
+    handler, seen = routed([failure, 200])
+    sleeps = []
+    llm = make(handler, sleeps, pool=providers.Pool(["novita", "zai-org"]))
+    msg, _ = llm([], None, timeout=60)
+    assert msg["content"] == "ok" and seen == ["novita", "zai-org"] and sleeps == []
+    assert llm.provider_calls == {"zai-org": 1}  # who actually answered
+
+
+def test_only_one_fallback_per_call_then_the_usual_backoff():
+    handler, seen = routed([429, 429, 429, 200])
+    sleeps = []
+    make(handler, sleeps, pool=providers.Pool(["novita", "zai-org"]))([], None, timeout=60)
+    assert seen == ["novita", "zai-org", "zai-org", "zai-org"] and len(sleeps) == 2
+
+
+def test_after_three_fallbacks_the_job_starts_calls_on_the_next_provider():
+    pool = providers.Pool(["novita", "zai-org"])
+    handler, seen = routed([429, 200, 503, 200, 429, 200, 200])
+    llm = make(handler, pool=pool)
+    for _ in range(4):
+        llm([], None, timeout=60)
+    assert seen[-1] == "zai-org" and pool.first() == "zai-org"
+
+
+def test_a_bad_request_does_not_fall_back():
+    handler, seen = routed([400])
+    with pytest.raises(llm_mod.LLMError):
+        make(handler, pool=providers.Pool(["novita", "zai-org"]))([], None, timeout=30)
+    assert seen == ["novita"]
 
 
 def test_a_bad_request_is_an_error_the_agent_sees():

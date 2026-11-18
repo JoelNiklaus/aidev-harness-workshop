@@ -132,7 +132,12 @@ def test_check_job_runs_one_seed_trial_in_an_hf_job(monkeypatch, capsys):
     monkeypatch.setattr(launch, "run_eval", fake_run_eval)
     assert cli.main(["check", "--job"]) == 0
     assert [(r["tasks"], r["trials"]) for r in seen["spec"]["runs"]] == [(["fix-git"], 1)]
-    assert "HF Job" in capsys.readouterr().out
+    from aidev_evolve import providers
+
+    user = cli._session()[2]
+    assert seen["spec"]["providers"] == providers.for_user(user)  # the check tests the provider the run will use
+    out = capsys.readouterr().out
+    assert "HF Job" in out and f"GLM provider: {seen['spec']['providers'][0]}" in out
 
 
 def test_check_without_hf_login_fails_with_the_fix(monkeypatch, capsys):

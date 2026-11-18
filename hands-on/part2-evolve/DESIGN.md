@@ -162,3 +162,26 @@ held-out) and a second patch was kept once in 19 runs (it did not hold on held-o
 | 17 | Rank strategies (pooled runs), not individuals; Welch t over runs, tasks fixed; min 5 runs | Simulation: one run ±17 pts; bootstrap over 5 runs under-covers (11% false winners), Welch 4% | helper |
 | 18 | Session time box 22 min (not 20) | Calibration 3 + 2 iterations 8.4 + one re-measure 2.5 + held-out 5.5 = 19.4 min; 20 would allow only 1-2 iterations | helper |
 | 19 | Held-out trials 2 per task (not 1) | 1 trial halves the power of the strategy comparison (gap 8, 5 runs: 40% vs 75%) for $0.18 less | helper |
+
+## Phase 4: a seed whose weaknesses separate strategies (helper, 19 Nov; numbers in PROGRESS.md)
+
+Phase 3's tie had a measurable cause: after the step-limit fix, seed C had nothing left to find. A paired sweep (34
+tasks x 4 trials) of the step-fixed harness with and without the 10-s kill gave -0.7 points [-8.5, +7.4]: with unlimited
+steps GLM-5.3-Flash works around the kill (backgrounds builds, retries). Moving kill tasks into search could not help.
+**Seed E** adds two weaknesses that do not depend on the step limit, each measured with the other two fixed: every
+process a command leaves running is killed after it (servers die after the model checked them: -8.8 points [-21.3, +2.9] on the pool; no
+transcript shows a failure, only the cleanup appended to each command) and the task text is cut at 1,000 characters
+(-19.9 [-33.5, -7.4]). The digest now flags a cut task on step 1. Splits E (`devtools/splits_e.py`): validation holds 2+
+tasks per weakness, held-out 21 tasks keeps tasks for each.
+
+20 real runs on seed E: **code-audit** (read agent.py line by line, then the transcripts; fix every harmful line in one
+patch) found all three fixes in 5 of 5 runs and ranks first alone (held-out 70.5% vs every-weakness 57.8% and
+baseline 50.0%; differences +12.7 [+5.2, +20.1] and +20.5 [+14.0, +26.9], Welch over runs). Transcript-driven
+strategies never found the stray-process kill (baseline 0 of 8 kept it, every-weakness 1 of 7). It is the default.
+
+| # | Decision | Why | By |
+|---|---|---|---|
+| 20 | Seed E = seed C + stray processes killed after every command + task text cut at 1,000 chars; splits E (search 5, validation 8, held-out 21) | Kill fix after the step fix = -0.7 [-8.5, +7.4]: no second weakness left in seed C; the two new ones bite with the rest fixed (-8.8, -19.9 pts); the held-out ranking confirms the third (+12.7 for the strategy that finds it) | helper (parent approved re-splitting; the seed change follows the skill's rule) |
+| 21 | Default strategy `code-audit`; presets `every-weakness` and `code-audit` added | Ranked first alone on 20 runs (5/7/8 per strategy) | helper |
+| 22 | One GLM provider per attendee (Part 1's list and hash), per-call fallback on 429/5xx/timeout, Job moves after 3 fallbacks; `provider`/`provider_calls` on events | Coordinator request (REQUESTS.md); hash on the username cannot bias the strategy ranking | coordinator owner (request), helper (build) |
+| 23 | Session stays 22 min with 2 iterations (3 do not fit: calibration 3 + 2 x 4.5 + re-measure 2.5 + held-out 5.5 = 20 min) | The winner needs one iteration; a third adds 5 min per attendee for nothing measured | helper |

@@ -32,6 +32,26 @@ def test_presets_differ_in_the_knobs_they_advertise():
     assert "10 lines" in s.prompt or "ten lines" in s.prompt.lower()
 
 
+def test_every_weakness_preset_fixes_each_mechanism_it_sees_in_one_patch():
+    # The contrast to baseline's "one focused change": tally every failure mechanism in the failed transcripts and
+    # fix each one seen in two or more of them, in the same patch (Phase 4: the second seed weakness is otherwise
+    # left for an iteration whose keep margin it rarely clears).
+    e, b = strategy.load("every-weakness"), strategy.load("baseline")
+    assert e.traces == "failed" and e.candidates == 1 and e.max_traces == 8
+    assert "one focused change" not in e.prompt and "one focused change" in b.prompt
+    assert "every" in e.prompt.lower() and "two or more" in e.prompt.lower()
+    assert "TIMED OUT" in e.prompt  # names the symptoms to look for, as limits-first did
+
+
+def test_code_audit_preset_reads_the_harness_line_by_line_before_the_transcripts():
+    # Phase 4: a weakness can leave no symptom in a transcript (a server the model checked, killed after its command),
+    # so this preset starts from agent.py, not from failures, and fixes every harmful line in one patch.
+    a = strategy.load("code-audit")
+    assert a.traces == "all" and a.candidates == 1 and a.history == "full"
+    assert "AUDIT.md" in a.prompt and "line by line" in a.prompt
+    assert a.prompt.index("agent.py") < a.prompt.index("traces/")
+
+
 def test_init_copies_a_preset_for_editing_and_the_copy_is_unmodified(tmp_path):
     d = strategy.init("small-diffs", tmp_path / "mine")
     assert (d / "strategy.toml").exists() and (d / "proposer_prompt.md").exists()

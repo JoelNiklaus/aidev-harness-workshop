@@ -24,6 +24,19 @@ def test_bundled_recorded_run_exists_and_replays():
     assert any("Iteration" in o for o in out)
 
 
+def test_bundled_recorded_run_uses_the_bundled_seed_and_splits():
+    # The offline replay must show the configuration attendees run (Phase 4: seed E, splits E), not an older one.
+    from importlib import resources
+
+    run = replay.bundled()
+    cfg = json.loads((run / "config.json").read_text())
+    bundled_splits = json.loads(resources.files("aidev_evolve.data").joinpath("splits.json").read_text())
+    assert cfg["splits"]["validation"] == bundled_splits["validation"] and cfg["splits"]["heldout"] == bundled_splits["heldout"]
+    seed = resources.files("aidev_evolve.seed").joinpath("agent.py").read_text()
+    assert (run / "candidates" / "c000" / "agent.py").read_text().split('"""', 2)[2] == seed.split('"""', 2)[2]
+    assert json.loads((run / "state.json").read_text())["heldout"]["per_task"]  # ends with the held-out check
+
+
 def test_board_client_posts_events_with_the_token():
     seen = {}
 

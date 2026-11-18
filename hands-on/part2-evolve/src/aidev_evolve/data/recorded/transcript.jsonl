@@ -1,357 +1,237 @@
-{"t": 0.0, "text": "\nEvolve run joelniklaus-B2: seed agent on 4 search + 6 validation tasks\n"}
-{"t": 0.0, "text": "  evaluating 16 trials in one HF Job (c000)...\n"}
-{"t": 47.54, "text": "    fail   c000 validation build-pmars                      35 s  returned\n"}
-{"t": 51.54, "text": "    fail   c000 validation build-pmars                      40 s  returned\n"}
-{"t": 51.54, "text": "    PASS   c000 validation constraints-scheduling           40 s  returned\n"}
-{"t": 53.54, "text": "    fail   c000 search     sparql-university                41 s  returned\n"}
-{"t": 55.54, "text": "    fail   c000 search     build-pov-ray                    45 s  returned\n"}
-{"t": 59.58, "text": "    fail   c000 search     db-wal-recovery                  48 s  returned\n"}
-{"t": 59.58, "text": "    fail   c000 validation constraints-scheduling           47 s  returned\n"}
-{"t": 61.56, "text": "    fail   c000 validation extract-elf                      49 s  returned\n"}
-{"t": 67.57, "text": "    fail   c000 search     financial-document-processor     56 s  returned\n"}
-{"t": 71.64, "text": "    fail   c000 validation configure-git-webserver          59 s  returned\n"}
-{"t": 73.64, "text": "    fail   c000 validation extract-elf                      62 s  returned\n"}
-{"t": 77.64, "text": "    fail   c000 validation count-dataset-tokens             65 s  returned\n"}
-{"t": 79.71, "text": "    fail   c000 validation count-dataset-tokens             68 s  returned\n"}
-{"t": 83.64, "text": "    PASS   c000 validation configure-git-webserver          72 s  returned\n"}
-{"t": 89.71, "text": "    PASS   c000 validation sqlite-with-gcov                 78 s  returned\n"}
-{"t": 104.51, "text": "    PASS   c000 validation sqlite-with-gcov                 93 s  returned\n"}
-{"t": 104.51, "text": "  Job 6afc6fc44643bac7ac629dfe: 105 s, $0.040\n"}
-{"t": 104.51, "text": "\nSeed agent: search    0%, validation   33% (two trials per validation task)\n  noise: 33% of validation tasks flip between two runs of the same agent -> keep a patch only if it gains at least 25 points (1.5 of 6 tasks)\n"}
-{"t": 104.51, "text": "  HF credits spent so far: $0.040\n"}
-{"t": 104.51, "text": "\n--- iteration 1: proposing a change to c000 ---\n"}
-{"t": 129.67, "text": "  proposer: Run until time budget, not 10 steps (25 s)\n"}
-{"t": 129.67, "text": "  evaluating 28 trials in one HF Job (c000, c001)...\n"}
-{"t": 169.79, "text": "    PASS   c001 search     db-wal-recovery                  26 s  returned\n"}
-{"t": 173.8, "text": "    fail   c001 validation extract-elf                      31 s  returned\n"}
-{"t": 181.8, "text": "    fail   c000 validation build-pmars                      37 s  returned\n"}
-{"t": 181.8, "text": "    PASS   c000 validation constraints-scheduling           38 s  returned\n"}
-{"t": 181.8, "text": "    PASS   c000 validation constraints-scheduling           38 s  returned\n"}
-{"t": 183.8, "text": "    PASS   c000 validation extract-elf                      41 s  returned\n"}
-{"t": 187.8, "text": "    PASS   c001 validation constraints-scheduling           44 s  returned\n"}
-{"t": 187.81, "text": "    fail   c000 validation build-pmars                      44 s  returned\n"}
-{"t": 193.82, "text": "    PASS   c001 validation constraints-scheduling           50 s  returned\n"}
-{"t": 197.82, "text": "    PASS   c001 validation extract-elf                      54 s  returned\n"}
-{"t": 203.82, "text": "    PASS   c000 validation count-dataset-tokens             61 s  returned\n"}
-{"t": 205.86, "text": "    PASS   c001 validation count-dataset-tokens             63 s  returned\n"}
-{"t": 207.82, "text": "    PASS   c000 validation extract-elf                      65 s  returned\n"}
-{"t": 209.83, "text": "    fail   c000 validation count-dataset-tokens             66 s  returned\n"}
-{"t": 213.83, "text": "    PASS   c001 validation sqlite-with-gcov                 70 s  returned\n"}
-{"t": 215.83, "text": "    PASS   c000 validation configure-git-webserver          73 s  returned\n"}
-{"t": 217.83, "text": "    fail   c000 validation sqlite-with-gcov                 74 s  returned\n"}
-{"t": 219.85, "text": "    PASS   c001 validation sqlite-with-gcov                 76 s  returned\n"}
-{"t": 219.86, "text": "    PASS   c000 validation configure-git-webserver          76 s  returned\n"}
-{"t": 219.86, "text": "    PASS   c000 validation sqlite-with-gcov                 76 s  returned\n"}
-{"t": 229.94, "text": "    PASS   c001 search     sparql-university                87 s  returned\n"}
-{"t": 229.94, "text": "    PASS   c001 validation count-dataset-tokens             85 s  returned\n"}
-{"t": 231.93, "text": "    PASS   c001 validation configure-git-webserver          89 s  returned\n"}
-{"t": 255.96, "text": "    PASS   c001 validation build-pmars                     112 s  returned\n"}
-{"t": 267.97, "text": "    fail   c001 search     build-pov-ray                   125 s  returned\n"}
-{"t": 285.98, "text": "    PASS   c001 validation configure-git-webserver         143 s  returned\n"}
-{"t": 328.03, "text": "    fail   c001 validation build-pmars                     185 s  returned\n"}
-{"t": 343.57, "text": "    fail   c001 search     financial-document-processor    201 s  returned\n"}
-{"t": 343.58, "text": "  Job 6afc7045884144d2f44f52dc: 214 s, $0.134\n"}
-{"t": 343.58, "text": "  validation 50% -> 83%: re-measuring before it counts...\n"}
-{"t": 343.58, "text": "  evaluating 24 trials in one HF Job (c000, c001)...\n"}
-{"t": 385.38, "text": "    PASS   c000 validation extract-elf                      30 s  returned\n"}
-{"t": 395.39, "text": "    PASS   c001 validation extract-elf                      40 s  returned\n"}
-{"t": 401.39, "text": "    PASS   c000 validation constraints-scheduling           45 s  returned\n"}
-{"t": 403.44, "text": "    PASS   c001 validation extract-elf                      47 s  returned\n"}
-{"t": 405.38, "text": "    PASS   c001 validation constraints-scheduling           51 s  returned\n"}
-{"t": 405.38, "text": "    fail   c000 validation build-pmars                      50 s  returned\n"}
-{"t": 407.46, "text": "    PASS   c001 validation constraints-scheduling           52 s  returned\n"}
-{"t": 407.46, "text": "    fail   c000 validation build-pmars                      52 s  returned\n"}
-{"t": 407.47, "text": "    PASS   c000 validation constraints-scheduling           52 s  returned\n"}
-{"t": 411.39, "text": "    PASS   c001 validation build-pmars                      55 s  returned\n"}
-{"t": 413.4, "text": "    fail   c001 validation count-dataset-tokens             59 s  returned\n"}
-{"t": 415.44, "text": "    PASS   c000 validation extract-elf                      60 s  returned\n"}
-{"t": 419.42, "text": "    fail   c000 validation count-dataset-tokens             63 s  returned\n"}
-{"t": 425.41, "text": "    fail   c000 validation configure-git-webserver          70 s  returned\n"}
-{"t": 425.41, "text": "    fail   c000 validation count-dataset-tokens             70 s  returned\n"}
-{"t": 429.42, "text": "    PASS   c000 validation configure-git-webserver          73 s  returned\n"}
-{"t": 431.42, "text": "    PASS   c001 validation sqlite-with-gcov                 76 s  returned\n"}
-{"t": 433.43, "text": "    fail   c001 validation build-pmars                      77 s  returned\n"}
-{"t": 435.42, "text": "    PASS   c000 validation sqlite-with-gcov                 79 s  returned\n"}
-{"t": 437.46, "text": "    PASS   c001 validation count-dataset-tokens             83 s  returned\n"}
-{"t": 443.44, "text": "    PASS   c001 validation sqlite-with-gcov                 88 s  returned\n"}
-{"t": 445.45, "text": "    fail   c000 validation sqlite-with-gcov                 90 s  returned\n"}
-{"t": 455.65, "text": "    PASS   c001 validation configure-git-webserver          99 s  returned\n"}
-{"t": 465.84, "text": "    PASS   c001 validation configure-git-webserver         111 s  returned\n"}
-{"t": 465.84, "text": "  Job 6afc711b884144d2f44f53f1: 122 s, $0.067\n"}
-{"t": 465.84, "text": "\nIteration 1  c001 from c000: Run until time budget, not 10 steps\n  Hypothesis: all four transcripts end \"returned\" after exactly 10 model calls and only 18-32 s of the 180 s budget; the model was still exploring (listing files, checking tools) when the step cap cut it off.\n    --- agent.py (c000)\n    +++ agent.py (c001)\n    @@ -13,7 +13,8 @@\n     SYSTEM_PROMPT = \"\"\"You are an AI agent that solves tasks in a Linux terminal.\n     Use the bash tool to run commands. When the task is complete, reply with a short summary.\"\"\"\n     \n    -MAX_STEPS = 10\n    +MAX_STEPS = 100  # a safety net: the time budget is the real limit\n    +STOP_MARGIN = 10  # seconds kept free so the last command is not cut off\n     MAX_OUTPUT_CHARS = 1000\n     \n     BASH_TOOL = {\n    @@ -48,6 +49,8 @@\n             {\"role\": \"user\", \"content\": task},\n         ]\n         for step in range(MAX_STEPS):\n    +        if env.time_left() < STOP_MARGIN:\n    +            return\n             reply = env.llm(messages, tools=[BASH_TOOL])\n             messages.append(reply)\n             tool_calls = reply.get(\"tool_calls\") or []\n  validation   50% ->   83% (+33 points, needs +25)  KEPT\n  fixed: build-pmars, configure-git-webserver, constraints-scheduling, count-dataset-tokens, extract-elf, sqlite-with-gcov    broke: -    search:   50%\n  best agent so far, validation: \u2583\u2587   83%\n"}
-{"t": 465.84, "text": "  HF credits spent so far: $0.241; proposer on your own subscription (API-price equivalent): $0.08\n"}
-{"t": 465.84, "text": "\n--- iteration 2: proposing a change to c001 ---\n"}
-{"t": 491.73, "text": "  proposer: Show stderr and the tail of outputs (26 s)\n"}
-{"t": 491.73, "text": "  evaluating 28 trials in one HF Job (c001, c002)...\n"}
-{"t": 533.87, "text": "    PASS   c002 validation extract-elf                      28 s  returned\n"}
-{"t": 539.94, "text": "    PASS   c002 search     db-wal-recovery                  34 s  returned\n"}
-{"t": 543.87, "text": "    PASS   c001 validation constraints-scheduling           38 s  returned\n"}
-{"t": 543.87, "text": "    PASS   c001 validation extract-elf                      38 s  returned\n"}
-{"t": 543.87, "text": "    PASS   c001 validation extract-elf                      38 s  returned\n"}
-{"t": 546.43, "text": "    PASS   c002 validation constraints-scheduling           40 s  returned\n"}
-{"t": 547.89, "text": "    PASS   c001 validation constraints-scheduling           43 s  returned\n"}
-{"t": 553.9, "text": "    PASS   c002 validation constraints-scheduling           49 s  returned\n"}
-{"t": 559.89, "text": "    PASS   c002 validation build-pmars                      56 s  returned\n"}
-{"t": 563.98, "text": "    PASS   c002 validation count-dataset-tokens             58 s  returned\n"}
-{"t": 568.02, "text": "    PASS   c001 validation build-pmars                      62 s  returned\n"}
-{"t": 571.92, "text": "    fail   c002 validation count-dataset-tokens             66 s  returned\n"}
-{"t": 571.92, "text": "    fail   c001 validation count-dataset-tokens             66 s  returned\n"}
-{"t": 573.9, "text": "    PASS   c001 validation configure-git-webserver          69 s  returned\n"}
-{"t": 577.9, "text": "    PASS   c001 validation build-pmars                      73 s  returned\n"}
-{"t": 579.94, "text": "    PASS   c002 validation extract-elf                      74 s  returned\n"}
-{"t": 581.98, "text": "    PASS   c002 validation configure-git-webserver          76 s  returned\n"}
-{"t": 585.96, "text": "    PASS   c001 validation sqlite-with-gcov                 80 s  returned\n"}
-{"t": 587.94, "text": "    PASS   c001 validation count-dataset-tokens             82 s  returned\n"}
-{"t": 589.95, "text": "    PASS   c002 validation sqlite-with-gcov                 85 s  returned\n"}
-{"t": 589.95, "text": "    PASS   c001 validation sqlite-with-gcov                 84 s  returned\n"}
-{"t": 594.29, "text": "    PASS   c002 validation sqlite-with-gcov                 89 s  returned\n"}
-{"t": 594.29, "text": "    PASS   c001 validation configure-git-webserver          88 s  returned\n"}
-{"t": 614.03, "text": "    PASS   c002 validation configure-git-webserver         110 s  returned\n"}
-{"t": 617.99, "text": "    fail   c002 validation build-pmars                     113 s  returned\n"}
-{"t": 624.03, "text": "    fail   c002 search     sparql-university               118 s  returned\n"}
-{"t": 646.06, "text": "    fail   c002 search     build-pov-ray                   142 s  returned\n"}
-{"t": 655.36, "text": "    PASS   c002 search     financial-document-processor    151 s  returned\n"}
-{"t": 655.37, "text": "  Job 6afc71af4643bac7ac62a07e: 164 s, $0.104\n"}
-{"t": 655.37, "text": "\nIteration 2  c002 from c001: Show stderr and the tail of outputs\n  Hypothesis: failures (build-pov-ray, financial-document-processor) lost information: stderr was discarded and long outputs were cut to the first 1000 chars, so compiler/linker errors (printed last) and tool diagnostics were hidden and the model guessed or looped.\n    --- agent.py (c001)\n    +++ agent.py (c002)\n    @@ -15,7 +15,7 @@\n     \n     MAX_STEPS = 100  # a safety net: the time budget is the real limit\n     STOP_MARGIN = 10  # seconds kept free so the last command is not cut off\n    -MAX_OUTPUT_CHARS = 1000\n    +MAX_OUTPUT_CHARS = 3000\n     \n     BASH_TOOL = {\n         \"type\": \"function\",\n    @@ -33,13 +33,16 @@\n     \n     def format_output(result):\n         \"\"\"What the model sees of a command's result.\"\"\"\n    -    output = result.output[:MAX_OUTPUT_CHARS]\n    +    output = result.output\n    +    if len(output) > MAX_OUTPUT_CHARS:  # errors and results come last: keep both ends\n    +        half = MAX_OUTPUT_CHARS // 2\n    +        output = output[:half] + f\"\\n[... {len(output) - 2 * half} chars cut ...]\\n\" + output[-half:]\n         return f\"exit code: {result.exit_code}\\n{output}\"\n     \n     \n     def run_tool_call(call, env):\n         args = json.loads(call[\"function\"][\"arguments\"])\n    -    result = env.shell(\"{ \" + args[\"command\"] + \"\\n} 2>/dev/null\")  # only stdout: stderr is mostly noise\n    +    result = env.shell(\"{ \" + args[\"command\"] + \"\\n} 2>&1\")  # stderr carries the error messages\n         return format_output(result)\n     \n     \n  validation   86% ->   83% (-3 points, needs +25)  DROPPED\n  fixed: extract-elf    broke: build-pmars, count-dataset-tokens    search:   50%\n  best agent so far, validation: \u2583\u2587\u2587   86%\n"}
-{"t": 655.37, "text": "  HF credits spent so far: $0.345; proposer on your own subscription (API-price equivalent): $0.19\n"}
-{"t": 655.37, "text": "\n--- iteration 3: proposing a change to c001 ---\n"}
-{"t": 679.77, "text": "  proposer: Show the clock, force delivery near deadline (24 s)\n"}
-{"t": 679.77, "text": "  evaluating 28 trials in one HF Job (c001, c003)...\n"}
-{"t": 727.62, "text": "    PASS   c003 search     db-wal-recovery                  35 s  returned\n"}
-{"t": 743.61, "text": "    PASS   c001 validation constraints-scheduling           51 s  returned\n"}
-{"t": 745.62, "text": "    PASS   c001 validation extract-elf                      52 s  returned\n"}
-{"t": 749.68, "text": "    PASS   c003 validation constraints-scheduling           57 s  returned\n"}
-{"t": 749.68, "text": "    PASS   c003 validation constraints-scheduling           56 s  returned\n"}
-{"t": 753.63, "text": "    PASS   c001 validation constraints-scheduling           60 s  returned\n"}
-{"t": 757.69, "text": "    PASS   c001 validation extract-elf                      65 s  returned\n"}
-{"t": 759.7, "text": "    PASS   c001 validation count-dataset-tokens             67 s  returned\n"}
-{"t": 765.66, "text": "    fail   c003 validation count-dataset-tokens             73 s  returned\n"}
-{"t": 769.67, "text": "    PASS   c003 validation configure-git-webserver          76 s  returned\n"}
-{"t": 771.66, "text": "    PASS   c003 validation count-dataset-tokens             79 s  returned\n"}
-{"t": 771.66, "text": "    fail   c001 validation build-pmars                      79 s  returned\n"}
-{"t": 775.73, "text": "    PASS   c001 validation build-pmars                      82 s  returned\n"}
-{"t": 777.76, "text": "    PASS   c003 validation build-pmars                      84 s  returned\n"}
-{"t": 779.94, "text": "    PASS   c003 validation configure-git-webserver          87 s  returned\n"}
-{"t": 779.94, "text": "    PASS   c003 validation sqlite-with-gcov                 87 s  returned\n"}
-{"t": 785.69, "text": "    PASS   c001 validation sqlite-with-gcov                 93 s  returned\n"}
-{"t": 789.7, "text": "    PASS   c003 validation sqlite-with-gcov                 97 s  returned\n"}
-{"t": 789.71, "text": "    PASS   c001 validation sqlite-with-gcov                 97 s  returned\n"}
-{"t": 795.7, "text": "    PASS   c001 validation configure-git-webserver         102 s  returned\n"}
-{"t": 801.82, "text": "    PASS   c003 validation extract-elf                     109 s  returned\n"}
-{"t": 801.82, "text": "    PASS   c001 validation configure-git-webserver         108 s  returned\n"}
-{"t": 805.75, "text": "    PASS   c003 validation build-pmars                     114 s  returned\n"}
-{"t": 813.71, "text": "    PASS   c003 validation extract-elf                     120 s  returned\n"}
-{"t": 839.83, "text": "    fail   c001 validation count-dataset-tokens            147 s  returned\n"}
-{"t": 849.84, "text": "    PASS   c003 search     build-pov-ray                   157 s  returned\n"}
-{"t": 873.81, "text": "    fail   c003 search     sparql-university               181 s  returned\n"}
-{"t": 899.64, "text": "    fail   c003 search     financial-document-processor    207 s  returned\n"}
-{"t": 899.65, "text": "  Job 6afc726b884144d2f44f5554: 220 s, $0.130\n"}
-{"t": 899.65, "text": "\nIteration 3  c003 from c001: Show the clock, force delivery near deadline\n  Hypothesis: the model never sees the time budget; in financial-document-processor it spent 172 s of 180 s on OCR of one unreadable file and produced no output at all (also build-pov-ray finished unverified), so partial credit was impossible.\n    --- agent.py (c001)\n    +++ agent.py (c003)\n    @@ -16,6 +16,7 @@\n     MAX_STEPS = 100  # a safety net: the time budget is the real limit\n     STOP_MARGIN = 10  # seconds kept free so the last command is not cut off\n     MAX_OUTPUT_CHARS = 1000\n    +WRAP_UP_AT = 70  # seconds left when the model is told to deliver what it has\n     \n     BASH_TOOL = {\n         \"type\": \"function\",\n    @@ -35,6 +36,16 @@\n         \"\"\"What the model sees of a command's result.\"\"\"\n         output = result.output[:MAX_OUTPUT_CHARS]\n         return f\"exit code: {result.exit_code}\\n{output}\"\n    +\n    +\n    +def clock_note(env):\n    +    \"\"\"Keep the model aware of the deadline; near the end, demand a best-effort deliverable.\"\"\"\n    +    left = int(env.time_left())\n    +    note = f\"\\n[time left: {left} s]\"\n    +    if left < WRAP_UP_AT:\n    +        note += (\" WRAP UP NOW: stop investigating. Write every required output file/state with your\"\n    +                 \" best guess (use placeholders for what you could not read), then finish.\")\n    +    return note\n     \n     \n     def run_tool_call(call, env):\n    @@ -57,5 +68,5 @@\n             if not tool_calls:\n                 return  # the model answered in text: we are done\n             for call in tool_calls:\n    -            content = run_tool_call(call, env)\n    +            content = run_tool_call(call, env) + clock_note(env)\n                 messages.append({\"role\": \"tool\", \"tool_call_id\": call[\"id\"], \"content\": content})\n  validation   85% ->   92% (+6 points, needs +25)  DROPPED\n  fixed: build-pmars, extract-elf    broke: count-dataset-tokens    search:   50%\n  best agent so far, validation: \u2583\u2587\u2587\u2587   85%\n"}
-{"t": 899.65, "text": "  HF credits spent so far: $0.475; proposer on your own subscription (API-price equivalent): $0.36\n"}
-{"t": 899.65, "text": "\n--- iteration 4: proposing a change to c001 ---\n"}
-{"t": 928.43, "text": "  proposer: Show stderr only when a command fails (29 s)\n"}
-{"t": 928.43, "text": "  evaluating 28 trials in one HF Job (c001, c004)...\n"}
-{"t": 979.66, "text": "    PASS   c001 validation extract-elf                      39 s  returned\n"}
-{"t": 987.68, "text": "    PASS   c001 validation extract-elf                      47 s  returned\n"}
-{"t": 993.7, "text": "    PASS   c004 validation constraints-scheduling           53 s  returned\n"}
-{"t": 993.71, "text": "    PASS   c001 validation constraints-scheduling           53 s  returned\n"}
-{"t": 995.74, "text": "    PASS   c004 search     db-wal-recovery                  55 s  returned\n"}
-{"t": 997.69, "text": "    PASS   c004 validation constraints-scheduling           57 s  returned\n"}
-{"t": 1004.8, "text": "    PASS   c001 validation constraints-scheduling           62 s  returned\n"}
-{"t": 1013.71, "text": "    PASS   c004 validation build-pmars                      74 s  returned\n"}
-{"t": 1017.79, "text": "    PASS   c004 validation configure-git-webserver          77 s  returned\n"}
-{"t": 1017.79, "text": "    fail   c001 validation count-dataset-tokens             77 s  returned\n"}
-{"t": 1021.78, "text": "    PASS   c001 validation build-pmars                      81 s  returned\n"}
-{"t": 1026.09, "text": "    PASS   c004 validation build-pmars                      85 s  returned\n"}
-{"t": 1026.09, "text": "    fail   c001 validation count-dataset-tokens             84 s  returned\n"}
-{"t": 1027.79, "text": "    PASS   c001 validation sqlite-with-gcov                 87 s  returned\n"}
-{"t": 1029.73, "text": "    PASS   c001 validation configure-git-webserver          89 s  returned\n"}
-{"t": 1033.74, "text": "    fail   c004 validation count-dataset-tokens             92 s  returned\n"}
-{"t": 1037.75, "text": "    PASS   c001 validation sqlite-with-gcov                 98 s  returned\n"}
-{"t": 1039.76, "text": "    fail   c004 validation count-dataset-tokens             98 s  returned\n"}
-{"t": 1041.81, "text": "    PASS   c004 validation sqlite-with-gcov                101 s  returned\n"}
-{"t": 1041.81, "text": "    PASS   c001 validation configure-git-webserver         102 s  returned\n"}
-{"t": 1043.8, "text": "    PASS   c004 validation sqlite-with-gcov                102 s  returned\n"}
-{"t": 1059.76, "text": "    PASS   c001 validation build-pmars                     118 s  returned\n"}
-{"t": 1065.78, "text": "    PASS   c004 validation configure-git-webserver         125 s  returned\n"}
-{"t": 1076.09, "text": "    PASS   c004 validation extract-elf                     136 s  returned\n"}
-{"t": 1088.29, "text": "    PASS   c004 validation extract-elf                     148 s  returned\n"}
-{"t": 1141.86, "text": "    PASS   c004 search     sparql-university               201 s  returned\n"}
-{"t": 1152.72, "text": "    fail   c004 search     financial-document-processor    211 s  returned\n"}
-{"t": 1152.78, "text": "    fail   c004 search     build-pov-ray                   213 s  timeout\n"}
-{"t": 1152.79, "text": "  Job 6afc7364884144d2f44f5621: 224 s, $0.132\n"}
-{"t": 1152.79, "text": "\nIteration 4  c004 from c001: Show stderr only when a command fails\n  Hypothesis: stderr is thrown away, so failing commands return exit 2 and empty or vague output (build-pov-ray: compiler/linker errors hidden, repeated blind retries; financial-document-processor: tool failures invisible during OCR attempts).\n    --- agent.py (c001)\n    +++ agent.py (c004)\n    @@ -39,8 +39,12 @@\n     \n     def run_tool_call(call, env):\n         args = json.loads(call[\"function\"][\"arguments\"])\n    -    result = env.shell(\"{ \" + args[\"command\"] + \"\\n} 2>/dev/null\")  # only stdout: stderr is mostly noise\n    -    return format_output(result)\n    +    result = env.shell(\"{ \" + args[\"command\"] + \"\\n} 2>/tmp/.stderr\")  # stderr kept aside, not mixed in\n    +    text = format_output(result)\n    +    if result.exit_code != 0:  # a failure: show why (error messages are printed to stderr)\n    +        err = env.shell(\"tail -c 1500 /tmp/.stderr\").output\n    +        text += f\"\\nstderr (last 1500 chars):\\n{err}\"\n    +    return text\n     \n     \n     def run(task, env):\n  validation   85% ->   83% (-2 points, needs +25)  DROPPED\n  fixed: build-pmars, extract-elf    broke: count-dataset-tokens    search:   50%\n  best agent so far, validation: \u2583\u2587\u2587\u2587\u2587   85%\n"}
-{"t": 1152.79, "text": "  HF credits spent so far: $0.607; proposer on your own subscription (API-price equivalent): $0.49\n"}
-{"t": 1152.79, "text": "\n--- iteration 5: proposing a change to c001 ---\n"}
-{"t": 1182.8, "text": "  proposer: Verify requirements before declaring done (30 s)\n"}
-{"t": 1182.8, "text": "  evaluating 28 trials in one HF Job (c001, c005)...\n"}
-{"t": 1237.09, "text": "    PASS   c005 search     db-wal-recovery                  42 s  returned\n"}
-{"t": 1245.25, "text": "    PASS   c005 validation extract-elf                      49 s  returned\n"}
-{"t": 1249.1, "text": "    PASS   c001 validation constraints-scheduling           54 s  returned\n"}
-{"t": 1252.07, "text": "    PASS   c005 validation extract-elf                      55 s  returned\n"}
-{"t": 1253.44, "text": "    PASS   c001 validation extract-elf                      57 s  returned\n"}
-{"t": 1259.55, "text": "    PASS   c001 validation constraints-scheduling           62 s  returned\n"}
-{"t": 1264.11, "text": "    PASS   c005 validation constraints-scheduling           67 s  returned\n"}
-{"t": 1265.99, "text": "    PASS   c005 validation constraints-scheduling           68 s  returned\n"}
-{"t": 1268.09, "text": "    PASS   c001 validation extract-elf                      70 s  returned\n"}
-{"t": 1269.22, "text": "    PASS   c001 validation build-pmars                      72 s  returned\n"}
-{"t": 1274.08, "text": "    PASS   c001 validation build-pmars                      77 s  returned\n"}
-{"t": 1278.74, "text": "    fail   c001 validation count-dataset-tokens             81 s  returned\n"}
-{"t": 1279.83, "text": "    PASS   c005 validation count-dataset-tokens             82 s  returned\n"}
-{"t": 1281.45, "text": "    fail   c005 validation count-dataset-tokens             85 s  returned\n"}
-{"t": 1281.45, "text": "    fail   c001 validation count-dataset-tokens             84 s  returned\n"}
-{"t": 1283.7, "text": "    PASS   c001 validation sqlite-with-gcov                 86 s  returned\n"}
-{"t": 1290.3, "text": "    PASS   c001 validation configure-git-webserver          94 s  returned\n"}
-{"t": 1293.64, "text": "    PASS   c001 validation configure-git-webserver          96 s  returned\n"}
-{"t": 1293.64, "text": "    PASS   c001 validation sqlite-with-gcov                 96 s  returned\n"}
-{"t": 1298.58, "text": "    PASS   c005 validation build-pmars                     101 s  returned\n"}
-{"t": 1298.58, "text": "    PASS   c005 validation sqlite-with-gcov                102 s  returned\n"}
-{"t": 1298.59, "text": "    PASS   c005 validation sqlite-with-gcov                101 s  returned\n"}
-{"t": 1307.4, "text": "    PASS   c005 validation configure-git-webserver         110 s  returned\n"}
-{"t": 1309.45, "text": "    PASS   c005 validation build-pmars                     112 s  returned\n"}
-{"t": 1321.68, "text": "    PASS   c005 validation configure-git-webserver         125 s  returned\n"}
-{"t": 1341.28, "text": "    fail   c005 search     sparql-university               145 s  returned\n"}
-{"t": 1373.34, "text": "    PASS   c005 search     build-pov-ray                   176 s  returned\n"}
-{"t": 1407.0, "text": "    fail   c005 search     financial-document-processor    211 s  timeout\n"}
-{"t": 1407.01, "text": "  Job 6afc74634643bac7ac62a361: 224 s, $0.125\n"}
-{"t": 1407.01, "text": "\nIteration 5  c005 from c001: Verify requirements before declaring done\n  Hypothesis: build-pov-ray ended with a confident \"build complete\" summary after only a sanity run and still got reward 0; the model never re-checked the task's explicit requirements (paths, names, formats) before stopping.\n    --- agent.py (c001)\n    +++ agent.py (c005)\n    @@ -16,6 +16,12 @@\n     MAX_STEPS = 100  # a safety net: the time budget is the real limit\n     STOP_MARGIN = 10  # seconds kept free so the last command is not cut off\n     MAX_OUTPUT_CHARS = 1000\n    +VERIFY_MIN_TIME = 40  # only ask for a final check if this many seconds are left\n    +\n    +VERIFY_PROMPT = \"\"\"Before you finish: re-read the task statement. List every explicit requirement\n    +(file paths, names, formats, values, commands that must work). Check each one now with a command,\n    +on the real final state, as a hidden test would. Fix anything missing.\n    +If everything is verified, reply with a short summary.\"\"\"\n     \n     BASH_TOOL = {\n         \"type\": \"function\",\n    @@ -48,6 +54,7 @@\n             {\"role\": \"system\", \"content\": SYSTEM_PROMPT},\n             {\"role\": \"user\", \"content\": task},\n         ]\n    +    verified = False\n         for step in range(MAX_STEPS):\n             if env.time_left() < STOP_MARGIN:\n                 return\n    @@ -55,7 +62,11 @@\n             messages.append(reply)\n             tool_calls = reply.get(\"tool_calls\") or []\n             if not tool_calls:\n    -            return  # the model answered in text: we are done\n    +            if verified or env.time_left() < VERIFY_MIN_TIME:\n    +                return  # the model answered in text: we are done\n    +            verified = True  # one self-check against the task before accepting \"done\"\n    +            messages.append({\"role\": \"user\", \"content\": VERIFY_PROMPT})\n    +            continue\n             for call in tool_calls:\n                 content = run_tool_call(call, env)\n                 messages.append({\"role\": \"tool\", \"tool_call_id\": call[\"id\"], \"content\": content})\n  validation   85% ->   92% (+7 points, needs +25)  DROPPED\n  fixed: build-pmars, count-dataset-tokens, extract-elf    broke: -    search:   50%\n  best agent so far, validation: \u2583\u2587\u2587\u2587\u2587\u2587   85%\n"}
-{"t": 1407.01, "text": "  HF credits spent so far: $0.731; proposer on your own subscription (API-price equivalent): $0.59\n"}
-{"t": 1407.01, "text": "\n--- iteration 6: proposing a change to c001 ---\n"}
-{"t": 1430.77, "text": "  proposer: Deliver early, switch approach, never stall (24 s)\n"}
-{"t": 1430.77, "text": "  evaluating 28 trials in one HF Job (c001, c006)...\n"}
-{"t": 1482.86, "text": "    PASS   c006 search     db-wal-recovery                  38 s  returned\n"}
-{"t": 1488.84, "text": "    PASS   c006 validation constraints-scheduling           45 s  returned\n"}
-{"t": 1488.86, "text": "    PASS   c001 validation extract-elf                      44 s  returned\n"}
-{"t": 1490.84, "text": "    PASS   c006 validation constraints-scheduling           47 s  returned\n"}
-{"t": 1498.86, "text": "    PASS   c001 validation constraints-scheduling           54 s  returned\n"}
-{"t": 1498.86, "text": "    PASS   c001 validation constraints-scheduling           54 s  returned\n"}
-{"t": 1500.85, "text": "    PASS   c001 validation extract-elf                      57 s  returned\n"}
-{"t": 1517.08, "text": "    fail   c006 validation count-dataset-tokens             73 s  returned\n"}
-{"t": 1517.08, "text": "    PASS   c001 validation build-pmars                      72 s  returned\n"}
-{"t": 1520.86, "text": "    fail   c006 validation count-dataset-tokens             78 s  returned\n"}
-{"t": 1522.87, "text": "    fail   c001 validation count-dataset-tokens             78 s  returned\n"}
-{"t": 1528.93, "text": "    PASS   c006 validation build-pmars                      85 s  returned\n"}
-{"t": 1528.93, "text": "    PASS   c006 validation extract-elf                      85 s  returned\n"}
-{"t": 1530.89, "text": "    PASS   c006 validation configure-git-webserver          86 s  returned\n"}
-{"t": 1532.9, "text": "    fail   c001 validation count-dataset-tokens             88 s  returned\n"}
-{"t": 1532.9, "text": "    PASS   c001 validation sqlite-with-gcov                 89 s  returned\n"}
-{"t": 1536.9, "text": "    PASS   c006 validation sqlite-with-gcov                 93 s  returned\n"}
-{"t": 1538.88, "text": "    PASS   c001 validation sqlite-with-gcov                 94 s  returned\n"}
-{"t": 1542.91, "text": "    fail   c001 validation build-pmars                      98 s  returned\n"}
-{"t": 1544.89, "text": "    PASS   c006 validation sqlite-with-gcov                100 s  returned\n"}
-{"t": 1548.9, "text": "    PASS   c006 validation build-pmars                     104 s  returned\n"}
-{"t": 1558.91, "text": "    PASS   c001 validation configure-git-webserver         115 s  returned\n"}
-{"t": 1564.91, "text": "    PASS   c006 validation configure-git-webserver         120 s  returned\n"}
-{"t": 1570.94, "text": "    PASS   c001 validation configure-git-webserver         127 s  returned\n"}
-{"t": 1582.96, "text": "    fail   c006 search     build-pov-ray                   139 s  returned\n"}
-{"t": 1588.98, "text": "    PASS   c006 search     financial-document-processor    145 s  returned\n"}
-{"t": 1604.98, "text": "    fail   c006 search     sparql-university               161 s  returned\n"}
-{"t": 1643.35, "text": "    fail   c006 validation extract-elf                     200 s  returned\n"}
-{"t": 1643.37, "text": "  Job 6afc755b4643bac7ac62a4aa: 213 s, $0.179\n"}
-{"t": 1643.37, "text": "\nIteration 6  c006 from c001: Deliver early, switch approach, never stall\n  Hypothesis: financial-document-processor spent ~25 of 53 calls retrying OCR variants on one unreadable file and delivered nothing; build-pov-ray also ended unchecked against the task's wording. The model has no working discipline in its prompt.\n    --- agent.py (c001)\n    +++ agent.py (c006)\n    @@ -11,7 +11,15 @@\n     import json\n     \n     SYSTEM_PROMPT = \"\"\"You are an AI agent that solves tasks in a Linux terminal.\n    -Use the bash tool to run commands. When the task is complete, reply with a short summary.\"\"\"\n    +Use the bash tool to run commands. When the task is complete, reply with a short summary.\n    +\n    +Working rules:\n    +- Time is short (about 3 minutes). First produce a complete, working deliverable in the exact\n    +  places and formats the task names, even if rough. Only then improve it.\n    +- If an approach fails twice, or one item eats more than about 5 commands, stop and switch to a\n    +  different approach, or make a best guess for that item and move on to the rest.\n    +- Never leave required outputs missing: a best-guess output beats none.\n    +- Before you finish, check the result against the task's exact wording.\"\"\"\n     \n     MAX_STEPS = 100  # a safety net: the time budget is the real limit\n     STOP_MARGIN = 10  # seconds kept free so the last command is not cut off\n  validation   83% ->   75% (-8 points, needs +25)  DROPPED\n  fixed: build-pmars    broke: count-dataset-tokens, extract-elf    search:   50%\n  best agent so far, validation: \u2583\u2587\u2587\u2587\u2587\u2587\u2587   83%\n"}
-{"t": 1643.37, "text": "  HF credits spent so far: $0.910; proposer on your own subscription (API-price equivalent): $0.68\n"}
-{"t": 1643.37, "text": "\n--- iteration 7: proposing a change to c001 ---\n"}
-{"t": 1674.22, "text": "  proposer: Periodic progress checkpoint in tool results (31 s)\n"}
-{"t": 1674.22, "text": "  evaluating 28 trials in one HF Job (c001, c007)...\n"}
-{"t": 1733.42, "text": "    PASS   c007 search     db-wal-recovery                  46 s  returned\n"}
-{"t": 1735.42, "text": "    PASS   c001 validation extract-elf                      48 s  returned\n"}
-{"t": 1737.43, "text": "    PASS   c007 validation extract-elf                      50 s  returned\n"}
-{"t": 1739.43, "text": "    PASS   c007 validation constraints-scheduling           52 s  returned\n"}
-{"t": 1739.43, "text": "    PASS   c001 validation constraints-scheduling           53 s  returned\n"}
-{"t": 1739.43, "text": "    PASS   c001 validation extract-elf                      53 s  returned\n"}
-{"t": 1743.43, "text": "    PASS   c001 validation constraints-scheduling           56 s  returned\n"}
-{"t": 1749.44, "text": "    PASS   c007 validation constraints-scheduling           62 s  returned\n"}
-{"t": 1755.45, "text": "    PASS   c007 validation count-dataset-tokens             69 s  returned\n"}
-{"t": 1757.45, "text": "    PASS   c007 validation configure-git-webserver          70 s  returned\n"}
-{"t": 1759.45, "text": "    PASS   c007 validation build-pmars                      73 s  returned\n"}
-{"t": 1759.45, "text": "    PASS   c007 validation build-pmars                      73 s  returned\n"}
-{"t": 1759.45, "text": "    PASS   c001 validation configure-git-webserver          73 s  returned\n"}
-{"t": 1761.46, "text": "    PASS   c001 validation build-pmars                      74 s  returned\n"}
-{"t": 1767.46, "text": "    PASS   c001 validation build-pmars                      81 s  returned\n"}
-{"t": 1767.47, "text": "    PASS   c001 validation count-dataset-tokens             80 s  returned\n"}
-{"t": 1773.47, "text": "    PASS   c007 validation count-dataset-tokens             86 s  returned\n"}
-{"t": 1773.48, "text": "    PASS   c001 validation count-dataset-tokens             87 s  returned\n"}
-{"t": 1777.48, "text": "    PASS   c007 validation sqlite-with-gcov                 91 s  returned\n"}
-{"t": 1783.48, "text": "    PASS   c001 validation sqlite-with-gcov                 97 s  returned\n"}
-{"t": 1785.49, "text": "    PASS   c007 validation configure-git-webserver          99 s  returned\n"}
-{"t": 1791.49, "text": "    PASS   c001 validation sqlite-with-gcov                105 s  returned\n"}
-{"t": 1793.49, "text": "    PASS   c007 validation sqlite-with-gcov                106 s  returned\n"}
-{"t": 1797.5, "text": "    PASS   c007 search     sparql-university               110 s  returned\n"}
-{"t": 1805.53, "text": "    PASS   c007 validation extract-elf                     118 s  returned\n"}
-{"t": 1819.65, "text": "    fail   c007 search     build-pov-ray                   133 s  returned\n"}
-{"t": 1821.65, "text": "    fail   c001 validation configure-git-webserver         134 s  returned\n"}
-{"t": 1857.4, "text": "    PASS   c007 search     financial-document-processor    171 s  returned\n"}
-{"t": 1857.41, "text": "  Job 6afc764e4643bac7ac62a566: 183 s, $0.114\n"}
-{"t": 1857.41, "text": "\nIteration 7  c007 from c001: Periodic progress checkpoint in tool results\n  Hypothesis: financial-document-processor spent ~45 calls on OCR variants of one file and delivered nothing; build-pov-ray declared done without tracking what remained. Static prompt rules (iter 6) and a late deadline warning (iter 3) did not work; the model needs a recurring in-context prompt to take stock.\n    --- agent.py (c001)\n    +++ agent.py (c007)\n    @@ -16,6 +16,14 @@\n     MAX_STEPS = 100  # a safety net: the time budget is the real limit\n     STOP_MARGIN = 10  # seconds kept free so the last command is not cut off\n     MAX_OUTPUT_CHARS = 1000\n    +CHECKPOINT_EVERY = 8  # tool calls between progress checkpoints\n    +\n    +CHECKPOINT = (\n    +    \"\\n[checkpoint: {n} commands used, {t:.0f} s left] Before the next command, state in one line: \"\n    +    \"which parts of the task are DONE and written to the required place, and which remain. \"\n    +    \"If you have spent several commands on one sub-problem without progress, drop it, use your best \"\n    +    \"guess for it, and finish the remaining parts first.\"\n    +)\n     \n     BASH_TOOL = {\n         \"type\": \"function\",\n    @@ -48,6 +56,7 @@\n             {\"role\": \"system\", \"content\": SYSTEM_PROMPT},\n             {\"role\": \"user\", \"content\": task},\n         ]\n    +    calls = 0\n         for step in range(MAX_STEPS):\n             if env.time_left() < STOP_MARGIN:\n                 return\n    @@ -58,4 +67,7 @@\n                 return  # the model answered in text: we are done\n             for call in tool_calls:\n                 content = run_tool_call(call, env)\n    +            calls += 1\n    +            if calls % CHECKPOINT_EVERY == 0:\n    +                content += CHECKPOINT.format(n=calls, t=env.time_left())\n                 messages.append({\"role\": \"tool\", \"tool_call_id\": call[\"id\"], \"content\": content})\n  validation   84% ->  100% (+16 points, needs +25)  DROPPED\n  fixed: build-pmars, configure-git-webserver, count-dataset-tokens, extract-elf    broke: -    search:   75%\n  best agent so far, validation: \u2583\u2587\u2587\u2587\u2587\u2587\u2587\u2587   84%\n"}
-{"t": 1857.41, "text": "  HF credits spent so far: $1.024; proposer on your own subscription (API-price equivalent): $0.81\n"}
-{"t": 1857.41, "text": "\n--- iteration 8: proposing a change to c001 ---\n"}
-{"t": 1887.0, "text": "  proposer: Detect repeated-command loops, force new approach (30 s)\n"}
-{"t": 1887.0, "text": "  evaluating 28 trials in one HF Job (c001, c008)...\n"}
-{"t": 1942.56, "text": "    PASS   c008 search     db-wal-recovery                  42 s  returned\n"}
-{"t": 1946.56, "text": "    PASS   c001 validation extract-elf                      47 s  returned\n"}
-{"t": 1948.56, "text": "    PASS   c001 validation constraints-scheduling           49 s  returned\n"}
-{"t": 1948.57, "text": "    PASS   c001 validation extract-elf                      49 s  returned\n"}
-{"t": 1950.57, "text": "    PASS   c008 validation constraints-scheduling           51 s  returned\n"}
-{"t": 1954.58, "text": "    PASS   c008 validation extract-elf                      55 s  returned\n"}
-{"t": 1956.57, "text": "    PASS   c001 validation constraints-scheduling           56 s  returned\n"}
-{"t": 1962.6, "text": "    PASS   c008 validation constraints-scheduling           63 s  returned\n"}
-{"t": 1968.58, "text": "    fail   c001 validation count-dataset-tokens             69 s  returned\n"}
-{"t": 1974.6, "text": "    PASS   c008 validation extract-elf                      75 s  returned\n"}
-{"t": 1976.59, "text": "    fail   c008 validation count-dataset-tokens             76 s  returned\n"}
-{"t": 1982.6, "text": "    PASS   c008 validation count-dataset-tokens             83 s  returned\n"}
-{"t": 1982.6, "text": "    PASS   c001 validation count-dataset-tokens             82 s  returned\n"}
-{"t": 1984.67, "text": "    PASS   c008 validation sqlite-with-gcov                 85 s  returned\n"}
-{"t": 1984.67, "text": "    PASS   c001 validation build-pmars                      85 s  returned\n"}
-{"t": 1986.61, "text": "    PASS   c008 validation configure-git-webserver          87 s  returned\n"}
-{"t": 1986.62, "text": "    PASS   c001 validation configure-git-webserver          86 s  returned\n"}
-{"t": 1988.63, "text": "    PASS   c008 validation build-pmars                      90 s  returned\n"}
-{"t": 1988.63, "text": "    fail   c001 validation build-pmars                      88 s  returned\n"}
-{"t": 1988.63, "text": "    PASS   c001 validation sqlite-with-gcov                 89 s  returned\n"}
-{"t": 1988.63, "text": "    PASS   c001 validation sqlite-with-gcov                 88 s  returned\n"}
-{"t": 1990.66, "text": "    PASS   c008 validation build-pmars                      90 s  returned\n"}
-{"t": 1998.63, "text": "    PASS   c008 validation configure-git-webserver         100 s  returned\n"}
-{"t": 2002.64, "text": "    PASS   c001 validation configure-git-webserver         103 s  returned\n"}
-{"t": 2012.71, "text": "    PASS   c008 validation sqlite-with-gcov                113 s  returned\n"}
-{"t": 2014.71, "text": "    PASS   c008 search     build-pov-ray                   115 s  returned\n"}
-{"t": 2036.75, "text": "    PASS   c008 search     sparql-university               136 s  returned\n"}
-{"t": 2106.2, "text": "    fail   c008 search     financial-document-processor    207 s  returned\n"}
-{"t": 2106.21, "text": "  Job 6afc7723884144d2f44f59b8: 219 s, $0.109\n"}
-{"t": 2106.21, "text": "\nIteration 8  c008 from c001: Detect repeated-command loops, force new approach\n  Hypothesis: financial-document-processor spent 25+ calls re-running tesseract variants on one unreadable file and delivered nothing; build-pov-ray also repeated near-identical fix attempts.\n    --- agent.py (c001)\n    +++ agent.py (c008)\n    @@ -9,6 +9,7 @@\n     \"\"\"\n     \n     import json\n    +import re\n     \n     SYSTEM_PROMPT = \"\"\"You are an AI agent that solves tasks in a Linux terminal.\n     Use the bash tool to run commands. When the task is complete, reply with a short summary.\"\"\"\n    @@ -43,7 +44,23 @@\n         return format_output(result)\n     \n     \n    +def main_program(command):\n    +    \"\"\"The program name of the last command in a pipeline or && chain.\"\"\"\n    +    last = re.split(r\"&&|\\|\\||[|;]\", command.strip())[-1].split()\n    +    return last[0] if last else \"\"\n    +\n    +\n    +def stuck_note(history):\n    +    \"\"\"After 4 commands in a row with the same main program, tell the model to change approach.\"\"\"\n    +    if len(history) >= 4 and len(set(history[-4:])) == 1:\n    +        return (f\"\\n[harness: your last 4 commands all ran `{history[-1]}` and results are not improving. \"\n    +                \"Try a different tool or method, or accept the best result so far \"\n    +                \"and finish the other required outputs.]\")\n    +    return \"\"\n    +\n    +\n     def run(task, env):\n    +    history = []\n         messages = [\n             {\"role\": \"system\", \"content\": SYSTEM_PROMPT},\n             {\"role\": \"user\", \"content\": task},\n    @@ -58,4 +75,6 @@\n                 return  # the model answered in text: we are done\n             for call in tool_calls:\n                 content = run_tool_call(call, env)\n    +            history.append(main_program(json.loads(call[\"function\"][\"arguments\"])[\"command\"]))\n    +            content += stuck_note(history)\n                 messages.append({\"role\": \"tool\", \"tool_call_id\": call[\"id\"], \"content\": content})\n  validation   84% ->   92% (+7 points, needs +25)  DROPPED\n  fixed: build-pmars, configure-git-webserver, count-dataset-tokens, extract-elf    broke: -    search:   75%\n  best agent so far, validation: \u2583\u2587\u2587\u2587\u2587\u2587\u2587\u2587\u2587   84%\n"}
-{"t": 2106.21, "text": "  HF credits spent so far: $1.132; proposer on your own subscription (API-price equivalent): $0.93\n"}
-{"t": 2106.21, "text": "\n--- held-out check: seed vs c001 on 8 unseen tasks ---\n"}
-{"t": 2106.21, "text": "  evaluating 32 trials in one HF Job (c000, c001)...\n"}
-{"t": 2154.4, "text": "    PASS   c001 heldout    kv-store-grpc                    36 s  returned\n"}
-{"t": 2156.4, "text": "    fail   c000 heldout    break-filter-js-from-html        38 s  returned\n"}
-{"t": 2156.4, "text": "    PASS   c000 heldout    fix-git                          38 s  returned\n"}
-{"t": 2156.4, "text": "    PASS   c001 heldout    fix-git                          38 s  returned\n"}
-{"t": 2156.4, "text": "    PASS   c001 heldout    kv-store-grpc                    39 s  returned\n"}
-{"t": 2160.4, "text": "    PASS   c000 heldout    kv-store-grpc                    43 s  returned\n"}
-{"t": 2160.4, "text": "    PASS   c000 heldout    kv-store-grpc                    42 s  returned\n"}
-{"t": 2160.4, "text": "    fail   c000 heldout    vulnerable-secret                42 s  returned\n"}
-{"t": 2160.4, "text": "    PASS   c001 heldout    git-leak-recovery                42 s  returned\n"}
-{"t": 2162.4, "text": "    PASS   c000 heldout    git-leak-recovery                44 s  returned\n"}
-{"t": 2162.4, "text": "    PASS   c001 heldout    fix-git                          44 s  returned\n"}
-{"t": 2164.41, "text": "    PASS   c000 heldout    fix-git                          47 s  returned\n"}
-{"t": 2164.41, "text": "    fail   c000 heldout    vulnerable-secret                47 s  returned\n"}
-{"t": 2164.41, "text": "    PASS   c001 heldout    git-leak-recovery                47 s  returned\n"}
-{"t": 2170.41, "text": "    PASS   c000 heldout    git-leak-recovery                52 s  returned\n"}
-{"t": 2176.42, "text": "    PASS   c001 heldout    hf-model-inference               58 s  returned\n"}
-{"t": 2176.42, "text": "    PASS   c001 heldout    vulnerable-secret                58 s  returned\n"}
-{"t": 2176.44, "text": "    PASS   c001 heldout    vulnerable-secret                59 s  returned\n"}
-{"t": 2178.43, "text": "    fail   c000 heldout    code-from-image                  60 s  returned\n"}
-{"t": 2180.44, "text": "    fail   c000 heldout    merge-diff-arc-agi-task          62 s  returned\n"}
-{"t": 2182.44, "text": "    fail   c000 heldout    merge-diff-arc-agi-task          64 s  returned\n"}
-{"t": 2182.44, "text": "    PASS   c001 heldout    code-from-image                  64 s  returned\n"}
-{"t": 2186.44, "text": "    PASS   c000 heldout    code-from-image                  68 s  returned\n"}
-{"t": 2188.44, "text": "    PASS   c000 heldout    hf-model-inference               70 s  returned\n"}
-{"t": 2188.44, "text": "    PASS   c001 heldout    hf-model-inference               70 s  returned\n"}
-{"t": 2190.44, "text": "    fail   c001 heldout    break-filter-js-from-html        72 s  returned\n"}
-{"t": 2192.45, "text": "    fail   c001 heldout    break-filter-js-from-html        74 s  returned\n"}
-{"t": 2206.46, "text": "    fail   c000 heldout    break-filter-js-from-html        88 s  returned\n"}
-{"t": 2240.48, "text": "    PASS   c001 heldout    merge-diff-arc-agi-task         122 s  returned\n"}
-{"t": 2246.5, "text": "    fail   c001 heldout    merge-diff-arc-agi-task         129 s  returned\n"}
-{"t": 2310.55, "text": "    PASS   c000 heldout    hf-model-inference              192 s  returned\n"}
-{"t": 2312.67, "text": "    fail   c001 heldout    code-from-image                 195 s  returned\n"}
-{"t": 2315.46, "text": "  Job 6afc77fe4643bac7ac62a7d5: 209 s, $0.097\n"}
-{"t": 2315.52, "text": "\nHeld-out check (8 tasks never seen during the search, 2 trial(s) each):\n  seed   56% -> best (c001)   75%  (+19 points)\n"}
-{"t": 2315.52, "text": "  HF credits spent so far: $1.229; proposer on your own subscription (API-price equivalent): $0.93\n"}
+{"t": 0.0, "text": "\nEvolve run joelniklaus-code-audit-5: seed agent on 5 search + 8 validation tasks\n"}
+{"t": 0.0, "text": "  evaluating 21 trials in one HF Job (c000)...\n"}
+{"t": 50.07, "text": "    fail   c000 validation log-summary-date-ranges          36 s  returned\n"}
+{"t": 56.08, "text": "    fail   c000 validation kv-store-grpc                    43 s  returned\n"}
+{"t": 56.08, "text": "    fail   c000 validation kv-store-grpc                    43 s  returned\n"}
+{"t": 56.08, "text": "    fail   c000 validation multi-source-data-merger         44 s  returned\n"}
+{"t": 58.08, "text": "    PASS   c000 validation fix-git                          45 s  returned\n"}
+{"t": 62.09, "text": "    fail   c000 validation multi-source-data-merger         49 s  returned\n"}
+{"t": 66.09, "text": "    PASS   c000 validation fix-git                          54 s  returned\n"}
+{"t": 68.09, "text": "    fail   c000 validation vulnerable-secret                56 s  returned\n"}
+{"t": 72.1, "text": "    fail   c000 validation fix-code-vulnerability           58 s  returned\n"}
+{"t": 72.1, "text": "    fail   c000 validation vulnerable-secret                60 s  returned\n"}
+{"t": 76.1, "text": "    fail   c000 validation log-summary-date-ranges          63 s  returned\n"}
+{"t": 80.11, "text": "    PASS   c000 search     break-filter-js-from-html        68 s  returned\n"}
+{"t": 80.11, "text": "    fail   c000 search     sparql-university                68 s  returned\n"}
+{"t": 82.12, "text": "    fail   c000 validation sqlite-with-gcov                 68 s  returned\n"}
+{"t": 88.12, "text": "    fail   c000 validation fix-code-vulnerability           74 s  returned\n"}
+{"t": 90.12, "text": "    fail   c000 validation sqlite-with-gcov                 78 s  returned\n"}
+{"t": 108.13, "text": "    fail   c000 search     count-dataset-tokens             95 s  returned\n"}
+{"t": 110.13, "text": "    fail   c000 search     configure-git-webserver          97 s  returned\n"}
+{"t": 118.14, "text": "    fail   c000 validation pypi-server                     106 s  returned\n"}
+{"t": 122.14, "text": "    fail   c000 search     bn-fit-modify                   109 s  returned\n"}
+{"t": 132.54, "text": "    fail   c000 validation pypi-server                     121 s  returned\n"}
+{"t": 132.55, "text": "  Job 6afe2dec545f95df1c06c4ef: 133 s, $0.036\n"}
+{"t": 132.55, "text": "\nSeed agent: search   20%, validation   12% (two trials per validation task)\n  noise: 0% of validation tasks flip between two runs of the same agent -> keep a patch only if it gains at least 12 points (1.0 of 8 tasks)\n"}
+{"t": 132.55, "text": "  HF credits spent so far: $0.036\n"}
+{"t": 132.55, "text": "\n--- iteration 1: proposing a change to c000 ---\n"}
+{"t": 170.4, "text": "  proposer (38 s): Remove step, timeout, output and kill limits\n  Hypothesis: runs stop at 10 steps with 100+ s unused, installs die at 10 s, stderr is hidden, output and task are cut (all 4 FAIL transcripts, e.g. c\u2026\n    --- agent.py (c000)\n    +++ agent.py (c001)\n    @@ -13,12 +13,8 @@\n     SYSTEM_PROMPT = \"\"\"You are an AI agent that solves tasks in a Linux terminal.\n     Use the bash tool to run commands. When the task is complete, reply with a short summary.\"\"\"\n     \n    -MAX_STEPS = 10\n    -MAX_OUTPUT_CHARS = 1000\n    -MAX_TASK_CHARS = 1000  # long task texts waste context\n    -COMMAND_TIMEOUT_S = 10  # a stuck command must not eat the whole budget\n    -# After every command, kill whatever it left running, so no stray program survives into the next step.\n    -CLEANUP = '; rc=$?; for p in /proc/[0-9]*; do p=${p#/proc/}; [ \"$p\" -gt $$ ] && kill -9 \"$p\" 2>/dev/null; done; exit $rc'\n    +MAX_OUTPUT_CHARS = 6000  # long output keeps its head and its tail\n    +MAX_COMMAND_S = 150  # one command may run long (installs), but never past the budget\n     \n     BASH_TOOL = {\n         \"type\": \"function\",\n    @@ -36,22 +32,26 @@\n     \n     def format_output(result):\n         \"\"\"What the model sees of a command's result.\"\"\"\n    -    output = result.output[:MAX_OUTPUT_CHARS]\n    -    return f\"exit code: {result.exit_code}\\n{output}\"\n    +    output = result.output\n    +    if len(output) > MAX_OUTPUT_CHARS:\n    +        half = MAX_OUTPUT_CHARS // 2\n    +        output = output[:half] + f\"\\n[... {len(output) - 2 * half} chars cut ...]\\n\" + output[-half:]\n    +    note = \"\\n[command timed out and was killed]\" if result.timed_out else \"\"\n    +    return f\"exit code: {result.exit_code}\\n{output}{note}\"\n     \n     \n     def run_tool_call(call, env):\n         args = json.loads(call[\"function\"][\"arguments\"])\n    -    result = env.shell(\"{ \" + args[\"command\"] + \"\\n} 2>/dev/null\" + CLEANUP, timeout=COMMAND_TIMEOUT_S)  # only stdout: stderr is mostly noise\n    -    return format_output(result)\n    +    timeout = max(5, min(MAX_COMMAND_S, int(env.time_left()) - 10))\n    +    return format_output(env.shell(args[\"command\"], timeout=timeout))\n     \n     \n     def run(task, env):\n         messages = [\n             {\"role\": \"system\", \"content\": SYSTEM_PROMPT},\n    -        {\"role\": \"user\", \"content\": task[:MAX_TASK_CHARS]},\n    +        {\"role\": \"user\", \"content\": task},\n         ]\n    -    for step in range(MAX_STEPS):\n    +    while env.time_left() > 8:  # the time budget is the only limit\n             reply = env.llm(messages, tools=[BASH_TOOL])\n             messages.append(reply)\n             tool_calls = reply.get(\"tool_calls\") or []\n"}
+{"t": 170.4, "text": "  evaluating 37 trials in one HF Job (c000, c001)...\n"}
+{"t": 215.82, "text": "    PASS   c001 validation log-summary-date-ranges          31 s  returned\n"}
+{"t": 215.82, "text": "    fail   c000 validation log-summary-date-ranges          30 s  returned\n"}
+{"t": 217.82, "text": "    PASS   c001 validation log-summary-date-ranges          33 s  returned\n"}
+{"t": 219.82, "text": "    PASS   c000 validation fix-git                          35 s  returned\n"}
+{"t": 221.83, "text": "    PASS   c001 validation pypi-server                      38 s  returned\n"}
+{"t": 223.83, "text": "    PASS   c001 validation kv-store-grpc                    40 s  returned\n"}
+{"t": 223.83, "text": "    fail   c000 validation pypi-server                      40 s  returned\n"}
+{"t": 225.83, "text": "    PASS   c001 validation pypi-server                      42 s  returned\n"}
+{"t": 227.84, "text": "    PASS   c001 validation fix-git                          44 s  returned\n"}
+{"t": 227.84, "text": "    PASS   c001 validation kv-store-grpc                    44 s  returned\n"}
+{"t": 227.84, "text": "    PASS   c001 validation vulnerable-secret                43 s  returned\n"}
+{"t": 227.84, "text": "    PASS   c000 validation fix-git                          43 s  returned\n"}
+{"t": 227.85, "text": "    fail   c000 validation kv-store-grpc                    43 s  returned\n"}
+{"t": 229.84, "text": "    PASS   c001 validation vulnerable-secret                45 s  returned\n"}
+{"t": 229.85, "text": "    fail   c000 validation kv-store-grpc                    46 s  returned\n"}
+{"t": 229.85, "text": "    fail   c000 validation log-summary-date-ranges          46 s  returned\n"}
+{"t": 231.85, "text": "    PASS   c001 validation multi-source-data-merger         48 s  returned\n"}
+{"t": 231.86, "text": "    PASS   c001 validation multi-source-data-merger         48 s  returned\n"}
+{"t": 231.86, "text": "    fail   c000 validation vulnerable-secret                47 s  returned\n"}
+{"t": 233.86, "text": "    PASS   c001 validation fix-git                          49 s  returned\n"}
+{"t": 235.86, "text": "    fail   c000 validation pypi-server                      52 s  returned\n"}
+{"t": 237.86, "text": "    PASS   c001 validation fix-code-vulnerability           54 s  returned\n"}
+{"t": 237.87, "text": "    fail   c000 validation fix-code-vulnerability           54 s  returned\n"}
+{"t": 237.87, "text": "    fail   c000 validation vulnerable-secret                53 s  returned\n"}
+{"t": 239.87, "text": "    fail   c000 validation multi-source-data-merger         55 s  returned\n"}
+{"t": 239.87, "text": "    fail   c000 validation multi-source-data-merger         56 s  returned\n"}
+{"t": 247.88, "text": "    fail   c000 validation fix-code-vulnerability           63 s  returned\n"}
+{"t": 265.89, "text": "    fail   c001 search     count-dataset-tokens             82 s  returned\n"}
+{"t": 265.89, "text": "    PASS   c001 validation sqlite-with-gcov                 81 s  returned\n"}
+{"t": 267.9, "text": "    fail   c000 validation sqlite-with-gcov                 83 s  returned\n"}
+{"t": 277.92, "text": "    PASS   c001 validation fix-code-vulnerability           94 s  returned\n"}
+{"t": 277.92, "text": "    fail   c000 validation sqlite-with-gcov                 92 s  returned\n"}
+{"t": 286.03, "text": "    PASS   c001 validation sqlite-with-gcov                101 s  returned\n"}
+{"t": 290.04, "text": "    PASS   c001 search     configure-git-webserver         105 s  returned\n"}
+{"t": 328.07, "text": "    fail   c001 search     sparql-university               144 s  returned\n"}
+{"t": 352.1, "text": "    PASS   c001 search     break-filter-js-from-html       168 s  returned\n"}
+{"t": 392.29, "text": "    fail   c001 search     bn-fit-modify                   209 s  timeout\n"}
+{"t": 392.3, "text": "  Job 6afe2e97545f95df1c06c74d: 222 s, $0.091\n"}
+{"t": 392.3, "text": "  validation 12% -> 100%: re-measuring before it counts...\n"}
+{"t": 392.3, "text": "  evaluating 32 trials in one HF Job (c000, c001)...\n"}
+{"t": 429.88, "text": "    PASS   c001 validation log-summary-date-ranges          26 s  returned\n"}
+{"t": 435.83, "text": "    fail   c001 validation log-summary-date-ranges          31 s  returned\n"}
+{"t": 437.83, "text": "    fail   c000 validation log-summary-date-ranges          32 s  returned\n"}
+{"t": 439.91, "text": "    PASS   c001 validation kv-store-grpc                    34 s  returned\n"}
+{"t": 439.92, "text": "    fail   c000 validation kv-store-grpc                    34 s  returned\n"}
+{"t": 439.92, "text": "    fail   c000 validation kv-store-grpc                    35 s  returned\n"}
+{"t": 441.87, "text": "    PASS   c001 validation kv-store-grpc                    36 s  returned\n"}
+{"t": 441.87, "text": "    PASS   c001 validation pypi-server                      36 s  returned\n"}
+{"t": 441.87, "text": "    PASS   c001 validation pypi-server                      36 s  returned\n"}
+{"t": 441.87, "text": "    fail   c000 validation vulnerable-secret                37 s  returned\n"}
+{"t": 445.85, "text": "    PASS   c001 validation vulnerable-secret                40 s  returned\n"}
+{"t": 445.85, "text": "    fail   c000 validation multi-source-data-merger         40 s  returned\n"}
+{"t": 447.85, "text": "    PASS   c001 validation multi-source-data-merger         43 s  returned\n"}
+{"t": 449.89, "text": "    fail   c000 validation fix-code-vulnerability           45 s  returned\n"}
+{"t": 449.89, "text": "    fail   c000 validation log-summary-date-ranges          44 s  returned\n"}
+{"t": 449.92, "text": "    fail   c000 validation pypi-server                      44 s  returned\n"}
+{"t": 452.15, "text": "    PASS   c001 validation vulnerable-secret                46 s  returned\n"}
+{"t": 453.9, "text": "    fail   c000 validation fix-code-vulnerability           48 s  returned\n"}
+{"t": 454.12, "text": "    fail   c000 validation multi-source-data-merger         48 s  returned\n"}
+{"t": 455.87, "text": "    PASS   c000 validation fix-git                          51 s  returned\n"}
+{"t": 457.88, "text": "    PASS   c000 validation fix-git                          52 s  returned\n"}
+{"t": 463.88, "text": "    PASS   c001 validation fix-git                          59 s  returned\n"}
+{"t": 465.89, "text": "    PASS   c000 validation vulnerable-secret                61 s  returned\n"}
+{"t": 469.89, "text": "    PASS   c001 validation fix-git                          65 s  returned\n"}
+{"t": 471.9, "text": "    PASS   c001 validation fix-code-vulnerability           66 s  returned\n"}
+{"t": 475.9, "text": "    PASS   c001 validation multi-source-data-merger         71 s  returned\n"}
+{"t": 483.9, "text": "    fail   c000 validation sqlite-with-gcov                 78 s  returned\n"}
+{"t": 485.91, "text": "    fail   c000 validation sqlite-with-gcov                 80 s  returned\n"}
+{"t": 493.93, "text": "    fail   c000 validation pypi-server                      88 s  returned\n"}
+{"t": 495.95, "text": "    PASS   c001 validation sqlite-with-gcov                 91 s  returned\n"}
+{"t": 509.98, "text": "    PASS   c001 validation sqlite-with-gcov                105 s  returned\n"}
+{"t": 556.33, "text": "    PASS   c001 validation fix-code-vulnerability          152 s  returned\n"}
+{"t": 556.34, "text": "  Job 6afe2f74545f95df1c06ca46: 164 s, $0.064\n"}
+{"t": 556.34, "text": "\nIteration 1  c001 from c000: Remove step, timeout, output and kill limits\n  first measurement   12% ->  100%, then re-measured (pooled):\n  validation   15% ->   97% (+82 points, needs +12)  KEPT\n  fixed: fix-code-vulnerability, kv-store-grpc, log-summary-date-ranges, multi-source-data-merger, pypi-server, sqlite-with-gcov, vulnerable-secret    broke: -    search:   40%\n  best agent so far, validation: \u2581\u2588   97%\n"}
+{"t": 556.34, "text": "  HF credits spent so far: $0.191; proposer on your own subscription (API-price equivalent): $0.13\n"}
+{"t": 556.34, "text": "\n--- iteration 2: proposing a change to c001 ---\n"}
+{"t": 600.15, "text": "  proposer (44 s): Verify before finishing, show clock, harden calls\n  Hypothesis: runs end on the first text answer without a check (count-dataset-tokens, sparql-university FAIL with successful-looking transcripts); bn-\u2026\n    --- agent.py (c001)\n    +++ agent.py (c002)\n    @@ -11,7 +11,9 @@\n     import json\n     \n     SYSTEM_PROMPT = \"\"\"You are an AI agent that solves tasks in a Linux terminal.\n    -Use the bash tool to run commands. When the task is complete, reply with a short summary.\"\"\"\n    +Use the bash tool to run commands. Follow every requirement of the task exactly (file names, formats, values).\n    +Before you finish, check your result against the task text by running it or reading the output file.\n    +When the task is complete, reply with a short summary.\"\"\"\n     \n     MAX_OUTPUT_CHARS = 6000  # long output keeps its head and its tail\n     MAX_COMMAND_S = 150  # one command may run long (installs), but never past the budget\n    @@ -41,9 +43,12 @@\n     \n     \n     def run_tool_call(call, env):\n    -    args = json.loads(call[\"function\"][\"arguments\"])\n    +    try:\n    +        command = json.loads(call[\"function\"][\"arguments\"])[\"command\"]\n    +    except (ValueError, KeyError, TypeError):\n    +        return \"error: arguments must be JSON with a command field\"\n         timeout = max(5, min(MAX_COMMAND_S, int(env.time_left()) - 10))\n    -    return format_output(env.shell(args[\"command\"], timeout=timeout))\n    +    return format_output(env.shell(command, timeout=timeout)) + f\"\\n[{int(env.time_left())} s left]\"\n     \n     \n     def run(task, env):\n    @@ -51,12 +56,17 @@\n             {\"role\": \"system\", \"content\": SYSTEM_PROMPT},\n             {\"role\": \"user\", \"content\": task},\n         ]\n    +    nudged = False\n         while env.time_left() > 8:  # the time budget is the only limit\n             reply = env.llm(messages, tools=[BASH_TOOL])\n             messages.append(reply)\n             tool_calls = reply.get(\"tool_calls\") or []\n             if not tool_calls:\n    -            return  # the model answered in text: we are done\n    +            if nudged or env.time_left() < 40:\n    +                return  # the model answered in text: we are done\n    +            nudged = True  # once: ask for a check against the task before accepting\n    +            messages.append({\"role\": \"user\", \"content\": \"Before finishing, re-read the task and verify each requirement with a command. Fix anything that does not match, then summarize.\"})\n    +            continue\n             for call in tool_calls:\n                 content = run_tool_call(call, env)\n                 messages.append({\"role\": \"tool\", \"tool_call_id\": call[\"id\"], \"content\": content})\n"}
+{"t": 600.15, "text": "  evaluating 37 trials in one HF Job (c001, c002)...\n"}
+{"t": 641.5, "text": "    PASS   c001 validation log-summary-date-ranges          25 s  returned\n"}
+{"t": 653.51, "text": "    PASS   c001 validation fix-git                          38 s  returned\n"}
+{"t": 655.52, "text": "    PASS   c001 validation log-summary-date-ranges          40 s  returned\n"}
+{"t": 657.52, "text": "    PASS   c001 validation kv-store-grpc                    42 s  returned\n"}
+{"t": 657.52, "text": "    PASS   c001 validation multi-source-data-merger         42 s  returned\n"}
+{"t": 660.05, "text": "    PASS   c001 validation fix-git                          45 s  returned\n"}
+{"t": 661.52, "text": "    PASS   c001 validation pypi-server                      46 s  returned\n"}
+{"t": 663.53, "text": "    PASS   c002 validation fix-git                          48 s  returned\n"}
+{"t": 663.53, "text": "    PASS   c002 validation fix-git                          49 s  returned\n"}
+{"t": 665.59, "text": "    PASS   c002 validation multi-source-data-merger         50 s  returned\n"}
+{"t": 665.59, "text": "    PASS   c001 validation kv-store-grpc                    51 s  returned\n"}
+{"t": 667.82, "text": "    PASS   c001 validation pypi-server                      52 s  returned\n"}
+{"t": 669.54, "text": "    PASS   c002 validation kv-store-grpc                    55 s  returned\n"}
+{"t": 669.54, "text": "    PASS   c001 validation vulnerable-secret                55 s  returned\n"}
+{"t": 671.61, "text": "    PASS   c002 validation multi-source-data-merger         56 s  returned\n"}
+{"t": 673.54, "text": "    PASS   c002 validation kv-store-grpc                    58 s  returned\n"}
+{"t": 677.6, "text": "    PASS   c001 validation vulnerable-secret                63 s  returned\n"}
+{"t": 681.56, "text": "    PASS   c002 validation pypi-server                      66 s  returned\n"}
+{"t": 681.56, "text": "    PASS   c001 validation multi-source-data-merger         66 s  returned\n"}
+{"t": 683.56, "text": "    PASS   c002 validation log-summary-date-ranges          69 s  returned\n"}
+{"t": 683.56, "text": "    PASS   c002 validation pypi-server                      68 s  returned\n"}
+{"t": 689.57, "text": "    PASS   c001 validation fix-code-vulnerability           74 s  returned\n"}
+{"t": 691.57, "text": "    PASS   c002 validation log-summary-date-ranges          78 s  returned\n"}
+{"t": 695.58, "text": "    PASS   c002 validation fix-code-vulnerability           80 s  returned\n"}
+{"t": 695.58, "text": "    PASS   c002 validation vulnerable-secret                81 s  returned\n"}
+{"t": 701.61, "text": "    PASS   c002 search     count-dataset-tokens             87 s  returned\n"}
+{"t": 703.63, "text": "    PASS   c002 validation vulnerable-secret                88 s  returned\n"}
+{"t": 705.59, "text": "    PASS   c002 search     break-filter-js-from-html        91 s  returned\n"}
+{"t": 715.63, "text": "    PASS   c001 validation sqlite-with-gcov                101 s  returned\n"}
+{"t": 717.6, "text": "    PASS   c002 validation sqlite-with-gcov                103 s  returned\n"}
+{"t": 723.62, "text": "    PASS   c002 validation fix-code-vulnerability          109 s  returned\n"}
+{"t": 723.63, "text": "    PASS   c001 validation fix-code-vulnerability          108 s  returned\n"}
+{"t": 723.63, "text": "    PASS   c001 validation sqlite-with-gcov                109 s  returned\n"}
+{"t": 731.74, "text": "    fail   c002 search     sparql-university               116 s  returned\n"}
+{"t": 745.74, "text": "    PASS   c002 validation sqlite-with-gcov                131 s  returned\n"}
+{"t": 781.77, "text": "    PASS   c002 search     configure-git-webserver         166 s  returned\n"}
+{"t": 788.79, "text": "    fail   c002 search     bn-fit-modify                   175 s  returned\n"}
+{"t": 788.81, "text": "  Job 6afe3044545f95df1c06ce03: 189 s, $0.132\n"}
+{"t": 788.81, "text": "\nIteration 2  c002 from c001: Verify before finishing, show clock, harden calls\n  validation   98% ->  100% (+2 points, needs +12)  DROPPED\n  fixed: log-summary-date-ranges    broke: -    search:   60%\n  best agent so far, validation: \u2581\u2588\u2588   98%\n"}
+{"t": 788.81, "text": "  HF credits spent so far: $0.323; proposer on your own subscription (API-price equivalent): $0.24\n"}
+{"t": 788.81, "text": "\nsession time box (22 min): no time for another iteration and the held-out check; stopping after 2 iterations\n"}
+{"t": 788.81, "text": "\n--- held-out check: seed vs c001 on 21 unseen tasks ---\n"}
+{"t": 788.81, "text": "  evaluating 84 trials in one HF Job (c000, c001)...\n"}
+{"t": 840.05, "text": "    fail   c000 heldout    openssl-selfsigned-cert          38 s  returned\n"}
+{"t": 844.06, "text": "    PASS   c001 heldout    modernize-scientific-stack       42 s  returned\n"}
+{"t": 846.06, "text": "    fail   c000 heldout    openssl-selfsigned-cert          44 s  returned\n"}
+{"t": 848.07, "text": "    PASS   c000 heldout    prove-plus-comm                  46 s  returned\n"}
+{"t": 848.07, "text": "    PASS   c001 heldout    openssl-selfsigned-cert          46 s  returned\n"}
+{"t": 852.08, "text": "    PASS   c001 heldout    prove-plus-comm                  49 s  returned\n"}
+{"t": 854.08, "text": "    PASS   c001 heldout    openssl-selfsigned-cert          51 s  returned\n"}
+{"t": 856.08, "text": "    PASS   c000 heldout    prove-plus-comm                  53 s  returned\n"}
+{"t": 856.08, "text": "    PASS   c001 heldout    prove-plus-comm                  53 s  returned\n"}
+{"t": 858.09, "text": "    PASS   c001 heldout    constraints-scheduling           55 s  returned\n"}
+{"t": 858.09, "text": "    PASS   c001 heldout    extract-elf                      55 s  returned\n"}
+{"t": 858.09, "text": "    PASS   c001 heldout    modernize-scientific-stack       56 s  returned\n"}
+{"t": 860.12, "text": "    fail   c000 heldout    nginx-request-logging            56 s  returned\n"}
+{"t": 860.12, "text": "    PASS   c001 heldout    db-wal-recovery                  57 s  returned\n"}
+{"t": 860.36, "text": "    PASS   c001 heldout    git-leak-recovery                57 s  returned\n"}
+{"t": 862.1, "text": "    PASS   c000 heldout    modernize-scientific-stack       59 s  returned\n"}
+{"t": 864.1, "text": "    PASS   c000 heldout    modernize-scientific-stack       60 s  returned\n"}
+{"t": 864.13, "text": "    PASS   c001 heldout    nginx-request-logging            61 s  returned\n"}
+{"t": 866.11, "text": "    PASS   c000 heldout    db-wal-recovery                  62 s  returned\n"}
+{"t": 868.11, "text": "    fail   c001 heldout    nginx-request-logging            64 s  returned\n"}
+{"t": 870.12, "text": "    PASS   c001 heldout    constraints-scheduling           66 s  returned\n"}
+{"t": 872.14, "text": "    fail   c000 heldout    build-pov-ray                    70 s  returned\n"}
+{"t": 872.14, "text": "    fail   c000 heldout    code-from-image                  70 s  returned\n"}
+{"t": 872.14, "text": "    PASS   c000 heldout    git-leak-recovery                69 s  returned\n"}
+{"t": 872.4, "text": "    PASS   c000 heldout    polyglot-c-py                    70 s  returned\n"}
+{"t": 874.19, "text": "    fail   c000 heldout    constraints-scheduling           72 s  returned\n"}
+{"t": 874.2, "text": "    fail   c000 heldout    db-wal-recovery                  71 s  returned\n"}
+{"t": 876.15, "text": "    fail   c000 heldout    constraints-scheduling           72 s  returned\n"}
+{"t": 876.15, "text": "    PASS   c000 heldout    polyglot-c-py                    73 s  returned\n"}
+{"t": 876.16, "text": "    fail   c001 heldout    cancel-async-tasks               73 s  returned\n"}
+{"t": 876.16, "text": "    PASS   c001 heldout    git-leak-recovery                72 s  returned\n"}
+{"t": 878.15, "text": "    PASS   c000 heldout    git-leak-recovery                76 s  returned\n"}
+{"t": 882.15, "text": "    PASS   c001 heldout    extract-elf                      79 s  returned\n"}
+{"t": 884.15, "text": "    PASS   c000 heldout    extract-elf                      81 s  returned\n"}
+{"t": 884.23, "text": "    fail   c000 heldout    sanitize-git-repo                82 s  returned\n"}
+{"t": 884.23, "text": "    fail   c001 heldout    cancel-async-tasks               81 s  returned\n"}
+{"t": 886.18, "text": "    fail   c000 heldout    build-pmars                      83 s  returned\n"}
+{"t": 886.19, "text": "    PASS   c000 heldout    sanitize-git-repo                84 s  returned\n"}
+{"t": 888.45, "text": "    fail   c000 heldout    code-from-image                  85 s  returned\n"}
+{"t": 888.45, "text": "    fail   c000 heldout    git-multibranch                  86 s  returned\n"}
+{"t": 888.45, "text": "    PASS   c001 heldout    polyglot-c-py                    85 s  returned\n"}
+{"t": 892.18, "text": "    fail   c000 heldout    cancel-async-tasks               89 s  returned\n"}
+{"t": 892.18, "text": "    PASS   c000 heldout    extract-elf                      89 s  returned\n"}
+{"t": 892.19, "text": "    PASS   c001 heldout    db-wal-recovery                  89 s  returned\n"}
+{"t": 892.19, "text": "    PASS   c001 heldout    hf-model-inference               89 s  returned\n"}
+{"t": 892.19, "text": "    PASS   c001 heldout    sanitize-git-repo                89 s  returned\n"}
+{"t": 894.2, "text": "    fail   c000 heldout    financial-document-processor     91 s  returned\n"}
+{"t": 894.21, "text": "    fail   c000 heldout    nginx-request-logging            91 s  returned\n"}
+{"t": 894.21, "text": "    PASS   c001 heldout    build-pmars                      90 s  returned\n"}
+{"t": 894.22, "text": "    PASS   c001 heldout    sanitize-git-repo                90 s  returned\n"}
+{"t": 896.22, "text": "    fail   c000 heldout    dna-insert                       94 s  returned\n"}
+{"t": 896.22, "text": "    fail   c000 heldout    merge-diff-arc-agi-task          93 s  returned\n"}
+{"t": 898.22, "text": "    fail   c000 heldout    financial-document-processor     95 s  returned\n"}
+{"t": 898.22, "text": "    fail   c000 heldout    merge-diff-arc-agi-task          96 s  returned\n"}
+{"t": 900.23, "text": "    fail   c000 heldout    dna-insert                       98 s  returned\n"}
+{"t": 904.23, "text": "    fail   c000 heldout    build-pov-ray                   102 s  returned\n"}
+{"t": 904.24, "text": "    fail   c000 heldout    sqlite-db-truncate              102 s  returned\n"}
+{"t": 906.24, "text": "    fail   c000 heldout    git-multibranch                 103 s  returned\n"}
+{"t": 906.24, "text": "    fail   c000 heldout    hf-model-inference              104 s  returned\n"}
+{"t": 906.24, "text": "    PASS   c001 heldout    hf-model-inference              104 s  returned\n"}
+{"t": 914.26, "text": "    PASS   c001 heldout    build-pmars                     112 s  returned\n"}
+{"t": 916.26, "text": "    PASS   c000 heldout    hf-model-inference              113 s  returned\n"}
+{"t": 916.27, "text": "    PASS   c001 heldout    merge-diff-arc-agi-task         114 s  returned\n"}
+{"t": 920.28, "text": "    fail   c000 heldout    build-pmars                     117 s  returned\n"}
+{"t": 920.28, "text": "    PASS   c001 heldout    git-multibranch                 117 s  returned\n"}
+{"t": 924.29, "text": "    PASS   c001 heldout    code-from-image                 122 s  returned\n"}
+{"t": 926.29, "text": "    PASS   c001 heldout    polyglot-c-py                   122 s  returned\n"}
+{"t": 932.3, "text": "    fail   c001 heldout    dna-insert                      129 s  returned\n"}
+{"t": 932.31, "text": "    PASS   c001 heldout    merge-diff-arc-agi-task         129 s  returned\n"}
+{"t": 938.32, "text": "    fail   c001 heldout    dna-insert                      135 s  returned\n"}
+{"t": 940.32, "text": "    fail   c000 heldout    cancel-async-tasks              138 s  returned\n"}
+{"t": 944.33, "text": "    fail   c001 heldout    regex-log                       141 s  returned\n"}
+{"t": 948.36, "text": "    fail   c001 heldout    sqlite-db-truncate              146 s  returned\n"}
+{"t": 960.37, "text": "    PASS   c001 heldout    build-pov-ray                   157 s  returned\n"}
+{"t": 964.37, "text": "    fail   c000 heldout    sqlite-db-truncate              162 s  returned\n"}
+{"t": 968.38, "text": "    PASS   c000 heldout    regex-log                       165 s  returned\n"}
+{"t": 970.39, "text": "    PASS   c001 heldout    build-pov-ray                   166 s  returned\n"}
+{"t": 988.42, "text": "    PASS   c001 heldout    sqlite-db-truncate              186 s  returned\n"}
+{"t": 994.44, "text": "    fail   c001 heldout    git-multibranch                 191 s  returned\n"}
+{"t": 996.45, "text": "    PASS   c000 heldout    regex-log                       194 s  returned\n"}
+{"t": 1008.52, "text": "    fail   c001 heldout    code-from-image                 206 s  returned\n"}
+{"t": 1018.54, "text": "    fail   c001 heldout    regex-log                       215 s  returned\n"}
+{"t": 1022.56, "text": "    fail   c001 heldout    financial-document-processor    219 s  returned\n"}
+{"t": 1024.85, "text": "    PASS   c001 heldout    financial-document-processor    223 s  returned\n"}
+{"t": 1024.88, "text": "  Job 6afe3101545f95df1c06d03d: 236 s, $0.234\n"}
+{"t": 1024.99, "text": "\nHeld-out check (21 tasks never seen during the search, 2 trial(s) each):\n  seed   36% -> best (c001)   74%  (+38 points)\n  paired gain +38 points, 95% CI [+17, +57] (tasks resampled)\n"}
+{"t": 1024.99, "text": "  HF credits spent so far: $0.557; proposer on your own subscription (API-price equivalent): $0.24\n"}

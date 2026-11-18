@@ -1,4 +1,0 @@
-# Periodic progress checkpoint in tool results
-Hypothesis: financial-document-processor spent ~45 calls on OCR variants of one file and delivered nothing; build-pov-ray declared done without tracking what remained. Static prompt rules (iter 6) and a late deadline warning (iter 3) did not work; the model needs a recurring in-context prompt to take stock.
-Change: every 8th tool call, the tool result gets a checkpoint note with command count and time left, asking the model to state what is done/remaining and to drop a stuck sub-problem with a best guess.
-Expected: fixes rabbit holes that end with nothing delivered (partial output earlier); could hurt hard tasks needing long single-problem persistence, and adds a few tokens per 8 steps.

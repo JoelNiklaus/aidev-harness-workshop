@@ -22,8 +22,20 @@ def _snip(text: str | None, n: int = OUT_SNIP) -> str:
     return f"{text[:n]}\n[... {len(text) - 2 * n:,} chars cut in this digest ...]\n{text[-n:]}"
 
 
-def _llm_block(i: int, s: dict[str, Any]) -> str:
+def _task_note(s: dict[str, Any], task: str | None) -> str | None:
+    """The first model call: say so when the model did not receive the task as given (cut or rewritten)."""
+    users = [m.get("content") or "" for m in s.get("new_messages", []) if m.get("role") == "user"]
+    if not task or not users or any(task in u for u in users):
+        return None
+    got = max(users, key=len)
+    return f"(the model received {len(got):,} of the task's {len(task):,} chars: the harness cut or rewrote the task)"
+
+
+def _llm_block(i: int, s: dict[str, Any], task: str | None = None) -> str:
     lines = [f"### step {i}: model ({s.get('duration_s', 0):.1f} s, {s.get('n_messages', '?')} messages sent)"]
+    note = _task_note(s, task) if i == 1 else None
+    if note:
+        lines.append(note)
     seen = [m for m in s.get("new_messages", []) if m.get("role") == "tool"]
     if seen:
         lines.append("tool results the model received: " + ", ".join(f"model saw {len(m.get('content') or ''):,} chars" for m in seen))
@@ -61,7 +73,7 @@ def render(rec: dict[str, Any], max_chars: int = 20_000) -> str:
     for s in steps:
         if s["kind"] == "llm":
             n_llm += 1
-            blocks.append(_llm_block(n_llm, s))
+            blocks.append(_llm_block(n_llm, s, t.get("task")))
         elif s["kind"] == "shell":
             blocks.append(_shell_block(s))
         else:

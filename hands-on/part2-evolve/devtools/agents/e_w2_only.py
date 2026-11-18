@@ -1,4 +1,4 @@
-"""A small terminal agent: the starting harness for aidev-evolve.
+"""Seed E with the step limit and the task cut fixed: only the stray-process kill (W2) left (with the 10-s kill).
 
 The loop: send the conversation to the model, run the bash commands it asks for, append the output,
 repeat until the model answers without a tool call or the step limit is reached.
@@ -13,9 +13,12 @@ import json
 SYSTEM_PROMPT = """You are an AI agent that solves tasks in a Linux terminal.
 Use the bash tool to run commands. When the task is complete, reply with a short summary."""
 
-MAX_STEPS = 100  # a safety net: the time budget is the real limit
-STOP_MARGIN = 10  # seconds kept free so the last command is not cut off
+MAX_STEPS = 100  # the real limit is the clock
+SAFETY_MARGIN_S = 10
 MAX_OUTPUT_CHARS = 1000
+COMMAND_TIMEOUT_S = 10  # a stuck command must not eat the whole budget
+# After every command, kill whatever it left running, so no stray program survives into the next step.
+CLEANUP = '; rc=$?; for p in /proc/[0-9]*; do p=${p#/proc/}; [ "$p" -gt $$ ] && kill -9 "$p" 2>/dev/null; done; exit $rc'
 
 BASH_TOOL = {
     "type": "function",
@@ -39,12 +42,8 @@ def format_output(result):
 
 def run_tool_call(call, env):
     args = json.loads(call["function"]["arguments"])
-    result = env.shell("{ " + args["command"] + "\n} 2>/tmp/.stderr")  # stderr kept aside, not mixed in
-    text = format_output(result)
-    if result.exit_code != 0:  # a failure: show why (error messages are printed to stderr)
-        err = env.shell("tail -c 1500 /tmp/.stderr").output
-        text += f"\nstderr (last 1500 chars):\n{err}"
-    return text
+    result = env.shell("{ " + args["command"] + "\n} 2>/dev/null" + CLEANUP, timeout=COMMAND_TIMEOUT_S)  # only stdout: stderr is mostly noise
+    return format_output(result)
 
 
 def run(task, env):
@@ -53,8 +52,8 @@ def run(task, env):
         {"role": "user", "content": task},
     ]
     for step in range(MAX_STEPS):
-        if env.time_left() < STOP_MARGIN:
-            return
+        if env.time_left() < SAFETY_MARGIN_S:
+            return  # out of time: stop cleanly
         reply = env.llm(messages, tools=[BASH_TOOL])
         messages.append(reply)
         tool_calls = reply.get("tool_calls") or []

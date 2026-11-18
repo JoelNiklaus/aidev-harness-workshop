@@ -1,4 +1,0 @@
-# Show stderr only when a command fails
-Hypothesis: stderr is thrown away, so failing commands return exit 2 and empty or vague output (build-pov-ray: compiler/linker errors hidden, repeated blind retries; financial-document-processor: tool failures invisible during OCR attempts).
-Change: stderr goes to a side file; when the exit code is non-zero the last 1500 chars of it are appended to the tool result. Successful commands look exactly as before.
-Expected: fixes blind retries after failed builds and tool calls; unlike iteration 2 it adds no stderr noise or output-size change on successful commands, but failing commands cost a few more tokens.

@@ -51,6 +51,39 @@ def test_runs_the_candidate_and_writes_its_trajectory_and_usage(tmp_path):
     assert ctx.n_input_tokens == 1000 and ctx.n_output_tokens == 100 and ctx.cost_usd > 0
 
 
+class CountingLLM:
+    def __init__(self):
+        self.provider_calls = {"novita": 1}
+
+    def __call__(self, messages, tools, timeout, **params):
+        return fake_llm(messages, tools, timeout, **params)
+
+
+def test_the_trajectory_records_which_providers_answered(tmp_path):
+    agent = EvolveAgent(logs_dir=tmp_path, model_name="m", source=AGENT, budget_s=30, llm=CountingLLM())
+    asyncio.run(agent.run("hello", FakeEnvironment(), AgentContext()))
+    assert json.loads((tmp_path / "evolve-trajectory.json").read_text())["provider_calls"] == {"novita": 1}
+
+
+def test_trials_of_one_job_call_the_router_through_one_shared_provider_pool(tmp_path, monkeypatch):
+    from aidev_evolve import llm, providers
+
+    pools = []
+
+    class Router(CountingLLM):
+        def __init__(self, token, *, pool):
+            super().__init__()
+            pools.append(pool)
+
+    monkeypatch.setattr(llm, "RouterLLM", Router)
+    monkeypatch.setenv("HF_TOKEN", "hf_dummy")
+    for i in range(2):
+        (tmp_path / str(i)).mkdir()
+        a = EvolveAgent(logs_dir=tmp_path / str(i), model_name="m", source=AGENT, budget_s=30, providers=["novita", "zai-org"])
+        asyncio.run(a.run("hello", FakeEnvironment(), AgentContext()))
+    assert pools[0] is pools[1] is providers.shared_pool(["novita", "zai-org"])
+
+
 def test_many_agents_run_at_once_without_starving_the_event_loop(tmp_path):
     source = "def run(task, env):\n    env.shell('sleep 0.3', timeout=5)\n"
 

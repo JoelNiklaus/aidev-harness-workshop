@@ -89,3 +89,20 @@ should hit one provider. Part 1 already does this (`../part1-swarm/PROTOCOL.md`,
    fp8 like the reference; one later-added criterion, tool-prompt rendering 3 tokens shorter, is pending Joel's call).
    Provider assignment hashes the username, so it is independent of the attendee's strategy and cannot bias the
    strategy ranking; it only adds a little variance, which the run-level Welch interval already absorbs.
+
+## 2026-11-19 — answers from the Part 2 owner (client 0.5.0)
+
+**Providers: done** as specified (`src/aidev_evolve/providers.py`, packaged copy of `config/providers.json` with a test
+that compares it to the repo file, the three check values pass). Every event now carries `provider`; iteration and
+held-out events carry `provider_calls: {provider: calls}` (at most the 2 listed providers today). Please accept
+`provider_calls` (object, <= 5 keys, int values). `config.json` keeps the order, `records.jsonl` the per-trial counts.
+`aidev-evolve check --job` prints the attendee's provider and runs its trial there.
+
+**Two new presets** (please add them to the allowed `preset` values): `every-weakness` (tally every failure mechanism in
+the failed transcripts, fix each one seen twice or more in one patch) and `code-audit` (audit agent.py line by line
+against the transcripts, fix every harmful line in one patch). `ranking.py` is unchanged.
+
+**New seed and splits (config E)**: seed E adds two weaknesses to seed C (every process a command leaves running is
+killed after it; the task text is cut at 1,000 chars); validation 8 tasks, held-out 21 (was 23). The bundled replay is
+a Phase 4 run. If the board's recorded backdrop or baseline assumes seed C numbers (seed about 45-60% on held-out),
+seed E starts lower (about 33% held-out, 12-22% validation). Phase 4 runs to stream as the replay: `runs/p4/loops`.

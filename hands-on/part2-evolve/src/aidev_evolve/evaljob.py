@@ -22,10 +22,9 @@ from pathlib import Path
 from typing import Any
 
 from aidev_evolve import transport
+from aidev_evolve.providers import MODEL, REFERENCE
 
 BENCH = "terminal-bench-2.1"
-MODEL = "zai-org/GLM-5.3-Flash"
-PROVIDER = "zai-org"
 EFFORT = "low"
 AGENT_IMPORT = "aidev_evolve.harbor_agent:EvolveAgent"
 HARBOR_SLACK_S = 90  # Harbor's own agent timeout sits this far behind the runtime budget, so the runtime ends first
@@ -45,7 +44,13 @@ def decode_spec(text: str) -> dict[str, Any]:
     return json.loads(gzip.decompress(base64.b64decode(text)))
 
 
-def build_run(model: str = MODEL, effort: str = EFFORT, provider: str = PROVIDER) -> dict[str, Any]:
+def spec_providers(spec: dict[str, Any]) -> list[str]:
+    """The attendee's GLM providers, preferred first (providers.order on the laptop); the reference when a spec names
+    none (devtools sweeps)."""
+    return list(spec.get("providers") or [REFERENCE])
+
+
+def build_run(model: str = MODEL, effort: str = EFFORT, provider: str = REFERENCE) -> dict[str, Any]:
     """The run record hlb's Harbor config is built from (as in Part 1's runner trial.build_run)."""
     from hlb import config as hlb_config
 
@@ -74,6 +79,7 @@ def harbor_configs(spec: dict[str, Any], jobs_dir: Path, run_id: str, run: dict[
 
     run = run or {**build_run(), "run_id": run_id}
     budget = float(spec.get("budget_s", 150))
+    providers = spec_providers(spec)
     cfgs = []
     for i, entry in enumerate(spec["runs"]):
         cand, tasks, trials = entry["candidate"], entry["tasks"], int(entry.get("trials", 1))
@@ -81,7 +87,7 @@ def harbor_configs(spec: dict[str, Any], jobs_dir: Path, run_id: str, run: dict[
         cfg = harbor_job_config(run, BENCH, ["mini-swe-agent"], tasks, trials, job_name, Path(jobs_dir),
                                 {"aidev-evolve": run_id}, concurrency=len(tasks) * trials)
         cfg["agents"] = [{"import_path": AGENT_IMPORT, "model_name": run["model"], "override_timeout_sec": budget + HARBOR_SLACK_S,
-                          "kwargs": {"source": spec["candidates"][cand], "candidate": cand, "budget_s": budget}}]
+                          "kwargs": {"source": spec["candidates"][cand], "candidate": cand, "budget_s": budget, "providers": providers}}]
         cfg["verifier"] = {"override_timeout_sec": VERIFIER_CAP_S}
         cfgs.append(cfg)
     return cfgs
@@ -114,7 +120,7 @@ def record(trial_dir: Path, candidate: str) -> dict[str, Any]:
             "outcome": outcome, "reward": reward, "wall_s": wall, "agent_s": _seconds(ae.get("started_at"), ae.get("finished_at")),
             "error": (f"{exc.get('exception_type')}: {(exc.get('exception_message') or '')[-300:]}" if exc else None),
             "usage": (traj or {}).get("usage"), "inference_usd": round(inference, 6), "sandbox_usd": round(sandbox, 6),
-            "cost_usd": round(inference + sandbox, 6), "trajectory": traj}
+            "cost_usd": round(inference + sandbox, 6), "provider_calls": (traj or {}).get("provider_calls") or {}, "trajectory": traj}
 
 
 def harbor_run(cfgs: list[dict[str, Any]]) -> None:
@@ -136,7 +142,7 @@ def harbor_run(cfgs: list[dict[str, Any]]) -> None:
 
 def main(spec: dict[str, Any], *, workdir: Path, harbor: Callable[[list[dict[str, Any]]], None] = harbor_run,
          emit: Callable[[str], None] = print, prepare: Callable[[dict[str, Any]], None] = prepare_env, poll_s: float = 2.0) -> int:
-    run = build_run()
+    run = build_run(provider=spec_providers(spec)[0])
     prepare(run)
     cfgs = harbor_configs(spec, Path(workdir), run["run_id"], run)
     cand_of = {c["job_name"]: c["agents"][0]["kwargs"]["candidate"] for c in cfgs}

@@ -45,7 +45,7 @@ def test_run_takes_a_seed_file_a_splits_file_and_a_strategy_folder(tmp_path, mon
     assert evo.strategy.modified and evo.strategy.preset == "baseline"
 
 
-def test_run_defaults_baseline_strategy_fixed_heldout_and_the_session_time_box(tmp_path, monkeypatch):
+def test_run_defaults_to_the_winning_strategy_fixed_heldout_and_the_session_time_box(tmp_path, monkeypatch):
     """One source of truth: the splits file carries the budget, the strategy the keep rule; the held-out trials and the
     session length are fixed for everyone and `run` has no flag for them."""
     from aidev_evolve import loop, strategy
@@ -54,11 +54,18 @@ def test_run_defaults_baseline_strategy_fixed_heldout_and_the_session_time_box(t
     args = cli.build_parser().parse_args(["run"])
     evo = cli.make_evolver(args, tmp_path / "run")
     assert evo.budget_s == loop.default_splits()["budget_s"]
-    assert evo.strategy.name == "baseline" and (evo.val_trials, evo.z, evo.confirm) == (2, 1.5, True)
+    assert strategy.DEFAULT == "code-audit" and evo.strategy.name == "code-audit"  # the Phase 4 winner (PROGRESS.md)
+    assert (evo.val_trials, evo.z, evo.confirm) == (2, 1.5, True)
     assert evo.session_s == strategy.SESSION_MINUTES * 60 and evo.parallel_proposals is True
     for flag in ("--z", "--val-trials", "--no-confirm", "--heldout-trials", "--iterations"):
         with pytest.raises(SystemExit):
             cli.build_parser().parse_args(["run", flag, "1"])
+
+
+@pytest.mark.parametrize("user,want", [("alice", ["novita", "zai-org"]), ("dave", ["zai-org", "novita"])])
+def test_run_uses_the_attendees_provider_order(tmp_path, monkeypatch, user, want):
+    monkeypatch.setattr(cli, "_session", lambda: (object(), "hf_dummy", user))
+    assert cli.make_evolver(cli.build_parser().parse_args(["run"]), tmp_path / "run").providers == want
 
 
 def test_run_takes_a_preset_name(tmp_path, monkeypatch):

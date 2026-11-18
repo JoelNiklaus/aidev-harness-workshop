@@ -31,6 +31,7 @@ from importlib import resources
 from pathlib import Path
 from typing import Any
 
+DEFAULT = "code-audit"  # the preset `run` uses: the Phase 4 winner (19 Nov, 20 real runs: PROGRESS.md)
 SESSION_MINUTES = 22.0  # the room's time box per run: seed calibration + iterations + held-out check
 USD_CAP = 2.0  # worst-case HF credits per run (every iteration re-measured)
 HELDOUT_TRIALS = 2  # fixed: trials per held-out task for the seed and the final agent
@@ -169,7 +170,7 @@ def load(spec: str | Path) -> Strategy:
     if path.is_file():
         path = path.parent
     if path.is_dir() and (path / "strategy.toml").is_file():
-        s = _parse((path / "strategy.toml").read_text(), lambda f: (path / f).read_text(), "baseline")
+        s = _parse((path / "strategy.toml").read_text(), lambda f: (path / f).read_text(), DEFAULT)
         if s.preset not in presets():
             raise StrategyError(f"based_on = {s.preset!r}: name the preset you started from ({', '.join(presets())})")
         return s

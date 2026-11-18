@@ -96,6 +96,34 @@ def test_keeps_a_patch_that_wins_on_validation_and_drops_a_regression(tmp_path):
     assert "Fix it" in "".join(out)
 
 
+class ProviderEval(FakeEval):
+    """Every trial answered by novita, one call of each fell back to zai-org."""
+
+    def __call__(self, spec, on_record):
+        res = super().__call__(spec, on_record)
+        for r in res.records:
+            r["provider_calls"] = {"novita": 2, "zai-org": 1}
+        return res
+
+
+def test_every_evaluation_and_board_event_carries_the_attendees_provider(tmp_path):
+    board = FakeBoard()
+    ev = ProviderEval()
+    evo = loop.Evolver(tmp_path / "run", splits=SPLITS, evaluate=ev, propose=FakeProposer([("Fix it", add_fix)]), board=board,
+                       write=lambda s: None, budget_s=150, providers=["novita", "zai-org"],
+                       strategy=strategy.with_knobs(strategy.load("baseline"), val_trials=1, z=1.0, confirm=False))
+    evo.run(iterations=1, heldout_trials=1)
+    assert all(s["providers"] == ["novita", "zai-org"] for s in ev.specs)
+    assert [e["kind"] for e in board.events] == ["seed", "iteration", "heldout"]
+    assert all(e["provider"] == "novita" for e in board.events)
+    it, ho = board.events[1], board.events[2]
+    n_iter = len(SPLITS["search"]) + 2 * len(SPLITS["validation"])  # child on search + validation, parent on validation
+    assert it["provider_calls"] == {"novita": 2 * n_iter, "zai-org": n_iter}
+    assert ho["provider_calls"] == {"novita": 2 * 4, "zai-org": 4}  # seed and best on 2 held-out tasks x 1 trial
+    assert evo.state["history"][0]["provider_calls"] == it["provider_calls"] and evo.state["heldout"]["provider_calls"] == ho["provider_calls"]
+    assert json.loads((tmp_path / "run" / "config.json").read_text())["providers"] == ["novita", "zai-org"]
+
+
 def test_seed_is_calibrated_with_two_validation_trials_and_the_margin_follows(tmp_path):
     evo, ev, *_ = make(tmp_path, [])
     evo.run(iterations=0)

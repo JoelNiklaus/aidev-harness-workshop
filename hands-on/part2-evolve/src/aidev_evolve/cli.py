@@ -82,10 +82,13 @@ def cmd_check(args: argparse.Namespace) -> int:
     except Exception as e:  # noqa: BLE001 - the board is a display, never a blocker
         line(None, f"workshop board {board.page_url(args.board)}: {type(e).__name__} (your loop runs without it and sends its updates later)")
     if args.job and session:
-        from aidev_evolve import loop
+        from aidev_evolve import loop, providers
 
         api, token, user = session
-        spec = {"candidates": {"seed": loop.SEED_SOURCE}, "runs": [{"candidate": "seed", "tasks": ["fix-git"], "trials": 1}], "budget_s": _bundled_budget()}
+        order = providers.for_user(user)
+        line(True, f"GLM provider: {order[0]} (fallback: {', '.join(order[1:]) or 'none'})")
+        spec = {"candidates": {"seed": loop.SEED_SOURCE}, "runs": [{"candidate": "seed", "tasks": ["fix-git"], "trials": 1}], "budget_s": _bundled_budget(),
+                "providers": order}
         try:
             res = launch.run_eval(api, token, user, spec, on_record=_progress, package_url=args.package_url)
             outcome = res.records[0]["outcome"] if res.records else "no result"
@@ -124,7 +127,7 @@ def cmd_eval_job(args: argparse.Namespace) -> int:
 
 def make_evolver(args: argparse.Namespace, run_dir: Path, write: Any = None) -> Any:
     """The real adapters: HF Job evaluation in the user's namespace, their coding agent as proposer."""
-    from aidev_evolve import proposer
+    from aidev_evolve import proposer, providers
 
     api, token, user = _session()
 
@@ -144,7 +147,7 @@ def make_evolver(args: argparse.Namespace, run_dir: Path, write: Any = None) -> 
     return loop.Evolver(run_dir, splits=splits, evaluate=evaluate, propose=propose, board=room, budget_s=budget_s, color=sys.stdout.isatty(),
                         proposer_name=args.proposer, run_id=f"{user}-{run_dir.name}", write=write or (lambda s: print(s, end="", flush=True)),
                         resume=getattr(args, "resume", False), strategy=strategy.load(args.strategy), session_s=session_s,
-                        parallel_proposals=args.proposer != "manual", **extra)
+                        parallel_proposals=args.proposer != "manual", providers=providers.for_user(user), **extra)
 
 
 def _run_dir(base: str | None) -> Path:
@@ -255,7 +258,7 @@ def _loop_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--proposer", choices=["claude", "codex", "manual"], default="claude")
     p.add_argument("--model", default=None, help="proposer model (claude: sonnet, opus; codex: its model names)")
     p.add_argument("--proposer-timeout-s", type=float, default=300)
-    p.add_argument("--strategy", default="baseline",
+    p.add_argument("--strategy", default=strategy.DEFAULT,
                    help=f"optimization strategy: a preset ({', '.join(strategy.presets())}) or a folder from `strategy-init`")
     p.add_argument("--budget-s", type=float, default=None, help="agent time per task (default: the budget the splits were selected for)")
     p.add_argument("--seed", default=None, help="starting agent.py (default: the bundled seed)")

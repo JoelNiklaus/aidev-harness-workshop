@@ -22,6 +22,7 @@ from typing import Any
 from harbor.agents.base import BaseAgent
 
 from aidev_evolve import runtime
+from aidev_evolve.providers import REFERENCE
 from aidev_evolve.runtime import ShellResult
 
 TRAJECTORY = "evolve-trajectory.json"
@@ -30,8 +31,9 @@ EXEC_SLACK_S = 15  # wait this long past a command's timeout for the sandbox to 
 
 class EvolveAgent(BaseAgent):
     def __init__(self, logs_dir: Path, model_name: str | None = None, *, source: str, candidate: str = "candidate", budget_s: float = 150,
-                 llm: Any = None, **kwargs: Any):
+                 providers: list[str] | None = None, llm: Any = None, **kwargs: Any):
         self._source, self._candidate, self._budget_s, self._llm = source, candidate, float(budget_s), llm
+        self._providers = list(providers or [REFERENCE])
         super().__init__(logs_dir=Path(logs_dir), model_name=model_name, **kwargs)
 
     @staticmethod
@@ -68,9 +70,10 @@ class EvolveAgent(BaseAgent):
         loop = asyncio.get_running_loop()
         llm = self._llm
         if llm is None:
-            from aidev_evolve.llm import RouterLLM
+            from aidev_evolve import llm as llm_mod
+            from aidev_evolve.providers import shared_pool
 
-            llm = RouterLLM(os.environ["HF_TOKEN"])
+            llm = llm_mod.RouterLLM(os.environ["HF_TOKEN"], pool=shared_pool(self._providers))
         done: asyncio.Future[dict[str, Any]] = loop.create_future()
 
         def work() -> None:
@@ -84,6 +87,7 @@ class EvolveAgent(BaseAgent):
         threading.Thread(target=work, name=f"agent-{self._candidate}", daemon=True).start()
         traj = await done
         traj["candidate"] = self._candidate
+        traj["provider_calls"] = dict(getattr(llm, "provider_calls", {}))
         Path(self.logs_dir).mkdir(parents=True, exist_ok=True)
         (Path(self.logs_dir) / TRAJECTORY).write_text(json.dumps(traj))
         u = traj["usage"]

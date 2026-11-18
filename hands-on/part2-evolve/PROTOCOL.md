@@ -50,7 +50,8 @@ of the attendee's list). Requested next to it: `provider_calls: {provider: calls
 Every event (seed, iteration, heldout) also carries the run's optimization strategy:
 
 ```
-strategy = {name: str (<= 60), preset: str (one of baseline, failures-first, small-diffs, two-candidates),
+strategy = {name: str (<= 60), preset: str (one of baseline, failures-first, small-diffs, two-candidates, every-weakness,
+            code-audit; the last two since client 0.5.0),
             hash: str (10 hex: knobs + prompt; identical strategies share it across attendees),
             modified: bool (the attendee edited the preset), prompt: str (<= 4,000 chars, the proposer approach),
             knobs: {traces: "failed"|"all", max_traces: 1-8, history: "none"|"titles"|"full", diffs: bool,
@@ -66,6 +67,15 @@ per_task: {task: [seed_passes, seed_trials, final_passes, final_trials]}   (23 t
 kept:     [title of each kept patch, in order]
 diff, ci_low, ci_high: the run's own paired gain and its 95% task-bootstrap CI (shown, never ranked)
 ```
+
+### Provider fields (added 19 Nov, client 0.5.0; additive)
+
+Every event carries `provider` (str: the attendee's GLM-5.3-Flash provider, the first of
+`providers.order(user, data/providers.json)`, the same weighted rendezvous hash and list as Part 1). `kind = "iteration"`
+and `kind = "heldout"` add `provider_calls: {provider: calls}` (who answered that iteration's or the held-out check's
+model calls, fallbacks included; at most 5 providers). Fallback inside a Job: a call answered 429/5xx or timed out is
+retried once at once on the next provider; after 3 such fallbacks the rest of the Job starts on the next provider.
+`records.jsonl` keeps `provider_calls` per trial and `config.json` the attendee's order (`providers`).
 
 Ranking (reference implementation `src/aidev_evolve/ranking.py`, stdlib only, deterministic: vendor it unchanged,
 or match its output on `tests/test_ranking.py`): pool runs per `strategy.hash` (a view by `preset` pools edited copies

@@ -1,252 +1,356 @@
 {
- "_comment": "Fixed splits for aidev-evolve (Phase 3, config C): Terminal-Bench 2.1, GLM-5.3-Flash effort low, 180 s agent budget, seed C (the Phase 2 seed B4 plus a 10-second kill on every command). Search and validation chosen 2026-11-18 by devtools/split_tasks.py from 4 trials each of seed C and the hand-fixed reference on the 34-task pool (runs/p3/sweep-C-*.jsonl). Held-out = every other pool task (23), so the final held-out check (seed vs final, 2 trials each) has enough tasks to rank strategies (devtools/strategy_noise.py).",
+ "_comment": "Fixed splits for aidev-evolve (Phase 4, config E): Terminal-Bench 2.1, GLM-5.3-Flash effort low, 180 s agent budget, seed E = seed C (10-step limit, 10-s command kill, stderr hidden, 1,000-char output head) + every process a command leaves running is killed after it + the task text cut at 1,000 chars. Chosen 2026-11-19 by devtools/splits_e.py from paired sweeps on the 34-task pool, 4 trials each (runs/p4/sweep-E-*.jsonl, sweep-D-*.jsonl, runs/p3/seedC.jsonl); the rule is in its docstring. Calibration per task: seed (seed E), fixed (all three weaknesses fixed), w2_left / w3_left (only that weakness left), seed_c (only the step limit left), bites (weaknesses whose fix adds >= 2 of 4 passes). Held-out = every other pool task (21).",
  "benchmark": "terminal-bench-2.1",
  "task_commit": "d49e28f1e4ddd13d289e85a5f312a66750951932",
  "budget_s": 180.0,
  "search": [
   "count-dataset-tokens",
   "break-filter-js-from-html",
-  "dna-insert",
-  "sparql-university"
+  "bn-fit-modify",
+  "sparql-university",
+  "configure-git-webserver"
  ],
  "validation": [
-  "fix-code-vulnerability",
   "vulnerable-secret",
-  "code-from-image",
-  "financial-document-processor",
-  "merge-diff-arc-agi-task",
-  "extract-elf",
+  "sqlite-with-gcov",
+  "fix-code-vulnerability",
+  "pypi-server",
+  "kv-store-grpc",
+  "multi-source-data-merger",
+  "log-summary-date-ranges",
   "fix-git"
  ],
  "heldout": [
+  "build-pmars",
   "build-pov-ray",
   "cancel-async-tasks",
-  "bn-fit-modify",
+  "code-from-image",
+  "constraints-scheduling",
+  "db-wal-recovery",
+  "dna-insert",
+  "extract-elf",
+  "financial-document-processor",
+  "git-leak-recovery",
+  "git-multibranch",
+  "hf-model-inference",
+  "merge-diff-arc-agi-task",
+  "modernize-scientific-stack",
+  "nginx-request-logging",
+  "openssl-selfsigned-cert",
+  "polyglot-c-py",
+  "prove-plus-comm",
   "regex-log",
   "sanitize-git-repo",
-  "polyglot-c-py",
-  "openssl-selfsigned-cert",
-  "build-pmars",
-  "sqlite-db-truncate",
-  "nginx-request-logging",
-  "log-summary-date-ranges",
-  "constraints-scheduling",
-  "sqlite-with-gcov",
-  "pypi-server",
-  "prove-plus-comm",
-  "multi-source-data-merger",
-  "modernize-scientific-stack",
-  "kv-store-grpc",
-  "hf-model-inference",
-  "git-multibranch",
-  "git-leak-recovery",
-  "db-wal-recovery",
-  "configure-git-webserver"
+  "sqlite-db-truncate"
  ],
  "calibration": {
   "bn-fit-modify": {
    "seed": "0/4",
-   "ref": "0/4",
-   "kind": "model-limited",
-   "mechanism": "stopped early"
+   "fixed": "2/8",
+   "w2_left": "1/4",
+   "w3_left": "0/4",
+   "seed_c": "0/4",
+   "bites": []
   },
   "break-filter-js-from-html": {
-   "seed": "1/4",
-   "ref": "2/4",
-   "kind": "noisy",
-   "mechanism": "stopped early"
+   "seed": "2/4",
+   "fixed": "6/8",
+   "w2_left": "2/4",
+   "w3_left": "1/4",
+   "seed_c": "1/4",
+   "bites": [
+    "step limit",
+    "task cut"
+   ]
   },
   "build-pmars": {
    "seed": "0/4",
-   "ref": "4/4",
-   "kind": "headroom",
-   "mechanism": "stopped early"
+   "fixed": "4/8",
+   "w2_left": "3/4",
+   "w3_left": "2/4",
+   "seed_c": "0/4",
+   "bites": [
+    "step limit"
+   ]
   },
   "build-pov-ray": {
    "seed": "0/4",
-   "ref": "3/4",
-   "kind": "headroom",
-   "mechanism": "output cut"
+   "fixed": "1/8",
+   "w2_left": "0/4",
+   "w3_left": "1/4",
+   "seed_c": "0/4",
+   "bites": []
   },
   "cancel-async-tasks": {
-   "seed": "2/4",
-   "ref": "0/4",
-   "kind": "model-limited",
-   "mechanism": "stopped early"
+   "seed": "3/4",
+   "fixed": "2/8",
+   "w2_left": "2/4",
+   "w3_left": "2/4",
+   "seed_c": "2/4",
+   "bites": []
   },
   "code-from-image": {
    "seed": "0/4",
-   "ref": "3/4",
-   "kind": "headroom",
-   "mechanism": "stopped early"
+   "fixed": "1/8",
+   "w2_left": "2/4",
+   "w3_left": "1/4",
+   "seed_c": "0/4",
+   "bites": []
   },
   "configure-git-webserver": {
    "seed": "0/4",
-   "ref": "4/4",
-   "kind": "headroom",
-   "mechanism": "stopped early"
+   "fixed": "5/8",
+   "w2_left": "0/4",
+   "w3_left": "2/4",
+   "seed_c": "0/4",
+   "bites": [
+    "step limit",
+    "stray-process kill"
+   ]
   },
   "constraints-scheduling": {
-   "seed": "3/4",
-   "ref": "4/4",
-   "kind": "noisy",
-   "mechanism": "output cut"
+   "seed": "0/4",
+   "fixed": "7/8",
+   "w2_left": "4/4",
+   "w3_left": "0/4",
+   "seed_c": "3/4",
+   "bites": [
+    "task cut"
+   ]
   },
   "count-dataset-tokens": {
    "seed": "0/4",
-   "ref": "2/4",
-   "kind": "noisy",
-   "mechanism": "stopped early"
+   "fixed": "2/8",
+   "w2_left": "2/4",
+   "w3_left": "2/4",
+   "seed_c": "0/4",
+   "bites": []
   },
   "db-wal-recovery": {
-   "seed": "3/4",
-   "ref": "3/4",
-   "kind": "noisy",
-   "mechanism": "stopped early"
+   "seed": "2/4",
+   "fixed": "4/8",
+   "w2_left": "4/4",
+   "w3_left": "3/4",
+   "seed_c": "3/4",
+   "bites": []
   },
   "dna-insert": {
    "seed": "0/4",
-   "ref": "1/4",
-   "kind": "model-limited",
-   "mechanism": "stopped early"
+   "fixed": "1/8",
+   "w2_left": "0/4",
+   "w3_left": "0/4",
+   "seed_c": "0/4",
+   "bites": []
   },
   "extract-elf": {
-   "seed": "4/4",
-   "ref": "4/4",
-   "kind": "guard",
-   "mechanism": "-"
+   "seed": "3/4",
+   "fixed": "7/8",
+   "w2_left": "4/4",
+   "w3_left": "4/4",
+   "seed_c": "4/4",
+   "bites": []
   },
   "financial-document-processor": {
    "seed": "0/4",
-   "ref": "3/4",
-   "kind": "headroom",
-   "mechanism": "stopped early"
+   "fixed": "0/8",
+   "w2_left": "2/4",
+   "w3_left": "0/4",
+   "seed_c": "0/4",
+   "bites": []
   },
   "fix-code-vulnerability": {
-   "seed": "1/4",
-   "ref": "4/4",
-   "kind": "headroom",
-   "mechanism": "output cut"
+   "seed": "0/4",
+   "fixed": "7/8",
+   "w2_left": "3/4",
+   "w3_left": "2/4",
+   "seed_c": "1/4",
+   "bites": [
+    "step limit"
+   ]
   },
   "fix-git": {
    "seed": "4/4",
-   "ref": "4/4",
-   "kind": "guard",
-   "mechanism": "-"
+   "fixed": "8/8",
+   "w2_left": "4/4",
+   "w3_left": "4/4",
+   "seed_c": "4/4",
+   "bites": []
   },
   "git-leak-recovery": {
    "seed": "4/4",
-   "ref": "4/4",
-   "kind": "guard",
-   "mechanism": "-"
+   "fixed": "8/8",
+   "w2_left": "4/4",
+   "w3_left": "4/4",
+   "seed_c": "4/4",
+   "bites": []
   },
   "git-multibranch": {
    "seed": "0/4",
-   "ref": "4/4",
-   "kind": "headroom",
-   "mechanism": "stopped early"
+   "fixed": "5/8",
+   "w2_left": "0/4",
+   "w3_left": "2/4",
+   "seed_c": "0/4",
+   "bites": [
+    "step limit",
+    "stray-process kill"
+   ]
   },
   "hf-model-inference": {
-   "seed": "3/4",
-   "ref": "4/4",
-   "kind": "noisy",
-   "mechanism": "stopped early"
+   "seed": "1/4",
+   "fixed": "8/8",
+   "w2_left": "3/4",
+   "w3_left": "3/4",
+   "seed_c": "3/4",
+   "bites": []
   },
   "kv-store-grpc": {
-   "seed": "3/4",
-   "ref": "4/4",
-   "kind": "noisy",
-   "mechanism": "stopped early"
+   "seed": "0/4",
+   "fixed": "8/8",
+   "w2_left": "0/4",
+   "w3_left": "0/4",
+   "seed_c": "3/4",
+   "bites": [
+    "stray-process kill",
+    "task cut"
+   ]
   },
   "log-summary-date-ranges": {
-   "seed": "3/4",
-   "ref": "3/4",
-   "kind": "noisy",
-   "mechanism": "stopped early"
+   "seed": "0/4",
+   "fixed": "8/8",
+   "w2_left": "4/4",
+   "w3_left": "0/4",
+   "seed_c": "3/4",
+   "bites": [
+    "task cut"
+   ]
   },
   "merge-diff-arc-agi-task": {
    "seed": "0/4",
-   "ref": "4/4",
-   "kind": "headroom",
-   "mechanism": "stopped early"
+   "fixed": "5/8",
+   "w2_left": "3/4",
+   "w3_left": "1/4",
+   "seed_c": "0/4",
+   "bites": [
+    "step limit"
+   ]
   },
   "modernize-scientific-stack": {
    "seed": "4/4",
-   "ref": "4/4",
-   "kind": "guard",
-   "mechanism": "-"
+   "fixed": "8/8",
+   "w2_left": "4/4",
+   "w3_left": "4/4",
+   "seed_c": "4/4",
+   "bites": []
   },
   "multi-source-data-merger": {
-   "seed": "4/4",
-   "ref": "4/4",
-   "kind": "guard",
-   "mechanism": "-"
+   "seed": "0/4",
+   "fixed": "8/8",
+   "w2_left": "4/4",
+   "w3_left": "0/4",
+   "seed_c": "4/4",
+   "bites": [
+    "task cut"
+   ]
   },
   "nginx-request-logging": {
-   "seed": "3/4",
-   "ref": "4/4",
-   "kind": "noisy",
-   "mechanism": "stopped early"
+   "seed": "0/4",
+   "fixed": "8/8",
+   "w2_left": "1/4",
+   "w3_left": "0/4",
+   "seed_c": "3/4",
+   "bites": [
+    "stray-process kill",
+    "task cut"
+   ]
   },
   "openssl-selfsigned-cert": {
-   "seed": "4/4",
-   "ref": "3/4",
-   "kind": "noisy",
-   "mechanism": "-"
+   "seed": "0/4",
+   "fixed": "6/8",
+   "w2_left": "1/4",
+   "w3_left": "0/4",
+   "seed_c": "4/4",
+   "bites": [
+    "stray-process kill",
+    "task cut"
+   ]
   },
   "polyglot-c-py": {
-   "seed": "4/4",
-   "ref": "4/4",
-   "kind": "guard",
-   "mechanism": "-"
+   "seed": "3/4",
+   "fixed": "7/8",
+   "w2_left": "4/4",
+   "w3_left": "4/4",
+   "seed_c": "4/4",
+   "bites": []
   },
   "prove-plus-comm": {
    "seed": "4/4",
-   "ref": "4/4",
-   "kind": "guard",
-   "mechanism": "-"
+   "fixed": "8/8",
+   "w2_left": "4/4",
+   "w3_left": "4/4",
+   "seed_c": "4/4",
+   "bites": []
   },
   "pypi-server": {
-   "seed": "4/4",
-   "ref": "4/4",
-   "kind": "guard",
-   "mechanism": "-"
+   "seed": "0/4",
+   "fixed": "8/8",
+   "w2_left": "0/4",
+   "w3_left": "4/4",
+   "seed_c": "4/4",
+   "bites": [
+    "stray-process kill"
+   ]
   },
   "regex-log": {
-   "seed": "1/4",
-   "ref": "1/4",
-   "kind": "model-limited",
-   "mechanism": "stopped early"
+   "seed": "3/4",
+   "fixed": "4/8",
+   "w2_left": "1/4",
+   "w3_left": "2/4",
+   "seed_c": "1/4",
+   "bites": []
   },
   "sanitize-git-repo": {
-   "seed": "1/4",
-   "ref": "3/4",
-   "kind": "headroom",
-   "mechanism": "output cut"
+   "seed": "0/4",
+   "fixed": "5/8",
+   "w2_left": "2/4",
+   "w3_left": "3/4",
+   "seed_c": "1/4",
+   "bites": []
   },
   "sparql-university": {
    "seed": "0/4",
-   "ref": "1/4",
-   "kind": "model-limited",
-   "mechanism": "output cut"
+   "fixed": "2/8",
+   "w2_left": "1/4",
+   "w3_left": "0/4",
+   "seed_c": "0/4",
+   "bites": []
   },
   "sqlite-db-truncate": {
-   "seed": "2/4",
-   "ref": "2/4",
-   "kind": "noisy",
-   "mechanism": "stopped early"
+   "seed": "1/4",
+   "fixed": "5/8",
+   "w2_left": "3/4",
+   "w3_left": "3/4",
+   "seed_c": "2/4",
+   "bites": []
   },
   "sqlite-with-gcov": {
    "seed": "0/4",
-   "ref": "4/4",
-   "kind": "headroom",
-   "mechanism": "stopped early"
+   "fixed": "6/8",
+   "w2_left": "3/4",
+   "w3_left": "2/4",
+   "seed_c": "0/4",
+   "bites": [
+    "step limit"
+   ]
   },
   "vulnerable-secret": {
    "seed": "0/4",
-   "ref": "4/4",
-   "kind": "headroom",
-   "mechanism": "output cut"
+   "fixed": "8/8",
+   "w2_left": "4/4",
+   "w3_left": "4/4",
+   "seed_c": "0/4",
+   "bites": [
+    "step limit"
+   ]
   }
  }
 }

@@ -1,4 +1,4 @@
-"""A small terminal agent: the starting harness for aidev-evolve.
+"""Candidate seed D: seed C with a 5-s kill instead of 10 s.
 
 The loop: send the conversation to the model, run the bash commands it asks for, append the output,
 repeat until the model answers without a tool call or the step limit is reached.
@@ -13,15 +13,9 @@ import json
 SYSTEM_PROMPT = """You are an AI agent that solves tasks in a Linux terminal.
 Use the bash tool to run commands. When the task is complete, reply with a short summary."""
 
-MAX_STEPS = 100  # a safety net: the time budget is the real limit
-STOP_MARGIN = 10  # seconds kept free so the last command is not cut off
+MAX_STEPS = 10
 MAX_OUTPUT_CHARS = 1000
-VERIFY_MIN_TIME = 40  # only ask for a final check if this many seconds are left
-
-VERIFY_PROMPT = """Before you finish: re-read the task statement. List every explicit requirement
-(file paths, names, formats, values, commands that must work). Check each one now with a command,
-on the real final state, as a hidden test would. Fix anything missing.
-If everything is verified, reply with a short summary."""
+COMMAND_TIMEOUT_S = 5  # a stuck command must not eat the whole budget
 
 BASH_TOOL = {
     "type": "function",
@@ -45,7 +39,7 @@ def format_output(result):
 
 def run_tool_call(call, env):
     args = json.loads(call["function"]["arguments"])
-    result = env.shell("{ " + args["command"] + "\n} 2>/dev/null")  # only stdout: stderr is mostly noise
+    result = env.shell("{ " + args["command"] + "\n} 2>/dev/null", timeout=COMMAND_TIMEOUT_S)  # only stdout: stderr is mostly noise
     return format_output(result)
 
 
@@ -54,19 +48,12 @@ def run(task, env):
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": task},
     ]
-    verified = False
     for step in range(MAX_STEPS):
-        if env.time_left() < STOP_MARGIN:
-            return
         reply = env.llm(messages, tools=[BASH_TOOL])
         messages.append(reply)
         tool_calls = reply.get("tool_calls") or []
         if not tool_calls:
-            if verified or env.time_left() < VERIFY_MIN_TIME:
-                return  # the model answered in text: we are done
-            verified = True  # one self-check against the task before accepting "done"
-            messages.append({"role": "user", "content": VERIFY_PROMPT})
-            continue
+            return  # the model answered in text: we are done
         for call in tool_calls:
             content = run_tool_call(call, env)
             messages.append({"role": "tool", "tool_call_id": call["id"], "content": content})
