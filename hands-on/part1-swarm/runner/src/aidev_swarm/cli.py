@@ -30,7 +30,7 @@ from importlib import resources
 from pathlib import Path
 from typing import Any
 
-from aidev_swarm import __version__, check, launch
+from aidev_swarm import __version__, check, launch, providers
 
 WHOAMI = "https://huggingface.co/api/whoami-v2"
 DEFAULT_COORDINATOR = "https://agent-harness-workshop-aidev-swarm.hf.space"  # Space agent-harness-workshop/aidev-swarm (coordinator deploy.DEFAULT_SPACE)
@@ -39,6 +39,9 @@ MAX_FAILURES_IN_A_ROW = 3
 # cell returns ~90 s after its last beat. 500 runners at one beat per 24-30 s send about 19 requests/s, below the
 # ~30/s from one IP that the HF edge took without a 429 (coordinator/PROGRESS.md).
 HEARTBEAT_S = 30
+# A trial whose provider answered this many calls with 429/5xx (or that ended before any model call) moves the
+# attendee's next trials to the next provider of their list (providers.order; PROTOCOL.md "Providers").
+PROVIDER_ERRORS_TO_SWITCH = 3
 
 
 def data_text(name: str) -> str:
@@ -196,6 +199,17 @@ class Session:
     workdir: Path
     board: str = ""
     held: set[str] = field(default_factory=set)  # cells this run holds a lease on: released on every way out
+    providers: list[str] = field(default_factory=list)  # this attendee's providers, the current one first
+
+    @property
+    def provider(self) -> str | None:
+        return self.providers[0] if self.providers else None
+
+    def next_provider(self, why: str) -> None:
+        """Move the current provider to the end of the list: the next trials go to the next one."""
+        if len(self.providers) > 1:
+            self.providers.append(self.providers.pop(0))
+            _say(f"{why}: switching to {self.providers[0]} for the next trials")
 
     def release(self, cid: str, why: str, *, quick: bool = False) -> None:
         """Give the cell back; when the coordinator cannot be reached, its lease expires instead (90 s)."""
@@ -251,7 +265,9 @@ def _one(claim: dict[str, Any], s: Session, *, hold_on_failure: bool = False) ->
 
     cid = claim["cell_id"]
     verb = "claimed" if s.coord is not None else "running"
-    _say(f"{verb} {claim['harness']} on {claim['task']} (trial {claim['trial']}), model {claim['model']}: starting an HF Sandbox")
+    forced = (claim.get("run_config") or {}).get("provider")  # the coordinator can pin a provider for everyone
+    provider = forced or s.provider
+    _say(f"{verb} {claim['harness']} on {claim['task']} (trial {claim['trial']}), model {claim['model']} on {provider}: starting an HF Sandbox")
     stop, started = threading.Event(), time.monotonic()
     if s.coord is not None:
         threading.Thread(target=_heartbeats, args=(s.coord, cid, s.deps.heartbeat_s, stop, started), daemon=True).start()
@@ -264,9 +280,10 @@ def _one(claim: dict[str, Any], s: Session, *, hold_on_failure: bool = False) ->
         return 1, None
 
     try:
-        trial_dir = s.deps.run_trial(claim, s.grid, s.token, s.user, s.workdir)
+        trial_dir = s.deps.run_trial(claim, {**s.grid, "provider": provider}, s.token, s.user, s.workdir)
         lookup = s.deps.sandbox_id or _make_sandbox_id(s.token)
-        result = build_result(claim, trial_dir, s.prices[claim["model"]], hf_user=s.user, runner_version=__version__, sandbox_id=lookup(cid, s.user))
+        result = build_result(claim, trial_dir, s.prices[claim["model"]], hf_user=s.user, runner_version=__version__, provider=provider,
+                              sandbox_id=lookup(cid, s.user))
     except KeyboardInterrupt:
         s.release(cid, "interrupted", quick=True)
         return 130, None
@@ -274,6 +291,9 @@ def _one(claim: dict[str, Any], s: Session, *, hold_on_failure: bool = False) ->
         return failed(f"trial crashed ({type(e).__name__}: {str(e)[:200]})")
     finally:
         stop.set()
+    if not forced and (_infra(result) or result["n_provider_errors"] >= PROVIDER_ERRORS_TO_SWITCH):
+        s.next_provider(f"{provider} answered {result['n_provider_errors']} calls with 429/5xx" if result["n_provider_errors"]
+                        else f"the trial on {provider} ended before any model call")
     if s.coord is None:
         print(json.dumps(result, indent=2))
         return 0, None
@@ -419,12 +439,21 @@ def _check(deps: Deps, token: str, user: str) -> int:
     """The prep email's self-test: every problem in one run, each with its fix."""
     grid = json.loads(data_text("grid.json"))  # the same packaged grid `run` claims against
     problems = []
-    try:
-        reply = deps.chat(token, grid["model"], grid["provider"])
-        _say(f"model call ok: {grid['model']} on {grid['provider']} answered {reply[:40]!r}")
-    except Exception as e:  # noqa: BLE001
-        problems.append(f"The model call failed ({type(e).__name__}: {str(e)[:200]}). Your token needs the permission "
-                        f"\"Make calls to Inference Providers\", and your account needs credits.")
+    order = providers.order(user, providers.load())
+    for i, provider in enumerate(order):
+        try:
+            reply = deps.chat(token, grid["model"], provider)
+            _say(f"model call ok: {grid['model']} on {provider} answered {reply[:40]!r}")
+            break
+        except check.ProviderBusy as e:
+            if i + 1 < len(order):
+                _say(f"{provider} busy ({str(e)[:120]}); trying {order[i + 1]}")
+                continue
+            problems.append(f"Every workshop provider was busy ({', '.join(order)}; last: {str(e)[:200]}). Run the check again in a few minutes.")
+        except Exception as e:  # noqa: BLE001
+            problems.append(f"The model call failed ({type(e).__name__}: {str(e)[:200]}). Your token needs the permission "
+                            f"\"Make calls to Inference Providers\", and your account needs credits.")
+            break
     try:
         job = deps.run_job(token, **check.job_spec(user))
     except Exception as e:  # noqa: BLE001
@@ -492,17 +521,18 @@ def main(argv: list[str] | None = None, deps: Deps | None = None, environ: Mappi
     if args.cmd == "launch":
         return _launch(args, deps, token, user, url)
     grid, prices = json.loads(data_text("grid.json")), json.loads(data_text("prices.json"))
+    order = providers.order(user, providers.load())
     if args.local:
         if not (args.harness and args.task):
             print("--local needs --harness and --task", file=sys.stderr)
             return 2
         claim = {"cell_id": cell_id(args.harness, args.task, args.trial), "harness": args.harness, "task": args.task, "trial": args.trial, "model": grid["model"], "run_config": {}}
         with _sigterm_as_interrupt():
-            return _one(claim, Session(deps, None, grid, prices, token, user, _workdir(environ)))[0]
+            return _one(claim, Session(deps, None, grid, prices, token, user, _workdir(environ), providers=order))[0]
     if args.dry:
         _say(f"ready: HF user {user} can pay; would claim from {url} (model {grid['model']}, {len(grid['harnesses'])} harnesses, {len(grid['tasks'])} tasks). Nothing claimed.")
         return 0
-    session = Session(deps, deps.coordinator(url, token), grid, prices, token, user, _workdir(environ), board=url)
+    session = Session(deps, deps.coordinator(url, token), grid, prices, token, user, _workdir(environ), board=url, providers=order)
     atexit.register(session.release_held, "exiting")  # backstop for an exit that bypasses the finally in _run_cells
     try:
         with _sigterm_as_interrupt():

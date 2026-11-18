@@ -1,4 +1,4 @@
-"""A small terminal agent: the starting harness for aidev-evolve.
+"""A small terminal agent: the starting harness for aidev-evolve (Phase 3 seed C: 10-step limit, 10-s command kill).
 
 The loop: send the conversation to the model, run the bash commands it asks for, append the output,
 repeat until the model answers without a tool call or the step limit is reached.
@@ -15,6 +15,7 @@ Use the bash tool to run commands. When the task is complete, reply with a short
 
 MAX_STEPS = 10
 MAX_OUTPUT_CHARS = 1000
+COMMAND_TIMEOUT_S = 10  # a stuck command must not eat the whole budget
 
 BASH_TOOL = {
     "type": "function",
@@ -38,7 +39,7 @@ def format_output(result):
 
 def run_tool_call(call, env):
     args = json.loads(call["function"]["arguments"])
-    result = env.shell("{ " + args["command"] + "\n} 2>/dev/null")  # only stdout: stderr is mostly noise
+    result = env.shell("{ " + args["command"] + "\n} 2>/dev/null", timeout=COMMAND_TIMEOUT_S)  # only stdout: stderr is mostly noise
     return format_output(result)
 
 

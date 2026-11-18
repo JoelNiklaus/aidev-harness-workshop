@@ -1,4 +1,4 @@
-"""The attendee's three commands: `check`, `run` (posts to the room board, queues events while offline), `replay`."""
+"""The attendee's three commands: `check`, `run` (posts to the workshop board, queues events while offline), `replay`."""
 
 import json
 import subprocess
@@ -7,7 +7,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-from aidev_evolve import board, cli, loop, proposer
+from aidev_evolve import board, cli, loop, proposer, strategy
 from aidev_evolve.proposer import ProposerResult
 
 from test_loop import SPLITS, FakeEval, FakeProposer, add_fix
@@ -145,7 +145,7 @@ def test_check_without_hf_login_fails_with_the_fix(monkeypatch, capsys):
     assert "hf auth login" in capsys.readouterr().out
 
 
-# -- run: the room board ---------------------------------------------------------------------------
+# -- run: the workshop board ---------------------------------------------------------------------------
 
 def test_run_posts_to_the_room_board_by_default_and_no_board_turns_it_off():
     p = cli.build_parser()
@@ -170,7 +170,7 @@ def test_run_prints_the_board_url_first(tmp_path, monkeypatch, capsys):
     class Evo:
         run_dir = tmp_path
 
-        def run(self, iterations, heldout_trials):
+        def run(self, iterations=None, heldout_trials=0):
             seen["out"] = capsys.readouterr().out
             return {}
 
@@ -236,7 +236,7 @@ def test_the_loop_says_how_many_events_wait_when_the_board_is_offline(tmp_path):
     q = board.QueuedBoard(board.Board("https://room", "hf_x", client=httpx.Client(transport=httpx.MockTransport(t))), tmp_path / "outbox.jsonl")
     out = []
     evo = loop.Evolver(tmp_path / "run", splits=SPLITS, evaluate=FakeEval(), propose=FakeProposer([("Fix it", add_fix)]), board=q,
-                       write=out.append, budget_s=150, val_trials=1, z=1.0)
+                       write=out.append, budget_s=150, strategy=strategy.with_knobs(strategy.load("baseline"), val_trials=1, z=1.0))
     evo.run(iterations=1)
     text = "".join(out)
     assert "2 updates queued" in text and evo.state["incumbent"] == "c001"  # the loop goes on
@@ -255,7 +255,7 @@ def test_hypothesis_and_coloured_diff_show_before_the_evaluation_starts(tmp_path
 
     out = []
     evo = loop.Evolver(tmp_path / "run", splits=SPLITS, evaluate=FakeEval(), propose=Prop([("Use the clock", add_fix)]),
-                       write=out.append, budget_s=150, val_trials=1, z=1.0, color=True)
+                       write=out.append, budget_s=150, strategy=strategy.with_knobs(strategy.load("baseline"), val_trials=1, z=1.0), color=True)
     evo.run(iterations=1)
     text = "".join(out)
     it = text.index("--- iteration 1")
@@ -264,3 +264,18 @@ def test_hypothesis_and_coloured_diff_show_before_the_evaluation_starts(tmp_path
     hyp_line = text[hyp:text.index("\n", hyp)]
     assert len(hyp_line) <= 160  # one line on a laptop terminal
     assert text.count("+# FIX") == 1  # the result card does not print the diff a second time
+
+
+def test_a_failed_evaluation_job_ends_run_with_a_message_not_a_traceback(tmp_path, monkeypatch, capsys):
+    from aidev_evolve.launch import EvalJobError
+
+    class Evo:
+        run_dir = tmp_path
+
+        def run(self, iterations=None, heldout_trials=0):
+            raise EvalJobError("evaluation Job j1 ended without its results (0 received). Last log lines:\ncurl: (22) 404")
+
+    monkeypatch.setattr(cli, "make_evolver", lambda args, run_dir, write=None: Evo())
+    assert cli.main(["run", "--run-dir", str(tmp_path), "--proposer", "manual", "--no-board"]) == 1
+    out = capsys.readouterr().out
+    assert "curl: (22) 404" in out and f"--resume --run-dir {tmp_path}" in out

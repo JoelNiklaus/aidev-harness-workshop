@@ -1,31 +1,47 @@
 {
- "_comment": "Fixed splits for aidev-evolve (Phase 2 default, config B): Terminal-Bench 2.1, GLM-5.3-Flash effort low, 180 s agent budget, the bundled seed (10-step limit, 1,000-char head-only output, stderr hidden, stops at the first text reply). Chosen 2026-11-17 by devtools/split_tasks.py from 4 trials each of the seed and a hand-fixed reference harness on 34 fast tasks: headroom = reference >= 3/4 and >= 2/4 above the seed; guard = both 4/4. Validation and held-out get the headroom tasks in turn plus guards; search holds tasks the seed fails (the proposer reads their traces). calibration: per-task seed and reference passes, kind, seed failure mechanism.",
+ "_comment": "Fixed splits for aidev-evolve (Phase 3, config C): Terminal-Bench 2.1, GLM-5.3-Flash effort low, 180 s agent budget, seed C (the Phase 2 seed B4 plus a 10-second kill on every command). Search and validation chosen 2026-11-18 by devtools/split_tasks.py from 4 trials each of seed C and the hand-fixed reference on the 34-task pool (runs/p3/sweep-C-*.jsonl). Held-out = every other pool task (23), so the final held-out check (seed vs final, 2 trials each) has enough tasks to rank strategies (devtools/strategy_noise.py).",
  "benchmark": "terminal-bench-2.1",
  "task_commit": "d49e28f1e4ddd13d289e85a5f312a66750951932",
  "budget_s": 180.0,
  "search": [
-  "build-pov-ray",
-  "financial-document-processor",
-  "sparql-university",
-  "db-wal-recovery"
+  "count-dataset-tokens",
+  "break-filter-js-from-html",
+  "dna-insert",
+  "sparql-university"
  ],
  "validation": [
-  "count-dataset-tokens",
-  "build-pmars",
-  "configure-git-webserver",
-  "sqlite-with-gcov",
-  "constraints-scheduling",
-  "extract-elf"
- ],
- "heldout": [
-  "break-filter-js-from-html",
+  "fix-code-vulnerability",
   "vulnerable-secret",
   "code-from-image",
+  "financial-document-processor",
   "merge-diff-arc-agi-task",
-  "fix-git",
-  "git-leak-recovery",
+  "extract-elf",
+  "fix-git"
+ ],
+ "heldout": [
+  "build-pov-ray",
+  "cancel-async-tasks",
+  "bn-fit-modify",
+  "regex-log",
+  "sanitize-git-repo",
+  "polyglot-c-py",
+  "openssl-selfsigned-cert",
+  "build-pmars",
+  "sqlite-db-truncate",
+  "nginx-request-logging",
+  "log-summary-date-ranges",
+  "constraints-scheduling",
+  "sqlite-with-gcov",
+  "pypi-server",
+  "prove-plus-comm",
+  "multi-source-data-merger",
+  "modernize-scientific-stack",
+  "kv-store-grpc",
   "hf-model-inference",
-  "kv-store-grpc"
+  "git-multibranch",
+  "git-leak-recovery",
+  "db-wal-recovery",
+  "configure-git-webserver"
  ],
  "calibration": {
   "bn-fit-modify": {
@@ -36,61 +52,61 @@
   },
   "break-filter-js-from-html": {
    "seed": "1/4",
-   "ref": "4/4",
-   "kind": "headroom",
-   "mechanism": "output cut"
+   "ref": "2/4",
+   "kind": "noisy",
+   "mechanism": "stopped early"
   },
   "build-pmars": {
-   "seed": "1/4",
+   "seed": "0/4",
    "ref": "4/4",
    "kind": "headroom",
    "mechanism": "stopped early"
   },
   "build-pov-ray": {
    "seed": "0/4",
-   "ref": "2/4",
-   "kind": "noisy",
+   "ref": "3/4",
+   "kind": "headroom",
    "mechanism": "output cut"
   },
   "cancel-async-tasks": {
    "seed": "2/4",
-   "ref": "1/4",
+   "ref": "0/4",
    "kind": "model-limited",
-   "mechanism": "hung command"
+   "mechanism": "stopped early"
   },
   "code-from-image": {
-   "seed": "1/4",
-   "ref": "4/4",
+   "seed": "0/4",
+   "ref": "3/4",
    "kind": "headroom",
    "mechanism": "stopped early"
   },
   "configure-git-webserver": {
-   "seed": "2/4",
+   "seed": "0/4",
    "ref": "4/4",
    "kind": "headroom",
    "mechanism": "stopped early"
   },
   "constraints-scheduling": {
-   "seed": "4/4",
+   "seed": "3/4",
    "ref": "4/4",
-   "kind": "guard",
-   "mechanism": "-"
-  },
-  "count-dataset-tokens": {
-   "seed": "1/4",
-   "ref": "3/4",
-   "kind": "headroom",
+   "kind": "noisy",
    "mechanism": "output cut"
   },
+  "count-dataset-tokens": {
+   "seed": "0/4",
+   "ref": "2/4",
+   "kind": "noisy",
+   "mechanism": "stopped early"
+  },
   "db-wal-recovery": {
-   "seed": "2/4",
+   "seed": "3/4",
    "ref": "3/4",
    "kind": "noisy",
    "mechanism": "stopped early"
   },
   "dna-insert": {
    "seed": "0/4",
-   "ref": "0/4",
+   "ref": "1/4",
    "kind": "model-limited",
    "mechanism": "stopped early"
   },
@@ -102,14 +118,14 @@
   },
   "financial-document-processor": {
    "seed": "0/4",
-   "ref": "2/4",
-   "kind": "noisy",
-   "mechanism": "output cut"
+   "ref": "3/4",
+   "kind": "headroom",
+   "mechanism": "stopped early"
   },
   "fix-code-vulnerability": {
-   "seed": "3/4",
+   "seed": "1/4",
    "ref": "4/4",
-   "kind": "noisy",
+   "kind": "headroom",
    "mechanism": "output cut"
   },
   "fix-git": {
@@ -125,31 +141,31 @@
    "mechanism": "-"
   },
   "git-multibranch": {
+   "seed": "0/4",
+   "ref": "4/4",
+   "kind": "headroom",
+   "mechanism": "stopped early"
+  },
+  "hf-model-inference": {
+   "seed": "3/4",
+   "ref": "4/4",
+   "kind": "noisy",
+   "mechanism": "stopped early"
+  },
+  "kv-store-grpc": {
+   "seed": "3/4",
+   "ref": "4/4",
+   "kind": "noisy",
+   "mechanism": "stopped early"
+  },
+  "log-summary-date-ranges": {
    "seed": "3/4",
    "ref": "3/4",
    "kind": "noisy",
    "mechanism": "stopped early"
   },
-  "hf-model-inference": {
-   "seed": "4/4",
-   "ref": "4/4",
-   "kind": "guard",
-   "mechanism": "-"
-  },
-  "kv-store-grpc": {
-   "seed": "4/4",
-   "ref": "4/4",
-   "kind": "guard",
-   "mechanism": "-"
-  },
-  "log-summary-date-ranges": {
-   "seed": "4/4",
-   "ref": "3/4",
-   "kind": "noisy",
-   "mechanism": "-"
-  },
   "merge-diff-arc-agi-task": {
-   "seed": "1/4",
+   "seed": "0/4",
    "ref": "4/4",
    "kind": "headroom",
    "mechanism": "stopped early"
@@ -167,22 +183,22 @@
    "mechanism": "-"
   },
   "nginx-request-logging": {
-   "seed": "4/4",
-   "ref": "4/4",
-   "kind": "guard",
-   "mechanism": "-"
-  },
-  "openssl-selfsigned-cert": {
-   "seed": "4/4",
-   "ref": "2/4",
-   "kind": "noisy",
-   "mechanism": "-"
-  },
-  "polyglot-c-py": {
    "seed": "3/4",
    "ref": "4/4",
    "kind": "noisy",
    "mechanism": "stopped early"
+  },
+  "openssl-selfsigned-cert": {
+   "seed": "4/4",
+   "ref": "3/4",
+   "kind": "noisy",
+   "mechanism": "-"
+  },
+  "polyglot-c-py": {
+   "seed": "4/4",
+   "ref": "4/4",
+   "kind": "guard",
+   "mechanism": "-"
   },
   "prove-plus-comm": {
    "seed": "4/4",
@@ -197,37 +213,37 @@
    "mechanism": "-"
   },
   "regex-log": {
-   "seed": "3/4",
-   "ref": "3/4",
-   "kind": "noisy",
+   "seed": "1/4",
+   "ref": "1/4",
+   "kind": "model-limited",
    "mechanism": "stopped early"
   },
   "sanitize-git-repo": {
-   "seed": "2/4",
+   "seed": "1/4",
    "ref": "3/4",
-   "kind": "noisy",
+   "kind": "headroom",
    "mechanism": "output cut"
   },
   "sparql-university": {
    "seed": "0/4",
-   "ref": "2/4",
-   "kind": "noisy",
+   "ref": "1/4",
+   "kind": "model-limited",
    "mechanism": "output cut"
   },
   "sqlite-db-truncate": {
-   "seed": "1/4",
+   "seed": "2/4",
    "ref": "2/4",
    "kind": "noisy",
-   "mechanism": "output cut"
+   "mechanism": "stopped early"
   },
   "sqlite-with-gcov": {
-   "seed": "2/4",
+   "seed": "0/4",
    "ref": "4/4",
    "kind": "headroom",
    "mechanism": "stopped early"
   },
   "vulnerable-secret": {
-   "seed": "1/4",
+   "seed": "0/4",
    "ref": "4/4",
    "kind": "headroom",
    "mechanism": "output cut"

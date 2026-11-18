@@ -82,11 +82,12 @@ def render(rec: dict[str, Any], max_chars: int = 20_000) -> str:
     return text + "\n" + "\n\n".join(blocks) + end
 
 
-def write(records: list[dict[str, Any]], out_dir: Path) -> list[Path]:
+def write(records: list[dict[str, Any]], out_dir: Path, *, include: str = "all", max_traces: int | None = None) -> list[Path]:
+    """Failed transcripts first, then passed ones (`include="failed"`: failed only), at most `max_traces`."""
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    order = {"fail": 0, "pass": 1}
-    scored = sorted((r for r in records if r["outcome"] in order), key=lambda r: (order[r["outcome"]], r["task"]))
+    order = {"fail": 0, "pass": 1} if include == "all" else {"fail": 0}
+    scored = sorted((r for r in records if r["outcome"] in order), key=lambda r: (order[r["outcome"]], r["task"]))[:max_traces]
     counts: Counter[str] = Counter()
     rows, paths = [], []
     for r in scored:

@@ -1,12 +1,12 @@
 """The evolve loop end to end with fakes: seed calibration, propose, audit, preflight, paired evaluation,
-keep or drop, traces for the next proposal, spend, the room board, the final held-out check."""
+keep or drop, traces for the next proposal, spend, the workshop board, the final held-out check."""
 
 import json
 from pathlib import Path
 
 import pytest
 
-from aidev_evolve import launch, loop
+from aidev_evolve import launch, loop, strategy
 from aidev_evolve.proposer import ProposerResult
 
 SPLITS = {"search": ["s1", "s2"], "validation": ["v1", "v2", "v3", "v4"], "heldout": ["h1", "h2"]}
@@ -68,7 +68,8 @@ class FakeBoard:
 
 
 def make(tmp_path, edits, **kw):
-    kw = {"val_trials": 1, "z": 1.0, **kw}  # the mechanics tests use the smallest plan; the defaults are pinned in test_cli
+    knobs = {"val_trials": 1, "z": 1.0, **{k: kw.pop(k) for k in ("val_trials", "z", "confirm") if k in kw}}  # the smallest plan
+    kw["strategy"] = strategy.with_knobs(strategy.load("baseline"), **knobs)  # the keep rule lives in the strategy
     ev, pr, board = FakeEval(), FakeProposer(edits), FakeBoard()
     out = []
     evo = loop.Evolver(tmp_path / "run", splits=SPLITS, evaluate=ev, propose=pr, board=board, write=out.append, budget_s=150, **kw)
@@ -275,7 +276,7 @@ def test_the_keep_margin_uses_z(tmp_path):
     evo.run(iterations=0)
     assert evo.state["flip_rate"] == pytest.approx(0.25)
     assert evo.state["margin"] == pytest.approx(2.0 * math.sqrt(0.25 / 4))
-    assert json.loads((evo.run_dir / "config.json").read_text())["z"] == 2.0
+    assert json.loads((evo.run_dir / "config.json").read_text())["strategy"]["z"] == 2.0
 
 
 def test_each_iteration_records_its_time_and_cost(tmp_path):
@@ -291,7 +292,7 @@ def test_heldout_reports_a_paired_difference_with_a_confidence_interval(tmp_path
     evo.run(iterations=1, heldout_trials=2)
     ho = evo.state["heldout"]
     assert ho["diff"] == pytest.approx(0.5) and ho["ci_low"] <= ho["diff"] <= ho["ci_high"]
-    assert ho["per_task"] == {"h1": [0.0, 1.0], "h2": [1.0, 1.0]}
+    assert ho["per_task"] == {"h1": [0, 2, 2, 2], "h2": [2, 2, 2, 2]}  # [seed passes, seed trials, best passes, best trials]
 
 
 def test_the_margin_accounts_for_validation_trials(tmp_path):

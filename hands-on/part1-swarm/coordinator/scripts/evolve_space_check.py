@@ -2,9 +2,10 @@
 
     HF_TOKEN=<a token that can read the private Space and write its bucket> uv run python scripts/evolve_space_check.py [--keep]
 
-1. Posts a short real loop (the recorded B1 run's seed, its first two iterations and its held-out check) under the
+1. Posts a short real loop (the recorded Phase 3 run baseline-1: seed, iterations 1-2, held-out with its strategy) under the
    run id `check-<time>` with `aidev_evolve.board.Board` (the attendee CLI's own client, from ../../part2-evolve).
-2. /api/evolve/state must show the run (curve, kept patch in the feed, held-out) next to the recorded backdrop;
+2. /api/evolve/state must show the run (curve, kept patch in the feed, held-out, its strategy in the ranking) next to
+   the recorded backdrop;
    /api/evolve/diff serves the kept patch; the four event files must reach the bucket (flushed every 5 s).
 3. Unless --keep: deletes the files, restarts the Space, and /api/evolve/state must no longer show the run.
 Exits non-zero at the first failed step. The token goes only to huggingface.co and the Space; never printed.
@@ -28,9 +29,9 @@ from swarm_coordinator.evolve_replay import load_recorded  # noqa: E402
 
 
 def check_events(recorded: list[dict[str, Any]], run_id: str) -> list[dict[str, Any]]:
-    """The B1 recording's seed, iterations 1-2 and held-out, as the loop's `_submit` sends them (no schema: Board adds it)."""
-    b1 = next(r for r in recorded if r["name"] == "B1")["events"]
-    keep = [e for e in b1 if e["kind"] in ("seed", "heldout") or (e["kind"] == "iteration" and e["iteration"] <= 2)]
+    """baseline-1's seed, iterations 1-2 and held-out, as the loop's `_submit` sends them (no schema: Board adds it)."""
+    events = next(r for r in recorded if r["name"] == "baseline-1")["events"]
+    keep = [e for e in events if e["kind"] in ("seed", "heldout") or (e["kind"] == "iteration" and e["iteration"] <= 2)]
     return [{**{k: v for k, v in e.items() if k not in ("t", "schema")}, "run_id": run_id} for e in keep]
 
 
@@ -49,6 +50,8 @@ def problems(state: dict[str, Any], user: str, run_id: str) -> list[str]:
             out.append("kept patch missing from the feed")
     if not state["reference"]:
         out.append("no recorded backdrop")
+    if not any(run_id in e["runs"] for e in state.get("presets", {}).get("strategies", [])):
+        out.append(f"{run_id} missing from the strategy ranking")
     return out
 
 

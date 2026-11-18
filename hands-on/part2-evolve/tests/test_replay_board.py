@@ -1,4 +1,4 @@
-"""Offline fallback and the room board client."""
+"""Offline fallback and the workshop board client."""
 
 import json
 

@@ -141,7 +141,8 @@ def test_live_mode_restores_evolve_events_from_the_bucket_and_shows_the_recorded
     assert c.evolve_replayer is None
     from fastapi.testclient import TestClient
     st = TestClient(c.app).get("/api/evolve/state").json()
-    assert [r["label"] for r in st["reference"]] == ["recorded B1", "recorded B2"]
+    labels = [r["label"] for r in st["reference"]]
+    assert len(labels) == 13 and labels[0] == "recorded baseline-1"  # the Phase 3 recording
     assert st["totals"]["attendees"] == 1
 
 
@@ -152,10 +153,10 @@ def test_replay_mode_streams_the_recorded_evolve_runs(files):
     c = build(parse(["--replay", "--replay-minutes", "0.01", *files]), env={})
     with TestClient(c.app) as client:
         for _ in range(40):
-            if len(c.evolve_store.events()) == 20:
+            if len(c.evolve_store.events()) == 51:
                 break
             _time.sleep(0.1)
-        assert len(c.evolve_store.events()) == 20  # B1 and B2: seed + 8 iterations + held-out each
+        assert len(c.evolve_store.events()) == 51  # Phase 3: 13 runs, seed + 1-2 iterations + held-out each
         assert client.post("/api/evolve/submit", json={}, headers={"Authorization": "Bearer x"}).status_code == 503  # read-only
 
 
@@ -166,8 +167,9 @@ def test_evolve_loadtest_posts_every_attendees_events_and_the_board_counts_them(
     transport = httpx.ASGITransport(app=c.app)
     report = asyncio.run(run_evolve_loadtest("http://test", attendees=30, interval_s=0.05, iterations=3, viewers=2, transport=transport))
     assert report["errors"] == 0 and report["rate_limited"] == 0
-    assert report["latency_ms"]["submit"]["n"] == 30 * 4  # seed + 3 iterations each
+    assert report["latency_ms"]["submit"]["n"] == 30 * 5  # seed + 3 iterations + held-out each
     assert report["board"]["attendees"] == 30 and report["board"]["iterations"] == 90
+    assert report["ranked_runs"] == 30 and report["presets"] == 4  # every run carries a strategy (4 presets) and per-task counts
     assert report["latency_ms"]["state"]["n"] > 0
 
 

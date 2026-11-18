@@ -242,12 +242,29 @@ async def run_loadtest(base_url: str, n_runners: int = 300, *, transport: httpx.
     }
 
 
-def fake_evolve_event(user: str, i: int) -> dict[str, Any]:
+PRESETS = ("baseline", "failures-first", "small-diffs", "two-candidates")
+HELDOUT_TASKS = [f"heldout-{t:02d}" for t in range(23)]
+
+
+def fake_strategy(k: int) -> dict[str, Any]:
+    preset = PRESETS[k % len(PRESETS)]
+    return {"name": preset, "preset": preset, "hash": f"{k % len(PRESETS):010x}", "modified": False, "prompt": "Read the traces first. " * 40,
+            "knobs": {"traces": "failed", "max_traces": 4, "history": "titles", "diffs": False, "candidates": 1, "val_trials": 2, "z": 1.5,
+                      "confirm": True, "iterations": 4}}
+
+
+def fake_evolve_event(user: str, i: int, *, k: int = 0, heldout: bool = False) -> dict[str, Any]:
+    """Attendee k's i-th event: seed (0), iterations, or the held-out check with per-task counts; each with a strategy."""
     run_id = f"{user}-run"
+    base = {"schema": "aidev-evolve/1", "run_id": run_id, "strategy": fake_strategy(k), "provider": ("novita", "zai-org")[k % 2]}
+    if heldout:
+        return {**base, "kind": "heldout", "seed": 0.6, "best": 0.8, "best_candidate": "c001", "n_tasks": 23, "trials": 2,
+                "per_task": {t: [(k + j) % 3, 2, (k + 2 * j) % 3, 2] for j, t in enumerate(HELDOUT_TASKS)}, "kept": ["Run until time budget"],
+                "spend_usd": 1.0}
     if i == 0:
-        return {"schema": "aidev-evolve/1", "run_id": run_id, "kind": "seed", "val_score": 0.4, "search_score": 0.0, "spend_usd": 0.11}
-    diff = "--- agent.py\n+++ agent.py\n" + "".join(f"+line {k} of a patch that changes the harness loop\n" for k in range(80))
-    return {"schema": "aidev-evolve/1", "run_id": run_id, "kind": "iteration", "iteration": i, "candidate": f"c{i:03d}", "parent": "c000",
+        return {**base, "kind": "seed", "val_score": 0.4, "search_score": 0.0, "spend_usd": 0.11}
+    diff = "--- agent.py\n+++ agent.py\n" + "".join(f"+line {n} of a patch that changes the harness loop\n" for n in range(80))
+    return {**base, "kind": "iteration", "iteration": i, "candidate": f"c{i:03d}", "parent": "c000",
             "title": ["Run until time budget, not 10 steps", "Show stderr to the model", "Verify before finishing"][i % 3],
             "hypothesis": "Hypothesis: runs stop at the step cap with most of the budget left.", "accepted": i == 1,
             "verdict": "kept" if i == 1 else "dropped", "val_child": 0.85, "val_parent": 0.4, "best_val": 0.85,
@@ -267,10 +284,11 @@ async def run_evolve_loadtest(base_url: str, attendees: int = 500, *, interval_s
             nonlocal limited
             user = f"evolve-{k:04d}"
             await asyncio.sleep(interval_s * k / max(attendees, 1))  # starts spread over one interval
-            for i in range(iterations + 1):
+            for i in range(iterations + 2):  # seed, iterations, held-out
                 t0 = time.perf_counter()
+                event = fake_evolve_event(user, i, k=k, heldout=i == iterations + 1)
                 try:
-                    r = await client.post("/api/evolve/submit", json=fake_evolve_event(user, i), headers={"Authorization": f"Bearer {user}"})
+                    r = await client.post("/api/evolve/submit", json=event, headers={"Authorization": f"Bearer {user}"})
                     lat["submit"].append((time.perf_counter() - t0) * 1000)
                     if r.status_code == 429:
                         limited += 1
@@ -278,7 +296,7 @@ async def run_evolve_loadtest(base_url: str, attendees: int = 500, *, interval_s
                         errors.append(f"submit: HTTP {r.status_code} {r.text[:100]}")
                 except httpx.HTTPError as e:
                     errors.append(f"submit: {type(e).__name__}")
-                if i < iterations:
+                if i <= iterations:
                     await asyncio.sleep(interval_s)
 
         async def viewer() -> None:
@@ -303,15 +321,17 @@ async def run_evolve_loadtest(base_url: str, attendees: int = 500, *, interval_s
         stop.set()
         await asyncio.gather(*views)
         want = attendees * iterations
-        for _ in range(10):  # /api/evolve/state is cached 2 s
-            board = (await client.get("/api/evolve/state")).json()["totals"]
-            if board["iterations"] >= want:
+        for _ in range(120):  # /api/evolve/state is cached 2 s; a big ranking waits 10x its cost before it reranks
+            st = (await client.get("/api/evolve/state")).json()
+            board = st["totals"]
+            if board["iterations"] >= want and st["presets"]["n_runs"] >= attendees:
                 break
             await asyncio.sleep(0.5)
     return {"attendees": attendees, "interval_s": interval_s, "iterations": iterations, "viewers": viewers, "wall_s": round(wall, 1),
             "submit_rps": round(len(lat["submit"]) / wall, 1) if wall else None,
             "latency_ms": latency_summary(lat),
-            "errors": len(errors), "error_samples": errors[:5], "rate_limited": limited, "board": board}
+            "errors": len(errors), "error_samples": errors[:5], "rate_limited": limited, "board": board,
+            "ranked_runs": st["presets"]["n_runs"], "presets": len(st["presets"]["strategies"])}
 
 
 def _free_port() -> int:

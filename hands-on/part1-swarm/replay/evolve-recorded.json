@@ -1,465 +1,3875 @@
 {
- "source": "Part 2 Phase 2 evolve runs (config B, 17 Nov 2026): seed + 8 iterations + held-out each, GLM-5.3-Flash on TB2.1",
+ "source": "Part 2 Phase 3 evolve runs (batch loops2, 18 Nov 2026): seed C, splits C, 22-min time box, 4 strategies plus an edited copy, GLM-5.3-Flash on TB2.1",
  "runs": [
   {
-   "name": "B1",
-   "user": "recorded-B1",
+   "name": "baseline-1",
+   "user": "baseline-1",
    "events": [
     {
-     "t": 211.37,
+     "t": 150.82,
      "schema": "aidev-evolve/1",
-     "run_id": "B1",
+     "run_id": "baseline-1",
      "kind": "seed",
-     "val_score": 0.4166666666666667,
-     "search_score": 0.0,
-     "spend_usd": 0.036913
+     "val_score": 0.35714285714285715,
+     "search_score": 0.25,
+     "spend_usd": 0.040475,
+     "strategy": {
+      "name": "baseline",
+      "preset": "baseline",
+      "hash": "81639b8daa",
+      "modified": false,
+      "knobs": {
+       "traces": "all",
+       "max_traces": 8,
+       "history": "full",
+       "diffs": false,
+       "candidates": 1,
+       "val_trials": 2,
+       "z": 1.5,
+       "confirm": true,
+       "iterations": 4
+      },
+      "prompt": "Read, in this order:\n1. `traces/INDEX.md`, then the transcripts in `traces/` (the current agent.py on the search tasks).\n2. `HISTORY.md`: what earlier iterations tried, and whether validation kept or dropped it. Do not repeat a\n   dropped idea unchanged.\n3. `CONTRACT.md` (what `env` offers) and `agent.py`.\n\nThen make one focused change (one mechanism) to `agent.py` that fixes a failure mechanism you can see in\nseveral transcripts.\n"
+     }
     },
     {
-     "t": 580.19,
+     "t": 624.15,
      "schema": "aidev-evolve/1",
-     "run_id": "B1",
+     "run_id": "baseline-1",
      "kind": "iteration",
      "iteration": 1,
      "candidate": "c001",
      "parent": "c000",
-     "title": "Time-based stop instead of 10 steps",
-     "hypothesis": "Hypothesis: db-wal-recovery, financial-document-processor and sparql-university ended at the 10-step cap after only 18-50 s of 180 s, still mid-work.",
+     "title": "Use the whole time budget, not 10 steps",
+     "hypothesis": "Hypothesis: three of four traces (count-dataset-tokens, dna-insert, sparql-university) failed after exactly 10 model calls and only 15-58 s of the 180 s, still mid-investigation when the step limit ended the run.",
      "accepted": true,
      "verdict": "kept",
-     "val_child": 0.875,
-     "val_parent": 0.47222222222222215,
-     "best_val": 0.875,
+     "val_child": 0.6785714285714286,
+     "val_parent": 0.33333333333333337,
+     "best_val": 0.6785714285714286,
      "fixed": [
-      "build-pmars",
-      "configure-git-webserver",
-      "constraints-scheduling",
-      "count-dataset-tokens",
       "extract-elf",
-      "sqlite-with-gcov"
+      "fix-code-vulnerability",
+      "merge-diff-arc-agi-task",
+      "vulnerable-secret"
      ],
-     "broke": [],
-     "diff": "--- agent.py (c000)\n+++ agent.py (c001)\n@@ -13,7 +13,8 @@\n SYSTEM_PROMPT = \"\"\"You are an AI agent that solves tasks in a Linux terminal.\n Use the bash tool to run commands. When the task is complete, reply with a short summary.\"\"\"\n \n-MAX_STEPS = 10\n+MAX_STEPS = 200  # a safety net only: the real limit is the clock\n+STOP_MARGIN = 5  # seconds kept free at the end\n MAX_OUTPUT_CHARS = 1000\n \n BASH_TOOL = {\n@@ -48,6 +49,8 @@\n         {\"role\": \"user\", \"content\": task},\n     ]\n     for step in range(MAX_STEPS):\n+        if env.time_left() < STOP_MARGIN:\n+            return\n         reply = env.llm(messages, tools=[BASH_TOOL])\n         messages.append(reply)\n         tool_calls = reply.get(\"tool_calls\") or []\n",
-     "spend_usd": 0.218918
+     "broke": [
+      "code-from-image"
+     ],
+     "diff": "--- agent.py (c000)\n+++ agent.py (c001)\n@@ -13,7 +13,8 @@\n SYSTEM_PROMPT = \"\"\"You are an AI agent that solves tasks in a Linux terminal.\n Use the bash tool to run commands. When the task is complete, reply with a short summary.\"\"\"\n \n-MAX_STEPS = 10\n+MAX_STEPS = 100  # the real limit is the clock\n+SAFETY_MARGIN_S = 10\n MAX_OUTPUT_CHARS = 1000\n COMMAND_TIMEOUT_S = 10  # a stuck command must not eat the whole budget\n \n@@ -49,6 +50,8 @@\n         {\"role\": \"user\", \"content\": task},\n     ]\n     for step in range(MAX_STEPS):\n+        if env.time_left() < SAFETY_MARGIN_S:\n+            return  # out of time: stop cleanly\n         reply = env.llm(messages, tools=[BASH_TOOL])\n         messages.append(reply)\n         tool_calls = reply.get(\"tool_calls\") or []\n",
+     "spend_usd": 0.321924,
+     "siblings": [],
+     "strategy": {
+      "name": "baseline",
+      "preset": "baseline",
+      "hash": "81639b8daa",
+      "modified": false,
+      "knobs": {
+       "traces": "all",
+       "max_traces": 8,
+       "history": "full",
+       "diffs": false,
+       "candidates": 1,
+       "val_trials": 2,
+       "z": 1.5,
+       "confirm": true,
+       "iterations": 4
+      },
+      "prompt": "Read, in this order:\n1. `traces/INDEX.md`, then the transcripts in `traces/` (the current agent.py on the search tasks).\n2. `HISTORY.md`: what earlier iterations tried, and whether validation kept or dropped it. Do not repeat a\n   dropped idea unchanged.\n3. `CONTRACT.md` (what `env` offers) and `agent.py`.\n\nThen make one focused change (one mechanism) to `agent.py` that fixes a failure mechanism you can see in\nseveral transcripts.\n"
+     }
     },
     {
-     "t": 789.36,
+     "t": 917.25,
      "schema": "aidev-evolve/1",
-     "run_id": "B1",
+     "run_id": "baseline-1",
+     "kind": "iteration",
+     "iteration": 2,
+     "candidate": "c002",
+     "parent": "c001",
+     "title": "Show stderr to the model",
+     "hypothesis": "Hypothesis: the harness discards stderr, so failed commands return \"exit 1/127, printed 0 chars\" with no reason (count-dataset-tokens step 1, sparql-university step 14, dna-insert missing-script), and the model guesses blindly.",
+     "accepted": false,
+     "verdict": "dropped",
+     "val_child": 0.8571428571428571,
+     "val_parent": 0.6666666666666667,
+     "best_val": 0.6666666666666667,
+     "fixed": [
+      "code-from-image",
+      "financial-document-processor",
+      "fix-code-vulnerability",
+      "merge-diff-arc-agi-task"
+     ],
+     "broke": [],
+     "diff": "--- agent.py (c001)\n+++ agent.py (c002)\n@@ -40,7 +40,7 @@\n \n def run_tool_call(call, env):\n     args = json.loads(call[\"function\"][\"arguments\"])\n-    result = env.shell(\"{ \" + args[\"command\"] + \"\\n} 2>/dev/null\", timeout=COMMAND_TIMEOUT_S)  # only stdout: stderr is mostly noise\n+    result = env.shell(\"{ \" + args[\"command\"] + \"\\n} 2>&1\", timeout=COMMAND_TIMEOUT_S)  # the model must see error messages\n     return format_output(result)\n \n \n",
+     "spend_usd": 0.569264,
+     "siblings": [],
+     "strategy": {
+      "name": "baseline",
+      "preset": "baseline",
+      "hash": "81639b8daa",
+      "modified": false,
+      "knobs": {
+       "traces": "all",
+       "max_traces": 8,
+       "history": "full",
+       "diffs": false,
+       "candidates": 1,
+       "val_trials": 2,
+       "z": 1.5,
+       "confirm": true,
+       "iterations": 4
+      },
+      "prompt": "Read, in this order:\n1. `traces/INDEX.md`, then the transcripts in `traces/` (the current agent.py on the search tasks).\n2. `HISTORY.md`: what earlier iterations tried, and whether validation kept or dropped it. Do not repeat a\n   dropped idea unchanged.\n3. `CONTRACT.md` (what `env` offers) and `agent.py`.\n\nThen make one focused change (one mechanism) to `agent.py` that fixes a failure mechanism you can see in\nseveral transcripts.\n"
+     }
+    },
+    {
+     "t": 1194.19,
+     "schema": "aidev-evolve/1",
+     "run_id": "baseline-1",
+     "kind": "heldout",
+     "seed": 0.5869565217391305,
+     "best": 0.8043478260869565,
+     "best_candidate": "c001",
+     "n_tasks": 23,
+     "trials": 2,
+     "diff": 0.21739130434782608,
+     "ci_low": 0.043478260869565216,
+     "ci_high": 0.41304347826086957,
+     "spend_usd": 0.876783,
+     "per_task": {
+      "build-pov-ray": [
+       0,
+       2,
+       2,
+       2
+      ],
+      "cancel-async-tasks": [
+       1,
+       2,
+       1,
+       2
+      ],
+      "bn-fit-modify": [
+       0,
+       2,
+       0,
+       2
+      ],
+      "regex-log": [
+       1,
+       2,
+       0,
+       2
+      ],
+      "sanitize-git-repo": [
+       1,
+       2,
+       1,
+       2
+      ],
+      "polyglot-c-py": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "openssl-selfsigned-cert": [
+       2,
+       2,
+       1,
+       2
+      ],
+      "build-pmars": [
+       0,
+       2,
+       2,
+       2
+      ],
+      "sqlite-db-truncate": [
+       0,
+       2,
+       2,
+       2
+      ],
+      "nginx-request-logging": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "log-summary-date-ranges": [
+       1,
+       2,
+       1,
+       2
+      ],
+      "constraints-scheduling": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "sqlite-with-gcov": [
+       0,
+       2,
+       2,
+       2
+      ],
+      "pypi-server": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "prove-plus-comm": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "multi-source-data-merger": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "modernize-scientific-stack": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "kv-store-grpc": [
+       1,
+       2,
+       2,
+       2
+      ],
+      "hf-model-inference": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "git-multibranch": [
+       1,
+       2,
+       2,
+       2
+      ],
+      "git-leak-recovery": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "db-wal-recovery": [
+       1,
+       2,
+       1,
+       2
+      ],
+      "configure-git-webserver": [
+       0,
+       2,
+       2,
+       2
+      ]
+     },
+     "kept": [
+      "Use the whole time budget, not 10 steps"
+     ],
+     "strategy": {
+      "name": "baseline",
+      "preset": "baseline",
+      "hash": "81639b8daa",
+      "modified": false,
+      "knobs": {
+       "traces": "all",
+       "max_traces": 8,
+       "history": "full",
+       "diffs": false,
+       "candidates": 1,
+       "val_trials": 2,
+       "z": 1.5,
+       "confirm": true,
+       "iterations": 4
+      },
+      "prompt": "Read, in this order:\n1. `traces/INDEX.md`, then the transcripts in `traces/` (the current agent.py on the search tasks).\n2. `HISTORY.md`: what earlier iterations tried, and whether validation kept or dropped it. Do not repeat a\n   dropped idea unchanged.\n3. `CONTRACT.md` (what `env` offers) and `agent.py`.\n\nThen make one focused change (one mechanism) to `agent.py` that fixes a failure mechanism you can see in\nseveral transcripts.\n"
+     }
+    }
+   ]
+  },
+  {
+   "name": "baseline-2",
+   "user": "baseline-2",
+   "events": [
+    {
+     "t": 133.47,
+     "schema": "aidev-evolve/1",
+     "run_id": "baseline-2",
+     "kind": "seed",
+     "val_score": 0.2857142857142857,
+     "search_score": 0.0,
+     "spend_usd": 0.038077,
+     "strategy": {
+      "name": "baseline",
+      "preset": "baseline",
+      "hash": "81639b8daa",
+      "modified": false,
+      "knobs": {
+       "traces": "all",
+       "max_traces": 8,
+       "history": "full",
+       "diffs": false,
+       "candidates": 1,
+       "val_trials": 2,
+       "z": 1.5,
+       "confirm": true,
+       "iterations": 4
+      },
+      "prompt": "Read, in this order:\n1. `traces/INDEX.md`, then the transcripts in `traces/` (the current agent.py on the search tasks).\n2. `HISTORY.md`: what earlier iterations tried, and whether validation kept or dropped it. Do not repeat a\n   dropped idea unchanged.\n3. `CONTRACT.md` (what `env` offers) and `agent.py`.\n\nThen make one focused change (one mechanism) to `agent.py` that fixes a failure mechanism you can see in\nseveral transcripts.\n"
+     }
+    },
+    {
+     "t": 676.59,
+     "schema": "aidev-evolve/1",
+     "run_id": "baseline-2",
+     "kind": "iteration",
+     "iteration": 1,
+     "candidate": "c001",
+     "parent": "c000",
+     "title": "Use the time budget, not 10 steps",
+     "hypothesis": "Hypothesis: all 4 transcripts end \"returned\" after exactly 10 model calls with only 18-61 s of the 180 s used; the step cap cuts the agent off mid-work, so tasks fail unfinished.",
+     "accepted": true,
+     "verdict": "kept",
+     "val_child": 0.8214285714285714,
+     "val_parent": 0.33333333333333337,
+     "best_val": 0.8214285714285714,
+     "fixed": [
+      "code-from-image",
+      "extract-elf",
+      "financial-document-processor",
+      "fix-code-vulnerability",
+      "merge-diff-arc-agi-task",
+      "vulnerable-secret"
+     ],
+     "broke": [],
+     "diff": "--- agent.py (c000)\n+++ agent.py (c001)\n@@ -13,7 +13,8 @@\n SYSTEM_PROMPT = \"\"\"You are an AI agent that solves tasks in a Linux terminal.\n Use the bash tool to run commands. When the task is complete, reply with a short summary.\"\"\"\n \n-MAX_STEPS = 10\n+MAX_STEPS = 100  # a safety net only: the time budget is the real limit\n+STOP_MARGIN_S = 8  # stop starting new model calls when this little time is left\n MAX_OUTPUT_CHARS = 1000\n COMMAND_TIMEOUT_S = 10  # a stuck command must not eat the whole budget\n \n@@ -49,6 +50,8 @@\n         {\"role\": \"user\", \"content\": task},\n     ]\n     for step in range(MAX_STEPS):\n+        if env.time_left() < STOP_MARGIN_S:\n+            return\n         reply = env.llm(messages, tools=[BASH_TOOL])\n         messages.append(reply)\n         tool_calls = reply.get(\"tool_calls\") or []\n",
+     "spend_usd": 0.279832,
+     "siblings": [],
+     "strategy": {
+      "name": "baseline",
+      "preset": "baseline",
+      "hash": "81639b8daa",
+      "modified": false,
+      "knobs": {
+       "traces": "all",
+       "max_traces": 8,
+       "history": "full",
+       "diffs": false,
+       "candidates": 1,
+       "val_trials": 2,
+       "z": 1.5,
+       "confirm": true,
+       "iterations": 4
+      },
+      "prompt": "Read, in this order:\n1. `traces/INDEX.md`, then the transcripts in `traces/` (the current agent.py on the search tasks).\n2. `HISTORY.md`: what earlier iterations tried, and whether validation kept or dropped it. Do not repeat a\n   dropped idea unchanged.\n3. `CONTRACT.md` (what `env` offers) and `agent.py`.\n\nThen make one focused change (one mechanism) to `agent.py` that fixes a failure mechanism you can see in\nseveral transcripts.\n"
+     }
+    },
+    {
+     "t": 1032.65,
+     "schema": "aidev-evolve/1",
+     "run_id": "baseline-2",
+     "kind": "iteration",
+     "iteration": 2,
+     "candidate": "c002",
+     "parent": "c001",
+     "title": "Challenge the first \"done\" with a verification",
+     "hypothesis": "Hypothesis: the failing runs (dna-insert, sparql-university, break-filter-js-from-html) end after 8-69 s of 180 s with the model claiming success from reasoning (\"verified logic manually\") without running a checker on the real output.",
+     "accepted": false,
+     "verdict": "dropped",
+     "val_child": 0.9285714285714286,
+     "val_parent": 0.7619047619047619,
+     "best_val": 0.7619047619047619,
+     "fixed": [
+      "code-from-image",
+      "merge-diff-arc-agi-task"
+     ],
+     "broke": [
+      "financial-document-processor"
+     ],
+     "diff": "--- agent.py (c001)\n+++ agent.py (c002)\n@@ -15,6 +15,12 @@\n \n MAX_STEPS = 100  # a safety net only: the time budget is the real limit\n STOP_MARGIN_S = 8  # stop starting new model calls when this little time is left\n+MIN_CHECK_TIME_S = 30  # only ask for a final check when this much time is left\n+CHECK_PROMPT = (\n+    \"Before you finish: re-read the task and list each requirement. Verify every one by actually \"\n+    \"running a command on the real output (run any provided test or checker; do not rely on reasoning). \"\n+    \"If anything fails or is unverified, fix it. Only then give your final summary.\"\n+)\n MAX_OUTPUT_CHARS = 1000\n COMMAND_TIMEOUT_S = 10  # a stuck command must not eat the whole budget\n \n@@ -49,6 +55,7 @@\n         {\"role\": \"system\", \"content\": SYSTEM_PROMPT},\n         {\"role\": \"user\", \"content\": task},\n     ]\n+    checked = False\n     for step in range(MAX_STEPS):\n         if env.time_left() < STOP_MARGIN_S:\n             return\n@@ -56,7 +63,11 @@\n         messages.append(reply)\n         tool_calls = reply.get(\"tool_calls\") or []\n         if not tool_calls:\n-            return  # the model answered in text: we are done\n+            if checked or env.time_left() < MIN_CHECK_TIME_S:\n+                return  # the model answered in text: we are done\n+            checked = True  # one challenge: do not finish on an unverified claim\n+            messages.append({\"role\": \"user\", \"content\": CHECK_PROMPT})\n+            continue\n         for call in tool_calls:\n             content = run_tool_call(call, env)\n             messages.append({\"role\": \"tool\", \"tool_call_id\": call[\"id\"], \"content\": content})\n",
+     "spend_usd": 0.496963,
+     "siblings": [],
+     "strategy": {
+      "name": "baseline",
+      "preset": "baseline",
+      "hash": "81639b8daa",
+      "modified": false,
+      "knobs": {
+       "traces": "all",
+       "max_traces": 8,
+       "history": "full",
+       "diffs": false,
+       "candidates": 1,
+       "val_trials": 2,
+       "z": 1.5,
+       "confirm": true,
+       "iterations": 4
+      },
+      "prompt": "Read, in this order:\n1. `traces/INDEX.md`, then the transcripts in `traces/` (the current agent.py on the search tasks).\n2. `HISTORY.md`: what earlier iterations tried, and whether validation kept or dropped it. Do not repeat a\n   dropped idea unchanged.\n3. `CONTRACT.md` (what `env` offers) and `agent.py`.\n\nThen make one focused change (one mechanism) to `agent.py` that fixes a failure mechanism you can see in\nseveral transcripts.\n"
+     }
+    },
+    {
+     "t": 1351.49,
+     "schema": "aidev-evolve/1",
+     "run_id": "baseline-2",
+     "kind": "heldout",
+     "seed": 0.5652173913043478,
+     "best": 0.7608695652173914,
+     "best_candidate": "c001",
+     "n_tasks": 23,
+     "trials": 2,
+     "diff": 0.1956521739130435,
+     "ci_low": -0.021739130434782608,
+     "ci_high": 0.391304347826087,
+     "spend_usd": 0.767441,
+     "per_task": {
+      "build-pov-ray": [
+       0,
+       2,
+       1,
+       2
+      ],
+      "cancel-async-tasks": [
+       0,
+       2,
+       0,
+       2
+      ],
+      "bn-fit-modify": [
+       0,
+       2,
+       0,
+       2
+      ],
+      "regex-log": [
+       2,
+       2,
+       0,
+       2
+      ],
+      "sanitize-git-repo": [
+       0,
+       2,
+       1,
+       2
+      ],
+      "polyglot-c-py": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "openssl-selfsigned-cert": [
+       1,
+       2,
+       1,
+       2
+      ],
+      "build-pmars": [
+       0,
+       2,
+       2,
+       2
+      ],
+      "sqlite-db-truncate": [
+       2,
+       2,
+       0,
+       2
+      ],
+      "nginx-request-logging": [
+       1,
+       2,
+       2,
+       2
+      ],
+      "log-summary-date-ranges": [
+       1,
+       2,
+       2,
+       2
+      ],
+      "constraints-scheduling": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "sqlite-with-gcov": [
+       0,
+       2,
+       2,
+       2
+      ],
+      "pypi-server": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "prove-plus-comm": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "multi-source-data-merger": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "modernize-scientific-stack": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "kv-store-grpc": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "hf-model-inference": [
+       1,
+       2,
+       2,
+       2
+      ],
+      "git-multibranch": [
+       0,
+       2,
+       2,
+       2
+      ],
+      "git-leak-recovery": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "db-wal-recovery": [
+       1,
+       2,
+       2,
+       2
+      ],
+      "configure-git-webserver": [
+       1,
+       2,
+       2,
+       2
+      ]
+     },
+     "kept": [
+      "Use the time budget, not 10 steps"
+     ],
+     "strategy": {
+      "name": "baseline",
+      "preset": "baseline",
+      "hash": "81639b8daa",
+      "modified": false,
+      "knobs": {
+       "traces": "all",
+       "max_traces": 8,
+       "history": "full",
+       "diffs": false,
+       "candidates": 1,
+       "val_trials": 2,
+       "z": 1.5,
+       "confirm": true,
+       "iterations": 4
+      },
+      "prompt": "Read, in this order:\n1. `traces/INDEX.md`, then the transcripts in `traces/` (the current agent.py on the search tasks).\n2. `HISTORY.md`: what earlier iterations tried, and whether validation kept or dropped it. Do not repeat a\n   dropped idea unchanged.\n3. `CONTRACT.md` (what `env` offers) and `agent.py`.\n\nThen make one focused change (one mechanism) to `agent.py` that fixes a failure mechanism you can see in\nseveral transcripts.\n"
+     }
+    }
+   ]
+  },
+  {
+   "name": "baseline-3",
+   "user": "baseline-3",
+   "events": [
+    {
+     "t": 111.57,
+     "schema": "aidev-evolve/1",
+     "run_id": "baseline-3",
+     "kind": "seed",
+     "val_score": 0.35714285714285715,
+     "search_score": 0.25,
+     "spend_usd": 0.037907,
+     "strategy": {
+      "name": "baseline",
+      "preset": "baseline",
+      "hash": "81639b8daa",
+      "modified": false,
+      "knobs": {
+       "traces": "all",
+       "max_traces": 8,
+       "history": "full",
+       "diffs": false,
+       "candidates": 1,
+       "val_trials": 2,
+       "z": 1.5,
+       "confirm": true,
+       "iterations": 4
+      },
+      "prompt": "Read, in this order:\n1. `traces/INDEX.md`, then the transcripts in `traces/` (the current agent.py on the search tasks).\n2. `HISTORY.md`: what earlier iterations tried, and whether validation kept or dropped it. Do not repeat a\n   dropped idea unchanged.\n3. `CONTRACT.md` (what `env` offers) and `agent.py`.\n\nThen make one focused change (one mechanism) to `agent.py` that fixes a failure mechanism you can see in\nseveral transcripts.\n"
+     }
+    },
+    {
+     "t": 657.62,
+     "schema": "aidev-evolve/1",
+     "run_id": "baseline-3",
+     "kind": "iteration",
+     "iteration": 1,
+     "candidate": "c001",
+     "parent": "c000",
+     "title": "Let the time budget end the run",
+     "hypothesis": "Hypothesis: three failed runs (dna-insert, sparql-university, break-filter-js-from-html) stopped at the 10-step cap after only 16-29 s of 180 s, still mid-exploration (e.g. oligotm Tm tuning not started, query never written).",
+     "accepted": true,
+     "verdict": "kept",
+     "val_child": 0.6428571428571429,
+     "val_parent": 0.2857142857142857,
+     "best_val": 0.6428571428571429,
+     "fixed": [
+      "extract-elf",
+      "fix-code-vulnerability",
+      "fix-git",
+      "merge-diff-arc-agi-task",
+      "vulnerable-secret"
+     ],
+     "broke": [],
+     "diff": "--- agent.py (c000)\n+++ agent.py (c001)\n@@ -13,7 +13,8 @@\n SYSTEM_PROMPT = \"\"\"You are an AI agent that solves tasks in a Linux terminal.\n Use the bash tool to run commands. When the task is complete, reply with a short summary.\"\"\"\n \n-MAX_STEPS = 10\n+MAX_STEPS = 60  # the 180 s budget is the real limit: runs used only 20-50 s before the old 10-step cap\n+MIN_TIME_LEFT_S = 8\n MAX_OUTPUT_CHARS = 1000\n COMMAND_TIMEOUT_S = 10  # a stuck command must not eat the whole budget\n \n@@ -49,6 +50,8 @@\n         {\"role\": \"user\", \"content\": task},\n     ]\n     for step in range(MAX_STEPS):\n+        if env.time_left() < MIN_TIME_LEFT_S:\n+            return  # not enough time for another model call\n         reply = env.llm(messages, tools=[BASH_TOOL])\n         messages.append(reply)\n         tool_calls = reply.get(\"tool_calls\") or []\n",
+     "spend_usd": 0.352016,
+     "siblings": [],
+     "strategy": {
+      "name": "baseline",
+      "preset": "baseline",
+      "hash": "81639b8daa",
+      "modified": false,
+      "knobs": {
+       "traces": "all",
+       "max_traces": 8,
+       "history": "full",
+       "diffs": false,
+       "candidates": 1,
+       "val_trials": 2,
+       "z": 1.5,
+       "confirm": true,
+       "iterations": 4
+      },
+      "prompt": "Read, in this order:\n1. `traces/INDEX.md`, then the transcripts in `traces/` (the current agent.py on the search tasks).\n2. `HISTORY.md`: what earlier iterations tried, and whether validation kept or dropped it. Do not repeat a\n   dropped idea unchanged.\n3. `CONTRACT.md` (what `env` offers) and `agent.py`.\n\nThen make one focused change (one mechanism) to `agent.py` that fixes a failure mechanism you can see in\nseveral transcripts.\n"
+     }
+    },
+    {
+     "t": 930.81,
+     "schema": "aidev-evolve/1",
+     "run_id": "baseline-3",
+     "kind": "iteration",
+     "iteration": 2,
+     "candidate": "c002",
+     "parent": "c001",
+     "title": "Verify before accepting \"done\"",
+     "hypothesis": "Hypothesis: runs end as soon as the model writes a text answer, even when its only check printed nothing (break-filter: 5 calls, 20 s, reward 0) or was reasoning, not testing (dna-insert: claimed verified, reward 0); 100+ s were left unused.",
+     "accepted": false,
+     "verdict": "dropped",
+     "val_child": 0.7857142857142857,
+     "val_parent": 0.6904761904761905,
+     "best_val": 0.6904761904761905,
+     "fixed": [
+      "code-from-image",
+      "extract-elf",
+      "financial-document-processor",
+      "fix-code-vulnerability"
+     ],
+     "broke": [
+      "merge-diff-arc-agi-task"
+     ],
+     "diff": "--- agent.py (c001)\n+++ agent.py (c002)\n@@ -16,6 +16,13 @@\n MAX_STEPS = 60  # the 180 s budget is the real limit: runs used only 20-50 s before the old 10-step cap\n MIN_TIME_LEFT_S = 8\n MAX_OUTPUT_CHARS = 1000\n+MAX_CHECKS = 2  # how often a \"done\" answer is sent back for verification\n+CHECK_PROMPT = (\n+    \"Before you finish: do not trust your belief that it works. Re-read the task, then run a real \"\n+    \"check of the actual result (the task's test or checker, or use the output the way the task describes). \"\n+    \"Empty output is not proof. If anything fails or is unverified, fix it; \"\n+    \"if it all passes, reply with a short summary.\"\n+)\n COMMAND_TIMEOUT_S = 10  # a stuck command must not eat the whole budget\n \n BASH_TOOL = {\n@@ -49,6 +56,7 @@\n         {\"role\": \"system\", \"content\": SYSTEM_PROMPT},\n         {\"role\": \"user\", \"content\": task},\n     ]\n+    checks = 0\n     for step in range(MAX_STEPS):\n         if env.time_left() < MIN_TIME_LEFT_S:\n             return  # not enough time for another model call\n@@ -56,7 +64,11 @@\n         messages.append(reply)\n         tool_calls = reply.get(\"tool_calls\") or []\n         if not tool_calls:\n-            return  # the model answered in text: we are done\n+            if checks >= MAX_CHECKS or env.time_left() < 40:\n+                return  # answered in text after being checked: we are done\n+            checks += 1\n+            messages.append({\"role\": \"user\", \"content\": CHECK_PROMPT})\n+            continue\n         for call in tool_calls:\n             content = run_tool_call(call, env)\n             messages.append({\"role\": \"tool\", \"tool_call_id\": call[\"id\"], \"content\": content})\n",
+     "spend_usd": 0.610263,
+     "siblings": [],
+     "strategy": {
+      "name": "baseline",
+      "preset": "baseline",
+      "hash": "81639b8daa",
+      "modified": false,
+      "knobs": {
+       "traces": "all",
+       "max_traces": 8,
+       "history": "full",
+       "diffs": false,
+       "candidates": 1,
+       "val_trials": 2,
+       "z": 1.5,
+       "confirm": true,
+       "iterations": 4
+      },
+      "prompt": "Read, in this order:\n1. `traces/INDEX.md`, then the transcripts in `traces/` (the current agent.py on the search tasks).\n2. `HISTORY.md`: what earlier iterations tried, and whether validation kept or dropped it. Do not repeat a\n   dropped idea unchanged.\n3. `CONTRACT.md` (what `env` offers) and `agent.py`.\n\nThen make one focused change (one mechanism) to `agent.py` that fixes a failure mechanism you can see in\nseveral transcripts.\n"
+     }
+    },
+    {
+     "t": 1166.29,
+     "schema": "aidev-evolve/1",
+     "run_id": "baseline-3",
+     "kind": "heldout",
+     "seed": 0.6304347826086957,
+     "best": 0.8695652173913043,
+     "best_candidate": "c001",
+     "n_tasks": 23,
+     "trials": 2,
+     "diff": 0.2391304347826087,
+     "ci_low": 0.06521739130434782,
+     "ci_high": 0.43478260869565216,
+     "spend_usd": 0.873875,
+     "per_task": {
+      "build-pov-ray": [
+       0,
+       2,
+       2,
+       2
+      ],
+      "cancel-async-tasks": [
+       0,
+       2,
+       1,
+       2
+      ],
+      "bn-fit-modify": [
+       0,
+       2,
+       0,
+       2
+      ],
+      "regex-log": [
+       2,
+       2,
+       1,
+       2
+      ],
+      "sanitize-git-repo": [
+       1,
+       2,
+       2,
+       2
+      ],
+      "polyglot-c-py": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "openssl-selfsigned-cert": [
+       1,
+       2,
+       1,
+       2
+      ],
+      "build-pmars": [
+       0,
+       2,
+       2,
+       2
+      ],
+      "sqlite-db-truncate": [
+       0,
+       2,
+       2,
+       2
+      ],
+      "nginx-request-logging": [
+       2,
+       2,
+       1,
+       2
+      ],
+      "log-summary-date-ranges": [
+       1,
+       2,
+       2,
+       2
+      ],
+      "constraints-scheduling": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "sqlite-with-gcov": [
+       0,
+       2,
+       2,
+       2
+      ],
+      "pypi-server": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "prove-plus-comm": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "multi-source-data-merger": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "modernize-scientific-stack": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "kv-store-grpc": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "hf-model-inference": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "git-multibranch": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "git-leak-recovery": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "db-wal-recovery": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "configure-git-webserver": [
+       0,
+       2,
+       2,
+       2
+      ]
+     },
+     "kept": [
+      "Let the time budget end the run"
+     ],
+     "strategy": {
+      "name": "baseline",
+      "preset": "baseline",
+      "hash": "81639b8daa",
+      "modified": false,
+      "knobs": {
+       "traces": "all",
+       "max_traces": 8,
+       "history": "full",
+       "diffs": false,
+       "candidates": 1,
+       "val_trials": 2,
+       "z": 1.5,
+       "confirm": true,
+       "iterations": 4
+      },
+      "prompt": "Read, in this order:\n1. `traces/INDEX.md`, then the transcripts in `traces/` (the current agent.py on the search tasks).\n2. `HISTORY.md`: what earlier iterations tried, and whether validation kept or dropped it. Do not repeat a\n   dropped idea unchanged.\n3. `CONTRACT.md` (what `env` offers) and `agent.py`.\n\nThen make one focused change (one mechanism) to `agent.py` that fixes a failure mechanism you can see in\nseveral transcripts.\n"
+     }
+    }
+   ]
+  },
+  {
+   "name": "failures-first-1",
+   "user": "failures-first-1",
+   "events": [
+    {
+     "t": 113.27,
+     "schema": "aidev-evolve/1",
+     "run_id": "failures-first-1",
+     "kind": "seed",
+     "val_score": 0.21428571428571427,
+     "search_score": 0.0,
+     "spend_usd": 0.044745,
+     "strategy": {
+      "name": "failures-first",
+      "preset": "failures-first",
+      "hash": "251e4e8614",
+      "modified": false,
+      "knobs": {
+       "traces": "failed",
+       "max_traces": 8,
+       "history": "titles",
+       "diffs": false,
+       "candidates": 1,
+       "val_trials": 2,
+       "z": 1.5,
+       "confirm": true,
+       "iterations": 4
+      },
+      "prompt": "Read `traces/INDEX.md` and every failed transcript in `traces/`, then `HISTORY.md` (titles and verdicts of\nearlier attempts), `CONTRACT.md` and `agent.py`.\n\nBefore you edit anything, write `FAILURES.md`: one line per failed transcript naming the mechanism that made\nit fail (for example: ran out of steps, a command hung, the output it needed was cut, it stopped without\nchecking, it misread an error). Count how often each mechanism appears.\n\nThen fix the most frequent mechanism that no earlier iteration has already tried, with one focused change to\n`agent.py`. If the top mechanism was tried and dropped, take the next one.\n"
+     }
+    },
+    {
+     "t": 564.29,
+     "schema": "aidev-evolve/1",
+     "run_id": "failures-first-1",
+     "kind": "iteration",
+     "iteration": 1,
+     "candidate": "c001",
+     "parent": "c000",
+     "title": "Use the time budget, not 10 steps",
+     "hypothesis": "Hypothesis: all four failed transcripts stopped at the 10-call cap with 100+ s of the 180 s unused (still exploring or unverified).",
+     "accepted": true,
+     "verdict": "kept",
+     "val_child": 0.8571428571428571,
+     "val_parent": 0.33333333333333337,
+     "best_val": 0.8571428571428571,
+     "fixed": [
+      "code-from-image",
+      "extract-elf",
+      "financial-document-processor",
+      "fix-code-vulnerability",
+      "merge-diff-arc-agi-task",
+      "vulnerable-secret"
+     ],
+     "broke": [],
+     "diff": "--- agent.py (c000)\n+++ agent.py (c001)\n@@ -13,7 +13,8 @@\n SYSTEM_PROMPT = \"\"\"You are an AI agent that solves tasks in a Linux terminal.\n Use the bash tool to run commands. When the task is complete, reply with a short summary.\"\"\"\n \n-MAX_STEPS = 10\n+MAX_STEPS = 60  # a safety cap only: the real limit is the time budget\n+MIN_TIME_LEFT_S = 15  # stop asking the model when less than this remains\n MAX_OUTPUT_CHARS = 1000\n COMMAND_TIMEOUT_S = 10  # a stuck command must not eat the whole budget\n \n@@ -49,6 +50,8 @@\n         {\"role\": \"user\", \"content\": task},\n     ]\n     for step in range(MAX_STEPS):\n+        if env.time_left() < MIN_TIME_LEFT_S:\n+            return\n         reply = env.llm(messages, tools=[BASH_TOOL])\n         messages.append(reply)\n         tool_calls = reply.get(\"tool_calls\") or []\n",
+     "spend_usd": 0.312874,
+     "siblings": [],
+     "strategy": {
+      "name": "failures-first",
+      "preset": "failures-first",
+      "hash": "251e4e8614",
+      "modified": false,
+      "knobs": {
+       "traces": "failed",
+       "max_traces": 8,
+       "history": "titles",
+       "diffs": false,
+       "candidates": 1,
+       "val_trials": 2,
+       "z": 1.5,
+       "confirm": true,
+       "iterations": 4
+      },
+      "prompt": "Read `traces/INDEX.md` and every failed transcript in `traces/`, then `HISTORY.md` (titles and verdicts of\nearlier attempts), `CONTRACT.md` and `agent.py`.\n\nBefore you edit anything, write `FAILURES.md`: one line per failed transcript naming the mechanism that made\nit fail (for example: ran out of steps, a command hung, the output it needed was cut, it stopped without\nchecking, it misread an error). Count how often each mechanism appears.\n\nThen fix the most frequent mechanism that no earlier iteration has already tried, with one focused change to\n`agent.py`. If the top mechanism was tried and dropped, take the next one.\n"
+     }
+    },
+    {
+     "t": 866.25,
+     "schema": "aidev-evolve/1",
+     "run_id": "failures-first-1",
+     "kind": "iteration",
+     "iteration": 2,
+     "candidate": "c002",
+     "parent": "c001",
+     "title": "Show stderr to the model",
+     "hypothesis": "Hypothesis: Both failures (break-filter-js-from-html, dna-insert) ran commands with stderr discarded; tracebacks and test failures appeared as empty output, and the model took silence as success.",
+     "accepted": false,
+     "verdict": "dropped",
+     "val_child": 0.5714285714285714,
+     "val_parent": 0.8333333333333333,
+     "best_val": 0.8333333333333333,
+     "fixed": [],
+     "broke": [
+      "code-from-image",
+      "extract-elf",
+      "financial-document-processor",
+      "merge-diff-arc-agi-task"
+     ],
+     "diff": "--- agent.py (c001)\n+++ agent.py (c002)\n@@ -40,7 +40,7 @@\n \n def run_tool_call(call, env):\n     args = json.loads(call[\"function\"][\"arguments\"])\n-    result = env.shell(\"{ \" + args[\"command\"] + \"\\n} 2>/dev/null\", timeout=COMMAND_TIMEOUT_S)  # only stdout: stderr is mostly noise\n+    result = env.shell(\"{ \" + args[\"command\"] + \"\\n} 2>&1\", timeout=COMMAND_TIMEOUT_S)  # keep stderr: errors and test output live there\n     return format_output(result)\n \n \n",
+     "spend_usd": 0.497941,
+     "siblings": [],
+     "strategy": {
+      "name": "failures-first",
+      "preset": "failures-first",
+      "hash": "251e4e8614",
+      "modified": false,
+      "knobs": {
+       "traces": "failed",
+       "max_traces": 8,
+       "history": "titles",
+       "diffs": false,
+       "candidates": 1,
+       "val_trials": 2,
+       "z": 1.5,
+       "confirm": true,
+       "iterations": 4
+      },
+      "prompt": "Read `traces/INDEX.md` and every failed transcript in `traces/`, then `HISTORY.md` (titles and verdicts of\nearlier attempts), `CONTRACT.md` and `agent.py`.\n\nBefore you edit anything, write `FAILURES.md`: one line per failed transcript naming the mechanism that made\nit fail (for example: ran out of steps, a command hung, the output it needed was cut, it stopped without\nchecking, it misread an error). Count how often each mechanism appears.\n\nThen fix the most frequent mechanism that no earlier iteration has already tried, with one focused change to\n`agent.py`. If the top mechanism was tried and dropped, take the next one.\n"
+     }
+    },
+    {
+     "t": 1135.07,
+     "schema": "aidev-evolve/1",
+     "run_id": "failures-first-1",
+     "kind": "heldout",
+     "seed": 0.5869565217391305,
+     "best": 0.8260869565217391,
+     "best_candidate": "c001",
+     "n_tasks": 23,
+     "trials": 2,
+     "diff": 0.2391304347826087,
+     "ci_low": 0.021739130434782608,
+     "ci_high": 0.43478260869565216,
+     "spend_usd": 0.828667,
+     "per_task": {
+      "build-pov-ray": [
+       0,
+       2,
+       1,
+       2
+      ],
+      "cancel-async-tasks": [
+       1,
+       2,
+       1,
+       2
+      ],
+      "bn-fit-modify": [
+       0,
+       2,
+       0,
+       2
+      ],
+      "regex-log": [
+       1,
+       2,
+       1,
+       2
+      ],
+      "sanitize-git-repo": [
+       1,
+       2,
+       2,
+       2
+      ],
+      "polyglot-c-py": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "openssl-selfsigned-cert": [
+       0,
+       2,
+       2,
+       2
+      ],
+      "build-pmars": [
+       0,
+       2,
+       2,
+       2
+      ],
+      "sqlite-db-truncate": [
+       0,
+       2,
+       2,
+       2
+      ],
+      "nginx-request-logging": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "log-summary-date-ranges": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "constraints-scheduling": [
+       2,
+       2,
+       1,
+       2
+      ],
+      "sqlite-with-gcov": [
+       0,
+       2,
+       2,
+       2
+      ],
+      "pypi-server": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "prove-plus-comm": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "multi-source-data-merger": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "modernize-scientific-stack": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "kv-store-grpc": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "hf-model-inference": [
+       1,
+       2,
+       2,
+       2
+      ],
+      "git-multibranch": [
+       1,
+       2,
+       2,
+       2
+      ],
+      "git-leak-recovery": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "db-wal-recovery": [
+       2,
+       2,
+       0,
+       2
+      ],
+      "configure-git-webserver": [
+       0,
+       2,
+       2,
+       2
+      ]
+     },
+     "kept": [
+      "Use the time budget, not 10 steps"
+     ],
+     "strategy": {
+      "name": "failures-first",
+      "preset": "failures-first",
+      "hash": "251e4e8614",
+      "modified": false,
+      "knobs": {
+       "traces": "failed",
+       "max_traces": 8,
+       "history": "titles",
+       "diffs": false,
+       "candidates": 1,
+       "val_trials": 2,
+       "z": 1.5,
+       "confirm": true,
+       "iterations": 4
+      },
+      "prompt": "Read `traces/INDEX.md` and every failed transcript in `traces/`, then `HISTORY.md` (titles and verdicts of\nearlier attempts), `CONTRACT.md` and `agent.py`.\n\nBefore you edit anything, write `FAILURES.md`: one line per failed transcript naming the mechanism that made\nit fail (for example: ran out of steps, a command hung, the output it needed was cut, it stopped without\nchecking, it misread an error). Count how often each mechanism appears.\n\nThen fix the most frequent mechanism that no earlier iteration has already tried, with one focused change to\n`agent.py`. If the top mechanism was tried and dropped, take the next one.\n"
+     }
+    }
+   ]
+  },
+  {
+   "name": "failures-first-2",
+   "user": "failures-first-2",
+   "events": [
+    {
+     "t": 110.67,
+     "schema": "aidev-evolve/1",
+     "run_id": "failures-first-2",
+     "kind": "seed",
+     "val_score": 0.35714285714285715,
+     "search_score": 0.0,
+     "spend_usd": 0.037116,
+     "strategy": {
+      "name": "failures-first",
+      "preset": "failures-first",
+      "hash": "251e4e8614",
+      "modified": false,
+      "knobs": {
+       "traces": "failed",
+       "max_traces": 8,
+       "history": "titles",
+       "diffs": false,
+       "candidates": 1,
+       "val_trials": 2,
+       "z": 1.5,
+       "confirm": true,
+       "iterations": 4
+      },
+      "prompt": "Read `traces/INDEX.md` and every failed transcript in `traces/`, then `HISTORY.md` (titles and verdicts of\nearlier attempts), `CONTRACT.md` and `agent.py`.\n\nBefore you edit anything, write `FAILURES.md`: one line per failed transcript naming the mechanism that made\nit fail (for example: ran out of steps, a command hung, the output it needed was cut, it stopped without\nchecking, it misread an error). Count how often each mechanism appears.\n\nThen fix the most frequent mechanism that no earlier iteration has already tried, with one focused change to\n`agent.py`. If the top mechanism was tried and dropped, take the next one.\n"
+     }
+    },
+    {
+     "t": 297.68,
+     "schema": "aidev-evolve/1",
+     "run_id": "failures-first-2",
+     "kind": "iteration",
+     "iteration": 1,
+     "candidate": "c001",
+     "parent": "c000",
+     "title": "Show stderr and keep output head and tail",
+     "hypothesis": "Hypothesis: the model works blind: stderr is discarded and output is cut to 1000 chars, seen in all four transcripts (hidden Python errors, unseen test results, files paged in tiny pieces).",
+     "accepted": false,
+     "verdict": "dropped",
+     "val_child": 0.5,
+     "val_parent": 0.2857142857142857,
+     "best_val": 0.2857142857142857,
+     "fixed": [
+      "extract-elf",
+      "fix-code-vulnerability",
+      "vulnerable-secret"
+     ],
+     "broke": [],
+     "diff": "--- agent.py (c000)\n+++ agent.py (c001)\n@@ -14,7 +14,7 @@\n Use the bash tool to run commands. When the task is complete, reply with a short summary.\"\"\"\n \n MAX_STEPS = 10\n-MAX_OUTPUT_CHARS = 1000\n+MAX_OUTPUT_CHARS = 4000\n COMMAND_TIMEOUT_S = 10  # a stuck command must not eat the whole budget\n \n BASH_TOOL = {\n@@ -33,13 +33,16 @@\n \n def format_output(result):\n     \"\"\"What the model sees of a command's result.\"\"\"\n-    output = result.output[:MAX_OUTPUT_CHARS]\n+    output = result.output\n+    if len(output) > MAX_OUTPUT_CHARS:  # keep the start and the end, where errors and results usually are\n+        half = MAX_OUTPUT_CHARS // 2\n+        output = output[:half] + f\"\\n[... {len(output) - 2 * half} chars cut ...]\\n\" + output[-half:]\n     return f\"exit code: {result.exit_code}\\n{output}\"\n \n \n def run_tool_call(call, env):\n     args = json.loads(call[\"function\"][\"arguments\"])\n-    result = env.shell(\"{ \" + args[\"command\"] + \"\\n} 2>/dev/null\", timeout=COMMAND_TIMEOUT_S)  # only stdout: stderr is mostly noise\n+    result = env.shell(args[\"command\"], timeout=COMMAND_TIMEOUT_S)  # stdout and stderr: error messages matter\n     return format_output(result)\n \n \n",
+     "spend_usd": 0.117204,
+     "siblings": [],
+     "strategy": {
+      "name": "failures-first",
+      "preset": "failures-first",
+      "hash": "251e4e8614",
+      "modified": false,
+      "knobs": {
+       "traces": "failed",
+       "max_traces": 8,
+       "history": "titles",
+       "diffs": false,
+       "candidates": 1,
+       "val_trials": 2,
+       "z": 1.5,
+       "confirm": true,
+       "iterations": 4
+      },
+      "prompt": "Read `traces/INDEX.md` and every failed transcript in `traces/`, then `HISTORY.md` (titles and verdicts of\nearlier attempts), `CONTRACT.md` and `agent.py`.\n\nBefore you edit anything, write `FAILURES.md`: one line per failed transcript naming the mechanism that made\nit fail (for example: ran out of steps, a command hung, the output it needed was cut, it stopped without\nchecking, it misread an error). Count how often each mechanism appears.\n\nThen fix the most frequent mechanism that no earlier iteration has already tried, with one focused change to\n`agent.py`. If the top mechanism was tried and dropped, take the next one.\n"
+     }
+    },
+    {
+     "t": 826.25,
+     "schema": "aidev-evolve/1",
+     "run_id": "failures-first-2",
+     "kind": "iteration",
+     "iteration": 2,
+     "candidate": "c002",
+     "parent": "c000",
+     "title": "Step limit follows the time budget",
+     "hypothesis": "Hypothesis: runs hit the 10-step cap with 100-160 s of the 180 s unused, before writing the required output file (dna-insert, sparql-university, count-dataset-tokens).",
+     "accepted": true,
+     "verdict": "kept",
+     "val_child": 0.6785714285714286,
+     "val_parent": 0.3392857142857143,
+     "best_val": 0.6785714285714286,
+     "fixed": [
+      "extract-elf",
+      "financial-document-processor",
+      "fix-code-vulnerability",
+      "merge-diff-arc-agi-task",
+      "vulnerable-secret"
+     ],
+     "broke": [],
+     "diff": "--- agent.py (c000)\n+++ agent.py (c002)\n@@ -13,7 +13,8 @@\n SYSTEM_PROMPT = \"\"\"You are an AI agent that solves tasks in a Linux terminal.\n Use the bash tool to run commands. When the task is complete, reply with a short summary.\"\"\"\n \n-MAX_STEPS = 10\n+MAX_STEPS = 60  # runs ended at 10 steps with 100+ s of the budget unused\n+SAFETY_S = 8  # stop asking the model when this little time is left\n MAX_OUTPUT_CHARS = 1000\n COMMAND_TIMEOUT_S = 10  # a stuck command must not eat the whole budget\n \n@@ -49,6 +50,8 @@\n         {\"role\": \"user\", \"content\": task},\n     ]\n     for step in range(MAX_STEPS):\n+        if env.time_left() < SAFETY_S:\n+            return\n         reply = env.llm(messages, tools=[BASH_TOOL])\n         messages.append(reply)\n         tool_calls = reply.get(\"tool_calls\") or []\n",
+     "spend_usd": 0.395968,
+     "siblings": [],
+     "strategy": {
+      "name": "failures-first",
+      "preset": "failures-first",
+      "hash": "251e4e8614",
+      "modified": false,
+      "knobs": {
+       "traces": "failed",
+       "max_traces": 8,
+       "history": "titles",
+       "diffs": false,
+       "candidates": 1,
+       "val_trials": 2,
+       "z": 1.5,
+       "confirm": true,
+       "iterations": 4
+      },
+      "prompt": "Read `traces/INDEX.md` and every failed transcript in `traces/`, then `HISTORY.md` (titles and verdicts of\nearlier attempts), `CONTRACT.md` and `agent.py`.\n\nBefore you edit anything, write `FAILURES.md`: one line per failed transcript naming the mechanism that made\nit fail (for example: ran out of steps, a command hung, the output it needed was cut, it stopped without\nchecking, it misread an error). Count how often each mechanism appears.\n\nThen fix the most frequent mechanism that no earlier iteration has already tried, with one focused change to\n`agent.py`. If the top mechanism was tried and dropped, take the next one.\n"
+     }
+    },
+    {
+     "t": 1110.94,
+     "schema": "aidev-evolve/1",
+     "run_id": "failures-first-2",
+     "kind": "heldout",
+     "seed": 0.6086956521739131,
+     "best": 0.8478260869565217,
+     "best_candidate": "c002",
+     "n_tasks": 23,
+     "trials": 2,
+     "diff": 0.2391304347826087,
+     "ci_low": 0.06521739130434782,
+     "ci_high": 0.41304347826086957,
+     "spend_usd": 0.722237,
+     "per_task": {
+      "build-pov-ray": [
+       0,
+       2,
+       1,
+       2
+      ],
+      "cancel-async-tasks": [
+       1,
+       2,
+       1,
+       2
+      ],
+      "bn-fit-modify": [
+       0,
+       2,
+       1,
+       2
+      ],
+      "regex-log": [
+       1,
+       2,
+       1,
+       2
+      ],
+      "sanitize-git-repo": [
+       1,
+       2,
+       2,
+       2
+      ],
+      "polyglot-c-py": [
+       2,
+       2,
+       1,
+       1
+      ],
+      "openssl-selfsigned-cert": [
+       1,
+       2,
+       2,
+       2
+      ],
+      "build-pmars": [
+       0,
+       2,
+       1,
+       2
+      ],
+      "sqlite-db-truncate": [
+       1,
+       2,
+       2,
+       2
+      ],
+      "nginx-request-logging": [
+       1,
+       2,
+       2,
+       2
+      ],
+      "log-summary-date-ranges": [
+       2,
+       2,
+       1,
+       2
+      ],
+      "constraints-scheduling": [
+       2,
+       2,
+       1,
+       2
+      ],
+      "sqlite-with-gcov": [
+       0,
+       2,
+       2,
+       2
+      ],
+      "pypi-server": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "prove-plus-comm": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "multi-source-data-merger": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "modernize-scientific-stack": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "kv-store-grpc": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "hf-model-inference": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "git-multibranch": [
+       0,
+       2,
+       2,
+       2
+      ],
+      "git-leak-recovery": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "db-wal-recovery": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "configure-git-webserver": [
+       0,
+       2,
+       2,
+       2
+      ]
+     },
+     "kept": [
+      "Step limit follows the time budget"
+     ],
+     "strategy": {
+      "name": "failures-first",
+      "preset": "failures-first",
+      "hash": "251e4e8614",
+      "modified": false,
+      "knobs": {
+       "traces": "failed",
+       "max_traces": 8,
+       "history": "titles",
+       "diffs": false,
+       "candidates": 1,
+       "val_trials": 2,
+       "z": 1.5,
+       "confirm": true,
+       "iterations": 4
+      },
+      "prompt": "Read `traces/INDEX.md` and every failed transcript in `traces/`, then `HISTORY.md` (titles and verdicts of\nearlier attempts), `CONTRACT.md` and `agent.py`.\n\nBefore you edit anything, write `FAILURES.md`: one line per failed transcript naming the mechanism that made\nit fail (for example: ran out of steps, a command hung, the output it needed was cut, it stopped without\nchecking, it misread an error). Count how often each mechanism appears.\n\nThen fix the most frequent mechanism that no earlier iteration has already tried, with one focused change to\n`agent.py`. If the top mechanism was tried and dropped, take the next one.\n"
+     }
+    }
+   ]
+  },
+  {
+   "name": "limits-first-1",
+   "user": "limits-first-1",
+   "events": [
+    {
+     "t": 146.85,
+     "schema": "aidev-evolve/1",
+     "run_id": "limits-first-1",
+     "kind": "seed",
+     "val_score": 0.21428571428571427,
+     "search_score": 0.0,
+     "spend_usd": 0.036889,
+     "strategy": {
+      "name": "limits-first",
+      "preset": "baseline",
+      "hash": "a8c59872d6",
+      "modified": true,
+      "knobs": {
+       "traces": "all",
+       "max_traces": 8,
+       "history": "full",
+       "diffs": false,
+       "candidates": 1,
+       "val_trials": 2,
+       "z": 1.5,
+       "confirm": true,
+       "iterations": 4
+      },
+      "prompt": "Read, in this order:\n1. `agent.py`: list every hard limit the harness sets (step counts, timeouts, output caps, what is hidden from the model).\n2. `traces/INDEX.md`, then the transcripts in `traces/`. For each limit, count the transcripts where it cut the run short\n   or hid something the model needed (look for TIMED OUT, steps that stop early, cut output, missing errors).\n3. `HISTORY.md`: what earlier iterations tried, and whether validation kept or dropped it. Do not repeat a\n   dropped idea unchanged, and do not re-fix a limit an earlier kept patch already fixed.\n4. `CONTRACT.md` (what `env` offers).\n\nThen fix the limit that cut the most runs short, with one focused change to `agent.py`.\n"
+     }
+    },
+    {
+     "t": 705.26,
+     "schema": "aidev-evolve/1",
+     "run_id": "limits-first-1",
+     "kind": "iteration",
+     "iteration": 1,
+     "candidate": "c001",
+     "parent": "c000",
+     "title": "Raise step limit to use full time budget",
+     "hypothesis": "Hypothesis: MAX_STEPS=10 ended all 4 transcripts (10 model calls each, mid-work, only 20-68 s of the 180 s used) before the task was finished.",
+     "accepted": true,
+     "verdict": "kept",
+     "val_child": 0.8571428571428571,
+     "val_parent": 0.2619047619047619,
+     "best_val": 0.8571428571428571,
+     "fixed": [
+      "code-from-image",
+      "extract-elf",
+      "financial-document-processor",
+      "fix-code-vulnerability",
+      "merge-diff-arc-agi-task",
+      "vulnerable-secret"
+     ],
+     "broke": [],
+     "diff": "--- agent.py (c000)\n+++ agent.py (c001)\n@@ -13,7 +13,7 @@\n SYSTEM_PROMPT = \"\"\"You are an AI agent that solves tasks in a Linux terminal.\n Use the bash tool to run commands. When the task is complete, reply with a short summary.\"\"\"\n \n-MAX_STEPS = 10\n+MAX_STEPS = 60  # the 180 s budget is the real limit; 10 steps ended every run at 20-68 s\n MAX_OUTPUT_CHARS = 1000\n COMMAND_TIMEOUT_S = 10  # a stuck command must not eat the whole budget\n \n@@ -49,6 +49,8 @@\n         {\"role\": \"user\", \"content\": task},\n     ]\n     for step in range(MAX_STEPS):\n+        if env.time_left() < 8:\n+            return  # no time for another model call\n         reply = env.llm(messages, tools=[BASH_TOOL])\n         messages.append(reply)\n         tool_calls = reply.get(\"tool_calls\") or []\n",
+     "spend_usd": 0.326562,
+     "siblings": [],
+     "strategy": {
+      "name": "limits-first",
+      "preset": "baseline",
+      "hash": "a8c59872d6",
+      "modified": true,
+      "knobs": {
+       "traces": "all",
+       "max_traces": 8,
+       "history": "full",
+       "diffs": false,
+       "candidates": 1,
+       "val_trials": 2,
+       "z": 1.5,
+       "confirm": true,
+       "iterations": 4
+      },
+      "prompt": "Read, in this order:\n1. `agent.py`: list every hard limit the harness sets (step counts, timeouts, output caps, what is hidden from the model).\n2. `traces/INDEX.md`, then the transcripts in `traces/`. For each limit, count the transcripts where it cut the run short\n   or hid something the model needed (look for TIMED OUT, steps that stop early, cut output, missing errors).\n3. `HISTORY.md`: what earlier iterations tried, and whether validation kept or dropped it. Do not repeat a\n   dropped idea unchanged, and do not re-fix a limit an earlier kept patch already fixed.\n4. `CONTRACT.md` (what `env` offers).\n\nThen fix the limit that cut the most runs short, with one focused change to `agent.py`.\n"
+     }
+    },
+    {
+     "t": 996.4,
+     "schema": "aidev-evolve/1",
+     "run_id": "limits-first-1",
+     "kind": "iteration",
+     "iteration": 2,
+     "candidate": "c002",
+     "parent": "c001",
+     "title": "Raise command timeout from 10 to 60 s",
+     "hypothesis": "Hypothesis: the 10 s command timeout killed commands (exit -1, 0 chars shown) 7 times in 2 of 4 transcripts (count-dataset-tokens x6, sparql-university x1); the 60-step and 1000-char limits never bound.",
+     "accepted": false,
+     "verdict": "dropped",
+     "val_child": 0.7142857142857143,
+     "val_parent": 0.8095238095238095,
+     "best_val": 0.8095238095238095,
+     "fixed": [
+      "fix-code-vulnerability",
+      "merge-diff-arc-agi-task"
+     ],
+     "broke": [
+      "code-from-image",
+      "financial-document-processor"
+     ],
+     "diff": "--- agent.py (c001)\n+++ agent.py (c002)\n@@ -15,7 +15,7 @@\n \n MAX_STEPS = 60  # the 180 s budget is the real limit; 10 steps ended every run at 20-68 s\n MAX_OUTPUT_CHARS = 1000\n-COMMAND_TIMEOUT_S = 10  # a stuck command must not eat the whole budget\n+COMMAND_TIMEOUT_S = 60  # 10 s killed slow-but-working commands in 2 of 4 runs; capped by time left\n \n BASH_TOOL = {\n     \"type\": \"function\",\n@@ -39,7 +39,8 @@\n \n def run_tool_call(call, env):\n     args = json.loads(call[\"function\"][\"arguments\"])\n-    result = env.shell(\"{ \" + args[\"command\"] + \"\\n} 2>/dev/null\", timeout=COMMAND_TIMEOUT_S)  # only stdout: stderr is mostly noise\n+    timeout = max(5, min(COMMAND_TIMEOUT_S, int(env.time_left()) - 5))\n+    result = env.shell(\"{ \" + args[\"command\"] + \"\\n} 2>/dev/null\", timeout=timeout)  # only stdout: stderr is mostly noise\n     return format_output(result)\n \n \n",
+     "spend_usd": 0.602072,
+     "siblings": [],
+     "strategy": {
+      "name": "limits-first",
+      "preset": "baseline",
+      "hash": "a8c59872d6",
+      "modified": true,
+      "knobs": {
+       "traces": "all",
+       "max_traces": 8,
+       "history": "full",
+       "diffs": false,
+       "candidates": 1,
+       "val_trials": 2,
+       "z": 1.5,
+       "confirm": true,
+       "iterations": 4
+      },
+      "prompt": "Read, in this order:\n1. `agent.py`: list every hard limit the harness sets (step counts, timeouts, output caps, what is hidden from the model).\n2. `traces/INDEX.md`, then the transcripts in `traces/`. For each limit, count the transcripts where it cut the run short\n   or hid something the model needed (look for TIMED OUT, steps that stop early, cut output, missing errors).\n3. `HISTORY.md`: what earlier iterations tried, and whether validation kept or dropped it. Do not repeat a\n   dropped idea unchanged, and do not re-fix a limit an earlier kept patch already fixed.\n4. `CONTRACT.md` (what `env` offers).\n\nThen fix the limit that cut the most runs short, with one focused change to `agent.py`.\n"
+     }
+    },
+    {
+     "t": 1286.57,
+     "schema": "aidev-evolve/1",
+     "run_id": "limits-first-1",
+     "kind": "heldout",
+     "seed": 0.6086956521739131,
+     "best": 0.782608695652174,
+     "best_candidate": "c001",
+     "n_tasks": 23,
+     "trials": 2,
+     "diff": 0.17391304347826086,
+     "ci_low": 0.0,
+     "ci_high": 0.34782608695652173,
+     "spend_usd": 0.916122,
+     "per_task": {
+      "build-pov-ray": [
+       0,
+       2,
+       0,
+       2
+      ],
+      "cancel-async-tasks": [
+       1,
+       2,
+       1,
+       2
+      ],
+      "bn-fit-modify": [
+       0,
+       2,
+       0,
+       2
+      ],
+      "regex-log": [
+       1,
+       2,
+       1,
+       2
+      ],
+      "sanitize-git-repo": [
+       0,
+       2,
+       0,
+       2
+      ],
+      "polyglot-c-py": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "openssl-selfsigned-cert": [
+       2,
+       2,
+       1,
+       2
+      ],
+      "build-pmars": [
+       0,
+       2,
+       2,
+       2
+      ],
+      "sqlite-db-truncate": [
+       0,
+       2,
+       2,
+       2
+      ],
+      "nginx-request-logging": [
+       2,
+       2,
+       1,
+       2
+      ],
+      "log-summary-date-ranges": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "constraints-scheduling": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "sqlite-with-gcov": [
+       0,
+       2,
+       2,
+       2
+      ],
+      "pypi-server": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "prove-plus-comm": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "multi-source-data-merger": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "modernize-scientific-stack": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "kv-store-grpc": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "hf-model-inference": [
+       1,
+       2,
+       2,
+       2
+      ],
+      "git-multibranch": [
+       0,
+       2,
+       2,
+       2
+      ],
+      "git-leak-recovery": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "db-wal-recovery": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "configure-git-webserver": [
+       1,
+       2,
+       2,
+       2
+      ]
+     },
+     "kept": [
+      "Raise step limit to use full time budget"
+     ],
+     "strategy": {
+      "name": "limits-first",
+      "preset": "baseline",
+      "hash": "a8c59872d6",
+      "modified": true,
+      "knobs": {
+       "traces": "all",
+       "max_traces": 8,
+       "history": "full",
+       "diffs": false,
+       "candidates": 1,
+       "val_trials": 2,
+       "z": 1.5,
+       "confirm": true,
+       "iterations": 4
+      },
+      "prompt": "Read, in this order:\n1. `agent.py`: list every hard limit the harness sets (step counts, timeouts, output caps, what is hidden from the model).\n2. `traces/INDEX.md`, then the transcripts in `traces/`. For each limit, count the transcripts where it cut the run short\n   or hid something the model needed (look for TIMED OUT, steps that stop early, cut output, missing errors).\n3. `HISTORY.md`: what earlier iterations tried, and whether validation kept or dropped it. Do not repeat a\n   dropped idea unchanged, and do not re-fix a limit an earlier kept patch already fixed.\n4. `CONTRACT.md` (what `env` offers).\n\nThen fix the limit that cut the most runs short, with one focused change to `agent.py`.\n"
+     }
+    }
+   ]
+  },
+  {
+   "name": "limits-first-2",
+   "user": "limits-first-2",
+   "events": [
+    {
+     "t": 134.05,
+     "schema": "aidev-evolve/1",
+     "run_id": "limits-first-2",
+     "kind": "seed",
+     "val_score": 0.2857142857142857,
+     "search_score": 0.0,
+     "spend_usd": 0.037123,
+     "strategy": {
+      "name": "limits-first",
+      "preset": "baseline",
+      "hash": "a8c59872d6",
+      "modified": true,
+      "knobs": {
+       "traces": "all",
+       "max_traces": 8,
+       "history": "full",
+       "diffs": false,
+       "candidates": 1,
+       "val_trials": 2,
+       "z": 1.5,
+       "confirm": true,
+       "iterations": 4
+      },
+      "prompt": "Read, in this order:\n1. `agent.py`: list every hard limit the harness sets (step counts, timeouts, output caps, what is hidden from the model).\n2. `traces/INDEX.md`, then the transcripts in `traces/`. For each limit, count the transcripts where it cut the run short\n   or hid something the model needed (look for TIMED OUT, steps that stop early, cut output, missing errors).\n3. `HISTORY.md`: what earlier iterations tried, and whether validation kept or dropped it. Do not repeat a\n   dropped idea unchanged, and do not re-fix a limit an earlier kept patch already fixed.\n4. `CONTRACT.md` (what `env` offers).\n\nThen fix the limit that cut the most runs short, with one focused change to `agent.py`.\n"
+     }
+    },
+    {
+     "t": 693.31,
+     "schema": "aidev-evolve/1",
+     "run_id": "limits-first-2",
+     "kind": "iteration",
+     "iteration": 1,
+     "candidate": "c001",
+     "parent": "c000",
+     "title": "Step limit replaced by time budget",
+     "hypothesis": "Hypothesis: MAX_STEPS=10 cut 3 of 4 runs (count-dataset-tokens, dna-insert, sparql-university each ended at exactly 10 model calls, still exploring) while using only 18-57 s of the 180 s budget; no run hit the time limit.",
+     "accepted": true,
+     "verdict": "kept",
+     "val_child": 0.75,
+     "val_parent": 0.2857142857142857,
+     "best_val": 0.75,
+     "fixed": [
+      "code-from-image",
+      "financial-document-processor",
+      "fix-code-vulnerability",
+      "merge-diff-arc-agi-task",
+      "vulnerable-secret"
+     ],
+     "broke": [
+      "extract-elf"
+     ],
+     "diff": "--- agent.py (c000)\n+++ agent.py (c001)\n@@ -13,7 +13,8 @@\n SYSTEM_PROMPT = \"\"\"You are an AI agent that solves tasks in a Linux terminal.\n Use the bash tool to run commands. When the task is complete, reply with a short summary.\"\"\"\n \n-MAX_STEPS = 10\n+MAX_STEPS = 100  # a safety net only: the real limit is the time budget (env.time_left())\n+MIN_TIME_LEFT_S = 8  # stop calling the model when less than this is left\n MAX_OUTPUT_CHARS = 1000\n COMMAND_TIMEOUT_S = 10  # a stuck command must not eat the whole budget\n \n@@ -49,6 +50,8 @@\n         {\"role\": \"user\", \"content\": task},\n     ]\n     for step in range(MAX_STEPS):\n+        if env.time_left() < MIN_TIME_LEFT_S:\n+            return\n         reply = env.llm(messages, tools=[BASH_TOOL])\n         messages.append(reply)\n         tool_calls = reply.get(\"tool_calls\") or []\n",
+     "spend_usd": 0.402546,
+     "siblings": [],
+     "strategy": {
+      "name": "limits-first",
+      "preset": "baseline",
+      "hash": "a8c59872d6",
+      "modified": true,
+      "knobs": {
+       "traces": "all",
+       "max_traces": 8,
+       "history": "full",
+       "diffs": false,
+       "candidates": 1,
+       "val_trials": 2,
+       "z": 1.5,
+       "confirm": true,
+       "iterations": 4
+      },
+      "prompt": "Read, in this order:\n1. `agent.py`: list every hard limit the harness sets (step counts, timeouts, output caps, what is hidden from the model).\n2. `traces/INDEX.md`, then the transcripts in `traces/`. For each limit, count the transcripts where it cut the run short\n   or hid something the model needed (look for TIMED OUT, steps that stop early, cut output, missing errors).\n3. `HISTORY.md`: what earlier iterations tried, and whether validation kept or dropped it. Do not repeat a\n   dropped idea unchanged, and do not re-fix a limit an earlier kept patch already fixed.\n4. `CONTRACT.md` (what `env` offers).\n\nThen fix the limit that cut the most runs short, with one focused change to `agent.py`.\n"
+     }
+    },
+    {
+     "t": 1077.47,
+     "schema": "aidev-evolve/1",
+     "run_id": "limits-first-2",
      "kind": "iteration",
      "iteration": 2,
      "candidate": "c002",
      "parent": "c001",
      "title": "Show more output, keep head and tail",
-     "hypothesis": "Hypothesis: In sparql-university the model saw only the first 1000 chars of every output, silently cut, and spent ~8 of 15 calls re-reading the same file in pieces; it missed data (graduation dates) and finished unverified.",
+     "hypothesis": "Hypothesis: the 1000-char output cap cut command output in all 4 transcripts (19 outputs of 1,000+ chars, up to 11,642), hiding lines the model needed; the 10 s command timeout hit only 1 run.",
      "accepted": false,
      "verdict": "dropped",
-     "val_child": 0.8333333333333334,
-     "val_parent": 0.8611111111111112,
-     "best_val": 0.8611111111111112,
-     "fixed": [],
-     "broke": [
-      "build-pmars"
-     ],
-     "diff": "--- agent.py (c001)\n+++ agent.py (c002)\n@@ -15,7 +15,7 @@\n \n MAX_STEPS = 200  # a safety net only: the real limit is the clock\n STOP_MARGIN = 5  # seconds kept free at the end\n-MAX_OUTPUT_CHARS = 1000\n+MAX_OUTPUT_CHARS = 4000\n \n BASH_TOOL = {\n     \"type\": \"function\",\n@@ -33,7 +33,10 @@\n \n def format_output(result):\n     \"\"\"What the model sees of a command's result.\"\"\"\n-    output = result.output[:MAX_OUTPUT_CHARS]\n+    output = result.output\n+    if len(output) > MAX_OUTPUT_CHARS:  # keep head and tail, say what was cut\n+        half = MAX_OUTPUT_CHARS // 2\n+        output = f\"{output[:half]}\\n[... {len(output) - 2 * half} chars cut; narrow the command (grep, sed -n, head) to see them ...]\\n{output[-half:]}\"\n     return f\"exit code: {result.exit_code}\\n{output}\"\n \n \n",
-     "spend_usd": 0.33055
-    },
-    {
-     "t": 1040.88,
-     "schema": "aidev-evolve/1",
-     "run_id": "B1",
-     "kind": "iteration",
-     "iteration": 3,
-     "candidate": "c003",
-     "parent": "c001",
-     "title": "Show stderr to the model",
-     "hypothesis": "Hypothesis: The harness discards stderr (2>/dev/null), so a failing command shows only \"exit code: 127\" with no message; in sparql-university the model could not see why its check failed, never validated its query, and finished wrong.",
-     "accepted": false,
-     "verdict": "dropped",
-     "val_child": 0.8333333333333334,
-     "val_parent": 0.875,
-     "best_val": 0.875,
+     "val_child": 0.8571428571428571,
+     "val_parent": 0.7380952380952381,
+     "best_val": 0.7380952380952381,
      "fixed": [
-      "build-pmars"
+      "extract-elf",
+      "financial-document-processor"
      ],
      "broke": [
-      "constraints-scheduling"
+      "code-from-image"
      ],
-     "diff": "--- agent.py (c001)\n+++ agent.py (c003)\n@@ -39,7 +39,7 @@\n \n def run_tool_call(call, env):\n     args = json.loads(call[\"function\"][\"arguments\"])\n-    result = env.shell(\"{ \" + args[\"command\"] + \"\\n} 2>/dev/null\")  # only stdout: stderr is mostly noise\n+    result = env.shell(\"{ \" + args[\"command\"] + \"\\n} 2>&1\")  # stderr too: error messages explain why a command failed\n     return format_output(result)\n \n \n",
-     "spend_usd": 0.452172
+     "diff": "--- agent.py (c001)\n+++ agent.py (c002)\n@@ -15,7 +15,7 @@\n \n MAX_STEPS = 100  # a safety net only: the real limit is the time budget (env.time_left())\n MIN_TIME_LEFT_S = 8  # stop calling the model when less than this is left\n-MAX_OUTPUT_CHARS = 1000\n+MAX_OUTPUT_CHARS = 4000\n COMMAND_TIMEOUT_S = 10  # a stuck command must not eat the whole budget\n \n BASH_TOOL = {\n@@ -34,7 +34,10 @@\n \n def format_output(result):\n     \"\"\"What the model sees of a command's result.\"\"\"\n-    output = result.output[:MAX_OUTPUT_CHARS]\n+    output = result.output\n+    if len(output) > MAX_OUTPUT_CHARS:  # keep the start and the end (results and errors are often last)\n+        half = MAX_OUTPUT_CHARS // 2\n+        output = output[:half] + f\"\\n[... {len(output) - 2 * half} chars cut ...]\\n\" + output[-half:]\n     return f\"exit code: {result.exit_code}\\n{output}\"\n \n \n",
+     "spend_usd": 0.649158,
+     "siblings": [],
+     "strategy": {
+      "name": "limits-first",
+      "preset": "baseline",
+      "hash": "a8c59872d6",
+      "modified": true,
+      "knobs": {
+       "traces": "all",
+       "max_traces": 8,
+       "history": "full",
+       "diffs": false,
+       "candidates": 1,
+       "val_trials": 2,
+       "z": 1.5,
+       "confirm": true,
+       "iterations": 4
+      },
+      "prompt": "Read, in this order:\n1. `agent.py`: list every hard limit the harness sets (step counts, timeouts, output caps, what is hidden from the model).\n2. `traces/INDEX.md`, then the transcripts in `traces/`. For each limit, count the transcripts where it cut the run short\n   or hid something the model needed (look for TIMED OUT, steps that stop early, cut output, missing errors).\n3. `HISTORY.md`: what earlier iterations tried, and whether validation kept or dropped it. Do not repeat a\n   dropped idea unchanged, and do not re-fix a limit an earlier kept patch already fixed.\n4. `CONTRACT.md` (what `env` offers).\n\nThen fix the limit that cut the most runs short, with one focused change to `agent.py`.\n"
+     }
     },
     {
-     "t": 1275.56,
+     "t": 1295.06,
      "schema": "aidev-evolve/1",
-     "run_id": "B1",
-     "kind": "iteration",
-     "iteration": 4,
-     "candidate": "c004",
-     "parent": "c001",
-     "title": "Verify by running before finishing",
-     "hypothesis": "Hypothesis: sparql-university ended with a text answer after 51 s of 180 s; the final solution was never executed or checked against the requirements, and it was wrong. Time was left unused.",
-     "accepted": false,
-     "verdict": "dropped",
-     "val_child": 0.8333333333333334,
-     "val_parent": 0.8833333333333333,
-     "best_val": 0.8833333333333333,
-     "fixed": [
-      "build-pmars"
-     ],
-     "broke": [
-      "extract-elf"
-     ],
-     "diff": "--- agent.py (c001)\n+++ agent.py (c004)\n@@ -13,7 +13,11 @@\n SYSTEM_PROMPT = \"\"\"You are an AI agent that solves tasks in a Linux terminal.\n Use the bash tool to run commands. When the task is complete, reply with a short summary.\"\"\"\n \n-MAX_STEPS = 200  # a safety net only: the real limit is the clock\n+CHECK_PROMPT = \"\"\"Before you finish: re-read the task and list each requirement. Then verify the result by\n+actually running it (execute the program or query, run the tests, inspect the output file) and compare\n+with every requirement. Fix what fails. Only if everything is verified, reply with a short summary.\"\"\"\n+\n+MAX_STEPS = 200 # a safety net only: the real limit is the clock\n STOP_MARGIN = 5  # seconds kept free at the end\n MAX_OUTPUT_CHARS = 1000\n \n@@ -48,6 +52,7 @@\n         {\"role\": \"system\", \"content\": SYSTEM_PROMPT},\n         {\"role\": \"user\", \"content\": task},\n     ]\n+    checked = False\n     for step in range(MAX_STEPS):\n         if env.time_left() < STOP_MARGIN:\n             return\n@@ -55,7 +60,11 @@\n         messages.append(reply)\n         tool_calls = reply.get(\"tool_calls\") or []\n         if not tool_calls:\n-            return  # the model answered in text: we are done\n+            if checked or env.time_left() < 40:\n+                return  # the model answered in text: we are done\n+            checked = True  # once: make the model test its result before it may finish\n+            messages.append({\"role\": \"user\", \"content\": CHECK_PROMPT})\n+            continue\n         for call in tool_calls:\n             content = run_tool_call(call, env)\n             messages.append({\"role\": \"tool\", \"tool_call_id\": call[\"id\"], \"content\": content})\n",
-     "spend_usd": 0.636407
-    },
-    {
-     "t": 1530.62,
-     "schema": "aidev-evolve/1",
-     "run_id": "B1",
-     "kind": "iteration",
-     "iteration": 5,
-     "candidate": "c005",
-     "parent": "c001",
-     "title": "Tell the model when output is truncated",
-     "hypothesis": "Hypothesis: Outputs are silently cut at 1000 chars; in sparql-university the model re-read the data file in pieces, never saw the graduation dates, assumed it had seen everything and answered wrongly.",
-     "accepted": false,
-     "verdict": "dropped",
-     "val_child": 0.8333333333333334,
-     "val_parent": 0.8611111111111112,
-     "best_val": 0.8611111111111112,
-     "fixed": [
-      "configure-git-webserver"
-     ],
-     "broke": [
-      "build-pmars"
-     ],
-     "diff": "--- agent.py (c001)\n+++ agent.py (c005)\n@@ -34,6 +34,9 @@\n def format_output(result):\n     \"\"\"What the model sees of a command's result.\"\"\"\n     output = result.output[:MAX_OUTPUT_CHARS]\n+    if len(result.output) > MAX_OUTPUT_CHARS:\n+        cut = len(result.output) - MAX_OUTPUT_CHARS\n+        output += f\"\\n[TRUNCATED: {cut} more chars not shown. Do not assume the rest; use grep, head/tail or a smaller range.]\"\n     return f\"exit code: {result.exit_code}\\n{output}\"\n \n \n",
-     "spend_usd": 0.761413
-    },
-    {
-     "t": 1786.06,
-     "schema": "aidev-evolve/1",
-     "run_id": "B1",
-     "kind": "iteration",
-     "iteration": 6,
-     "candidate": "c006",
-     "parent": "c001",
-     "title": "Explicit work routine in system prompt",
-     "hypothesis": "Hypothesis: The sparql-university run ended on reasoning about data counts with the query never executed; the system prompt gives no working method (sparql-university trace, steps 13-15).",
-     "accepted": false,
-     "verdict": "dropped",
-     "val_child": 0.9166666666666666,
-     "val_parent": 0.8690476190476191,
-     "best_val": 0.8690476190476191,
-     "fixed": [
-      "build-pmars",
-      "configure-git-webserver",
-      "constraints-scheduling"
-     ],
-     "broke": [
-      "count-dataset-tokens"
-     ],
-     "diff": "--- agent.py (c001)\n+++ agent.py (c006)\n@@ -11,7 +11,14 @@\n import json\n \n SYSTEM_PROMPT = \"\"\"You are an AI agent that solves tasks in a Linux terminal.\n-Use the bash tool to run commands. When the task is complete, reply with a short summary.\"\"\"\n+Use the bash tool to run commands. When the task is complete, reply with a short summary.\n+\n+Work like this:\n+1. Before acting, list every requirement in the task (exact file names, paths, formats, edge cases).\n+2. Look at the real inputs first; never guess data, names or tool availability.\n+3. Build the result, then test it by executing it on the real data, e.g. run the program or query\n+   and compare its output with what the task asks for. Reasoning about the answer is not a test.\n+4. If a tool is missing or a check fails, fix the cause and rerun; do not stop on an untested result.\"\"\"\n \n MAX_STEPS = 200  # a safety net only: the real limit is the clock\n STOP_MARGIN = 5  # seconds kept free at the end\n",
-     "spend_usd": 0.932591
-    },
-    {
-     "t": 2032.33,
-     "schema": "aidev-evolve/1",
-     "run_id": "B1",
-     "kind": "iteration",
-     "iteration": 7,
-     "candidate": "c007",
-     "parent": "c001",
-     "title": "Show remaining time after every command",
-     "hypothesis": "Hypothesis: The model never sees the clock; runs end in text after 15-50 s with the answer unexecuted (sparql-university) or use 106-134 s without noticing the deadline (build-pov-ray, financial-document-processor).",
-     "accepted": false,
-     "verdict": "dropped",
-     "val_child": 0.75,
-     "val_parent": 0.84375,
-     "best_val": 0.84375,
-     "fixed": [
-      "configure-git-webserver",
-      "constraints-scheduling",
-      "extract-elf"
-     ],
-     "broke": [
-      "build-pmars",
-      "count-dataset-tokens"
-     ],
-     "diff": "--- agent.py (c001)\n+++ agent.py (c007)\n@@ -31,16 +31,18 @@\n }\n \n \n-def format_output(result):\n-    \"\"\"What the model sees of a command's result.\"\"\"\n+def format_output(result, time_left):\n+    \"\"\"What the model sees of a command's result, plus the clock.\"\"\"\n     output = result.output[:MAX_OUTPUT_CHARS]\n-    return f\"exit code: {result.exit_code}\\n{output}\"\n+    note = f\"[{int(time_left)} s left of the budget\"\n+    note += \"; wrap up: make sure the deliverable exists and works]\" if time_left < 45 else \"]\"\n+    return f\"exit code: {result.exit_code}\\n{output}\\n{note}\"\n \n \n def run_tool_call(call, env):\n     args = json.loads(call[\"function\"][\"arguments\"])\n     result = env.shell(\"{ \" + args[\"command\"] + \"\\n} 2>/dev/null\")  # only stdout: stderr is mostly noise\n-    return format_output(result)\n+    return format_output(result, env.time_left())\n \n \n def run(task, env):\n",
-     "spend_usd": 1.047861
-    },
-    {
-     "t": 2282.8,
-     "schema": "aidev-evolve/1",
-     "run_id": "B1",
-     "kind": "iteration",
-     "iteration": 8,
-     "candidate": "c008",
-     "parent": "c001",
-     "title": "Save full output to a searchable file",
-     "hypothesis": "Hypothesis: In sparql-university the model saw only the first 1000 chars of each output, re-read the data in pieces (8 of 15 calls), missed the graduation dates and answered wrongly; iterations 2 and 5 (bigger cap, a note) were dropped.",
-     "accepted": false,
-     "verdict": "dropped",
-     "val_child": 0.8333333333333334,
-     "val_parent": 0.8518518518518517,
-     "best_val": 0.8518518518518517,
-     "fixed": [
-      "build-pmars",
-      "configure-git-webserver",
-      "count-dataset-tokens",
-      "extract-elf"
-     ],
-     "broke": [
-      "constraints-scheduling"
-     ],
-     "diff": "--- agent.py (c001)\n+++ agent.py (c008)\n@@ -31,16 +31,21 @@\n }\n \n \n-def format_output(result):\n-    \"\"\"What the model sees of a command's result.\"\"\"\n-    output = result.output[:MAX_OUTPUT_CHARS]\n+def format_output(result, full, path):\n+    \"\"\"What the model sees of a command's result; long output is kept in a file it can search.\"\"\"\n+    output = full[:MAX_OUTPUT_CHARS]\n+    if len(full) > MAX_OUTPUT_CHARS:\n+        output += (f\"\\n[{len(full) - MAX_OUTPUT_CHARS} more chars not shown. Full output saved in {path}: \"\n+                   f\"use grep -n, sed -n 'A,Bp' or head/tail on it instead of re-running the command.]\")\n     return f\"exit code: {result.exit_code}\\n{output}\"\n \n \n-def run_tool_call(call, env):\n+def run_tool_call(call, env, n):\n     args = json.loads(call[\"function\"][\"arguments\"])\n-    result = env.shell(\"{ \" + args[\"command\"] + \"\\n} 2>/dev/null\")  # only stdout: stderr is mostly noise\n-    return format_output(result)\n+    path = f\"/tmp/out_{n}.txt\"\n+    result = env.shell(\"{ \" + args[\"command\"] + \"\\n} 2>/dev/null >\" + path)  # only stdout: stderr is mostly noise\n+    full = env.shell(f\"cat {path}\").output\n+    return format_output(result, full, path)\n \n \n def run(task, env):\n@@ -56,6 +61,6 @@\n         tool_calls = reply.get(\"tool_calls\") or []\n         if not tool_calls:\n             return  # the model answered in text: we are done\n-        for call in tool_calls:\n-            content = run_tool_call(call, env)\n+        for i, call in enumerate(tool_calls):\n+            content = run_tool_call(call, env, f\"{step}_{i}\")\n             messages.append({\"role\": \"tool\", \"tool_call_id\": call[\"id\"], \"content\": content})\n",
-     "spend_usd": 1.181824
-    },
-    {
-     "t": 2499.21,
-     "schema": "aidev-evolve/1",
-     "run_id": "B1",
+     "run_id": "limits-first-2",
      "kind": "heldout",
-     "seed": 0.8125,
-     "best": 0.8125,
+     "seed": 0.5869565217391305,
+     "best": 0.782608695652174,
      "best_candidate": "c001",
-     "n_tasks": 8,
+     "n_tasks": 23,
      "trials": 2,
-     "diff": 0.0,
-     "ci_low": -0.25,
-     "ci_high": 0.25,
-     "spend_usd": 1.290628
+     "diff": 0.1956521739130435,
+     "ci_low": -0.021739130434782608,
+     "ci_high": 0.41304347826086957,
+     "spend_usd": 0.878023,
+     "per_task": {
+      "build-pov-ray": [
+       0,
+       2,
+       1,
+       1
+      ],
+      "cancel-async-tasks": [
+       1,
+       2,
+       1,
+       2
+      ],
+      "bn-fit-modify": [
+       0,
+       2,
+       0,
+       2
+      ],
+      "regex-log": [
+       0,
+       2,
+       1,
+       2
+      ],
+      "sanitize-git-repo": [
+       0,
+       2,
+       1,
+       2
+      ],
+      "polyglot-c-py": [
+       1,
+       2,
+       2,
+       2
+      ],
+      "openssl-selfsigned-cert": [
+       1,
+       2,
+       2,
+       2
+      ],
+      "build-pmars": [
+       0,
+       2,
+       2,
+       2
+      ],
+      "sqlite-db-truncate": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "nginx-request-logging": [
+       2,
+       2,
+       0,
+       2
+      ],
+      "log-summary-date-ranges": [
+       2,
+       2,
+       1,
+       2
+      ],
+      "constraints-scheduling": [
+       2,
+       2,
+       1,
+       2
+      ],
+      "sqlite-with-gcov": [
+       0,
+       2,
+       2,
+       2
+      ],
+      "pypi-server": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "prove-plus-comm": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "multi-source-data-merger": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "modernize-scientific-stack": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "kv-store-grpc": [
+       2,
+       2,
+       1,
+       2
+      ],
+      "hf-model-inference": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "git-multibranch": [
+       1,
+       2,
+       2,
+       2
+      ],
+      "git-leak-recovery": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "db-wal-recovery": [
+       1,
+       2,
+       2,
+       2
+      ],
+      "configure-git-webserver": [
+       0,
+       2,
+       2,
+       2
+      ]
+     },
+     "kept": [
+      "Step limit replaced by time budget"
+     ],
+     "strategy": {
+      "name": "limits-first",
+      "preset": "baseline",
+      "hash": "a8c59872d6",
+      "modified": true,
+      "knobs": {
+       "traces": "all",
+       "max_traces": 8,
+       "history": "full",
+       "diffs": false,
+       "candidates": 1,
+       "val_trials": 2,
+       "z": 1.5,
+       "confirm": true,
+       "iterations": 4
+      },
+      "prompt": "Read, in this order:\n1. `agent.py`: list every hard limit the harness sets (step counts, timeouts, output caps, what is hidden from the model).\n2. `traces/INDEX.md`, then the transcripts in `traces/`. For each limit, count the transcripts where it cut the run short\n   or hid something the model needed (look for TIMED OUT, steps that stop early, cut output, missing errors).\n3. `HISTORY.md`: what earlier iterations tried, and whether validation kept or dropped it. Do not repeat a\n   dropped idea unchanged, and do not re-fix a limit an earlier kept patch already fixed.\n4. `CONTRACT.md` (what `env` offers).\n\nThen fix the limit that cut the most runs short, with one focused change to `agent.py`.\n"
+     }
     }
    ]
   },
   {
-   "name": "B2",
-   "user": "recorded-B2",
+   "name": "limits-first-3",
+   "user": "limits-first-3",
    "events": [
     {
-     "t": 104.51,
+     "t": 152.96,
      "schema": "aidev-evolve/1",
-     "run_id": "B2",
+     "run_id": "limits-first-3",
      "kind": "seed",
-     "val_score": 0.3333333333333333,
+     "val_score": 0.35714285714285715,
      "search_score": 0.0,
-     "spend_usd": 0.039821
+     "spend_usd": 0.045815,
+     "strategy": {
+      "name": "limits-first",
+      "preset": "baseline",
+      "hash": "a8c59872d6",
+      "modified": true,
+      "knobs": {
+       "traces": "all",
+       "max_traces": 8,
+       "history": "full",
+       "diffs": false,
+       "candidates": 1,
+       "val_trials": 2,
+       "z": 1.5,
+       "confirm": true,
+       "iterations": 4
+      },
+      "prompt": "Read, in this order:\n1. `agent.py`: list every hard limit the harness sets (step counts, timeouts, output caps, what is hidden from the model).\n2. `traces/INDEX.md`, then the transcripts in `traces/`. For each limit, count the transcripts where it cut the run short\n   or hid something the model needed (look for TIMED OUT, steps that stop early, cut output, missing errors).\n3. `HISTORY.md`: what earlier iterations tried, and whether validation kept or dropped it. Do not repeat a\n   dropped idea unchanged, and do not re-fix a limit an earlier kept patch already fixed.\n4. `CONTRACT.md` (what `env` offers).\n\nThen fix the limit that cut the most runs short, with one focused change to `agent.py`.\n"
+     }
     },
     {
-     "t": 465.84,
+     "t": 717.01,
      "schema": "aidev-evolve/1",
-     "run_id": "B2",
+     "run_id": "limits-first-3",
      "kind": "iteration",
      "iteration": 1,
      "candidate": "c001",
      "parent": "c000",
-     "title": "Run until time budget, not 10 steps",
-     "hypothesis": "Hypothesis: all four transcripts end \"returned\" after exactly 10 model calls and only 18-32 s of the 180 s budget; the model was still exploring (listing files, checking tools) when the step cap cut it off.",
+     "title": "Raise step limit, stop on time budget",
+     "hypothesis": "Hypothesis: all 4 transcripts end after exactly 10 model calls (MAX_STEPS) with only 22-73 s of the 180 s used; the model was still mid-work when cut off.",
      "accepted": true,
      "verdict": "kept",
-     "val_child": 0.8333333333333334,
-     "val_parent": 0.5,
-     "best_val": 0.8333333333333334,
+     "val_child": 0.7857142857142857,
+     "val_parent": 0.33333333333333337,
+     "best_val": 0.7857142857142857,
      "fixed": [
-      "build-pmars",
-      "configure-git-webserver",
-      "constraints-scheduling",
-      "count-dataset-tokens",
-      "extract-elf",
-      "sqlite-with-gcov"
+      "code-from-image",
+      "financial-document-processor",
+      "fix-code-vulnerability",
+      "merge-diff-arc-agi-task",
+      "vulnerable-secret"
      ],
      "broke": [],
-     "diff": "--- agent.py (c000)\n+++ agent.py (c001)\n@@ -13,7 +13,8 @@\n SYSTEM_PROMPT = \"\"\"You are an AI agent that solves tasks in a Linux terminal.\n Use the bash tool to run commands. When the task is complete, reply with a short summary.\"\"\"\n \n-MAX_STEPS = 10\n+MAX_STEPS = 100  # a safety net: the time budget is the real limit\n+STOP_MARGIN = 10  # seconds kept free so the last command is not cut off\n MAX_OUTPUT_CHARS = 1000\n \n BASH_TOOL = {\n@@ -48,6 +49,8 @@\n         {\"role\": \"user\", \"content\": task},\n     ]\n     for step in range(MAX_STEPS):\n+        if env.time_left() < STOP_MARGIN:\n+            return\n         reply = env.llm(messages, tools=[BASH_TOOL])\n         messages.append(reply)\n         tool_calls = reply.get(\"tool_calls\") or []\n",
-     "spend_usd": 0.241008
+     "diff": "--- agent.py (c000)\n+++ agent.py (c001)\n@@ -13,7 +13,7 @@\n SYSTEM_PROMPT = \"\"\"You are an AI agent that solves tasks in a Linux terminal.\n Use the bash tool to run commands. When the task is complete, reply with a short summary.\"\"\"\n \n-MAX_STEPS = 10\n+MAX_STEPS = 60  # the 180 s budget, not the step count, should end a run\n MAX_OUTPUT_CHARS = 1000\n COMMAND_TIMEOUT_S = 10  # a stuck command must not eat the whole budget\n \n@@ -49,6 +49,8 @@\n         {\"role\": \"user\", \"content\": task},\n     ]\n     for step in range(MAX_STEPS):\n+        if env.time_left() < 10:\n+            return\n         reply = env.llm(messages, tools=[BASH_TOOL])\n         messages.append(reply)\n         tool_calls = reply.get(\"tool_calls\") or []\n",
+     "spend_usd": 0.33458,
+     "siblings": [],
+     "strategy": {
+      "name": "limits-first",
+      "preset": "baseline",
+      "hash": "a8c59872d6",
+      "modified": true,
+      "knobs": {
+       "traces": "all",
+       "max_traces": 8,
+       "history": "full",
+       "diffs": false,
+       "candidates": 1,
+       "val_trials": 2,
+       "z": 1.5,
+       "confirm": true,
+       "iterations": 4
+      },
+      "prompt": "Read, in this order:\n1. `agent.py`: list every hard limit the harness sets (step counts, timeouts, output caps, what is hidden from the model).\n2. `traces/INDEX.md`, then the transcripts in `traces/`. For each limit, count the transcripts where it cut the run short\n   or hid something the model needed (look for TIMED OUT, steps that stop early, cut output, missing errors).\n3. `HISTORY.md`: what earlier iterations tried, and whether validation kept or dropped it. Do not repeat a\n   dropped idea unchanged, and do not re-fix a limit an earlier kept patch already fixed.\n4. `CONTRACT.md` (what `env` offers).\n\nThen fix the limit that cut the most runs short, with one focused change to `agent.py`.\n"
+     }
     },
     {
-     "t": 655.37,
+     "t": 1094.95,
      "schema": "aidev-evolve/1",
-     "run_id": "B2",
+     "run_id": "limits-first-3",
      "kind": "iteration",
      "iteration": 2,
      "candidate": "c002",
      "parent": "c001",
-     "title": "Show stderr and the tail of outputs",
-     "hypothesis": "Hypothesis: failures (build-pov-ray, financial-document-processor) lost information: stderr was discarded and long outputs were cut to the first 1000 chars, so compiler/linker errors (printed last) and tool diagnostics were hidden and the model guessed or looped.",
+     "title": "Show stderr to the model",
+     "hypothesis": "Hypothesis: commands failed with exit 1/127 and \"printed 0 chars\" because stderr went to /dev/null, so the model could not see why (dna-insert 3x, sparql-university 2x, count-dataset-tokens 1x; the 10 s timeout hit only one run, the 1000-char cap none).",
      "accepted": false,
      "verdict": "dropped",
-     "val_child": 0.8333333333333334,
-     "val_parent": 0.8611111111111112,
-     "best_val": 0.8611111111111112,
+     "val_child": 0.7142857142857143,
+     "val_parent": 0.7619047619047619,
+     "best_val": 0.7619047619047619,
      "fixed": [
-      "extract-elf"
+      "financial-document-processor"
      ],
      "broke": [
-      "build-pmars",
-      "count-dataset-tokens"
+      "code-from-image",
+      "merge-diff-arc-agi-task"
      ],
-     "diff": "--- agent.py (c001)\n+++ agent.py (c002)\n@@ -15,7 +15,7 @@\n \n MAX_STEPS = 100  # a safety net: the time budget is the real limit\n STOP_MARGIN = 10  # seconds kept free so the last command is not cut off\n-MAX_OUTPUT_CHARS = 1000\n+MAX_OUTPUT_CHARS = 3000\n \n BASH_TOOL = {\n     \"type\": \"function\",\n@@ -33,13 +33,16 @@\n \n def format_output(result):\n     \"\"\"What the model sees of a command's result.\"\"\"\n-    output = result.output[:MAX_OUTPUT_CHARS]\n+    output = result.output\n+    if len(output) > MAX_OUTPUT_CHARS:  # errors and results come last: keep both ends\n+        half = MAX_OUTPUT_CHARS // 2\n+        output = output[:half] + f\"\\n[... {len(output) - 2 * half} chars cut ...]\\n\" + output[-half:]\n     return f\"exit code: {result.exit_code}\\n{output}\"\n \n \n def run_tool_call(call, env):\n     args = json.loads(call[\"function\"][\"arguments\"])\n-    result = env.shell(\"{ \" + args[\"command\"] + \"\\n} 2>/dev/null\")  # only stdout: stderr is mostly noise\n+    result = env.shell(\"{ \" + args[\"command\"] + \"\\n} 2>&1\")  # stderr carries the error messages\n     return format_output(result)\n \n \n",
-     "spend_usd": 0.344851
+     "diff": "--- agent.py (c001)\n+++ agent.py (c002)\n@@ -39,7 +39,7 @@\n \n def run_tool_call(call, env):\n     args = json.loads(call[\"function\"][\"arguments\"])\n-    result = env.shell(\"{ \" + args[\"command\"] + \"\\n} 2>/dev/null\", timeout=COMMAND_TIMEOUT_S)  # only stdout: stderr is mostly noise\n+    result = env.shell(\"{ \" + args[\"command\"] + \"\\n} 2>&1\", timeout=COMMAND_TIMEOUT_S)  # stderr holds the error messages the model needs\n     return format_output(result)\n \n \n",
+     "spend_usd": 0.529296,
+     "siblings": [],
+     "strategy": {
+      "name": "limits-first",
+      "preset": "baseline",
+      "hash": "a8c59872d6",
+      "modified": true,
+      "knobs": {
+       "traces": "all",
+       "max_traces": 8,
+       "history": "full",
+       "diffs": false,
+       "candidates": 1,
+       "val_trials": 2,
+       "z": 1.5,
+       "confirm": true,
+       "iterations": 4
+      },
+      "prompt": "Read, in this order:\n1. `agent.py`: list every hard limit the harness sets (step counts, timeouts, output caps, what is hidden from the model).\n2. `traces/INDEX.md`, then the transcripts in `traces/`. For each limit, count the transcripts where it cut the run short\n   or hid something the model needed (look for TIMED OUT, steps that stop early, cut output, missing errors).\n3. `HISTORY.md`: what earlier iterations tried, and whether validation kept or dropped it. Do not repeat a\n   dropped idea unchanged, and do not re-fix a limit an earlier kept patch already fixed.\n4. `CONTRACT.md` (what `env` offers).\n\nThen fix the limit that cut the most runs short, with one focused change to `agent.py`.\n"
+     }
     },
     {
-     "t": 899.65,
+     "t": 1384.89,
      "schema": "aidev-evolve/1",
-     "run_id": "B2",
-     "kind": "iteration",
-     "iteration": 3,
-     "candidate": "c003",
-     "parent": "c001",
-     "title": "Show the clock, force delivery near deadline",
-     "hypothesis": "Hypothesis: the model never sees the time budget; in financial-document-processor it spent 172 s of 180 s on OCR of one unreadable file and produced no output at all (also build-pov-ray finished unverified), so partial credit was impossible.",
-     "accepted": false,
-     "verdict": "dropped",
-     "val_child": 0.9166666666666666,
-     "val_parent": 0.8541666666666666,
-     "best_val": 0.8541666666666666,
-     "fixed": [
-      "build-pmars",
-      "extract-elf"
-     ],
-     "broke": [
-      "count-dataset-tokens"
-     ],
-     "diff": "--- agent.py (c001)\n+++ agent.py (c003)\n@@ -16,6 +16,7 @@\n MAX_STEPS = 100  # a safety net: the time budget is the real limit\n STOP_MARGIN = 10  # seconds kept free so the last command is not cut off\n MAX_OUTPUT_CHARS = 1000\n+WRAP_UP_AT = 70  # seconds left when the model is told to deliver what it has\n \n BASH_TOOL = {\n     \"type\": \"function\",\n@@ -35,6 +36,16 @@\n     \"\"\"What the model sees of a command's result.\"\"\"\n     output = result.output[:MAX_OUTPUT_CHARS]\n     return f\"exit code: {result.exit_code}\\n{output}\"\n+\n+\n+def clock_note(env):\n+    \"\"\"Keep the model aware of the deadline; near the end, demand a best-effort deliverable.\"\"\"\n+    left = int(env.time_left())\n+    note = f\"\\n[time left: {left} s]\"\n+    if left < WRAP_UP_AT:\n+        note += (\" WRAP UP NOW: stop investigating. Write every required output file/state with your\"\n+                 \" best guess (use placeholders for what you could not read), then finish.\")\n+    return note\n \n \n def run_tool_call(call, env):\n@@ -57,5 +68,5 @@\n         if not tool_calls:\n             return  # the model answered in text: we are done\n         for call in tool_calls:\n-            content = run_tool_call(call, env)\n+            content = run_tool_call(call, env) + clock_note(env)\n             messages.append({\"role\": \"tool\", \"tool_call_id\": call[\"id\"], \"content\": content})\n",
-     "spend_usd": 0.474644
-    },
-    {
-     "t": 1152.79,
-     "schema": "aidev-evolve/1",
-     "run_id": "B2",
-     "kind": "iteration",
-     "iteration": 4,
-     "candidate": "c004",
-     "parent": "c001",
-     "title": "Show stderr only when a command fails",
-     "hypothesis": "Hypothesis: stderr is thrown away, so failing commands return exit 2 and empty or vague output (build-pov-ray: compiler/linker errors hidden, repeated blind retries; financial-document-processor: tool failures invisible during OCR attempts).",
-     "accepted": false,
-     "verdict": "dropped",
-     "val_child": 0.8333333333333334,
-     "val_parent": 0.85,
-     "best_val": 0.85,
-     "fixed": [
-      "build-pmars",
-      "extract-elf"
-     ],
-     "broke": [
-      "count-dataset-tokens"
-     ],
-     "diff": "--- agent.py (c001)\n+++ agent.py (c004)\n@@ -39,8 +39,12 @@\n \n def run_tool_call(call, env):\n     args = json.loads(call[\"function\"][\"arguments\"])\n-    result = env.shell(\"{ \" + args[\"command\"] + \"\\n} 2>/dev/null\")  # only stdout: stderr is mostly noise\n-    return format_output(result)\n+    result = env.shell(\"{ \" + args[\"command\"] + \"\\n} 2>/tmp/.stderr\")  # stderr kept aside, not mixed in\n+    text = format_output(result)\n+    if result.exit_code != 0:  # a failure: show why (error messages are printed to stderr)\n+        err = env.shell(\"tail -c 1500 /tmp/.stderr\").output\n+        text += f\"\\nstderr (last 1500 chars):\\n{err}\"\n+    return text\n \n \n def run(task, env):\n",
-     "spend_usd": 0.606511
-    },
-    {
-     "t": 1407.01,
-     "schema": "aidev-evolve/1",
-     "run_id": "B2",
-     "kind": "iteration",
-     "iteration": 5,
-     "candidate": "c005",
-     "parent": "c001",
-     "title": "Verify requirements before declaring done",
-     "hypothesis": "Hypothesis: build-pov-ray ended with a confident \"build complete\" summary after only a sanity run and still got reward 0; the model never re-checked the task's explicit requirements (paths, names, formats) before stopping.",
-     "accepted": false,
-     "verdict": "dropped",
-     "val_child": 0.9166666666666666,
-     "val_parent": 0.8472222222222222,
-     "best_val": 0.8472222222222222,
-     "fixed": [
-      "build-pmars",
-      "count-dataset-tokens",
-      "extract-elf"
-     ],
-     "broke": [],
-     "diff": "--- agent.py (c001)\n+++ agent.py (c005)\n@@ -16,6 +16,12 @@\n MAX_STEPS = 100  # a safety net: the time budget is the real limit\n STOP_MARGIN = 10  # seconds kept free so the last command is not cut off\n MAX_OUTPUT_CHARS = 1000\n+VERIFY_MIN_TIME = 40  # only ask for a final check if this many seconds are left\n+\n+VERIFY_PROMPT = \"\"\"Before you finish: re-read the task statement. List every explicit requirement\n+(file paths, names, formats, values, commands that must work). Check each one now with a command,\n+on the real final state, as a hidden test would. Fix anything missing.\n+If everything is verified, reply with a short summary.\"\"\"\n \n BASH_TOOL = {\n     \"type\": \"function\",\n@@ -48,6 +54,7 @@\n         {\"role\": \"system\", \"content\": SYSTEM_PROMPT},\n         {\"role\": \"user\", \"content\": task},\n     ]\n+    verified = False\n     for step in range(MAX_STEPS):\n         if env.time_left() < STOP_MARGIN:\n             return\n@@ -55,7 +62,11 @@\n         messages.append(reply)\n         tool_calls = reply.get(\"tool_calls\") or []\n         if not tool_calls:\n-            return  # the model answered in text: we are done\n+            if verified or env.time_left() < VERIFY_MIN_TIME:\n+                return  # the model answered in text: we are done\n+            verified = True  # one self-check against the task before accepting \"done\"\n+            messages.append({\"role\": \"user\", \"content\": VERIFY_PROMPT})\n+            continue\n         for call in tool_calls:\n             content = run_tool_call(call, env)\n             messages.append({\"role\": \"tool\", \"tool_call_id\": call[\"id\"], \"content\": content})\n",
-     "spend_usd": 0.731169
-    },
-    {
-     "t": 1643.37,
-     "schema": "aidev-evolve/1",
-     "run_id": "B2",
-     "kind": "iteration",
-     "iteration": 6,
-     "candidate": "c006",
-     "parent": "c001",
-     "title": "Deliver early, switch approach, never stall",
-     "hypothesis": "Hypothesis: financial-document-processor spent ~25 of 53 calls retrying OCR variants on one unreadable file and delivered nothing; build-pov-ray also ended unchecked against the task's wording. The model has no working discipline in its prompt.",
-     "accepted": false,
-     "verdict": "dropped",
-     "val_child": 0.75,
-     "val_parent": 0.8333333333333334,
-     "best_val": 0.8333333333333334,
-     "fixed": [
-      "build-pmars"
-     ],
-     "broke": [
-      "count-dataset-tokens",
-      "extract-elf"
-     ],
-     "diff": "--- agent.py (c001)\n+++ agent.py (c006)\n@@ -11,7 +11,15 @@\n import json\n \n SYSTEM_PROMPT = \"\"\"You are an AI agent that solves tasks in a Linux terminal.\n-Use the bash tool to run commands. When the task is complete, reply with a short summary.\"\"\"\n+Use the bash tool to run commands. When the task is complete, reply with a short summary.\n+\n+Working rules:\n+- Time is short (about 3 minutes). First produce a complete, working deliverable in the exact\n+  places and formats the task names, even if rough. Only then improve it.\n+- If an approach fails twice, or one item eats more than about 5 commands, stop and switch to a\n+  different approach, or make a best guess for that item and move on to the rest.\n+- Never leave required outputs missing: a best-guess output beats none.\n+- Before you finish, check the result against the task's exact wording.\"\"\"\n \n MAX_STEPS = 100  # a safety net: the time budget is the real limit\n STOP_MARGIN = 10  # seconds kept free so the last command is not cut off\n",
-     "spend_usd": 0.909764
-    },
-    {
-     "t": 1857.41,
-     "schema": "aidev-evolve/1",
-     "run_id": "B2",
-     "kind": "iteration",
-     "iteration": 7,
-     "candidate": "c007",
-     "parent": "c001",
-     "title": "Periodic progress checkpoint in tool results",
-     "hypothesis": "Hypothesis: financial-document-processor spent ~45 calls on OCR variants of one file and delivered nothing; build-pov-ray declared done without tracking what remained. Static prompt rules (iter 6) and a late deadline warning (iter 3) did not work; the model needs a recurring in-context prompt to take stock.",
-     "accepted": false,
-     "verdict": "dropped",
-     "val_child": 1.0,
-     "val_parent": 0.84375,
-     "best_val": 0.84375,
-     "fixed": [
-      "build-pmars",
-      "configure-git-webserver",
-      "count-dataset-tokens",
-      "extract-elf"
-     ],
-     "broke": [],
-     "diff": "--- agent.py (c001)\n+++ agent.py (c007)\n@@ -16,6 +16,14 @@\n MAX_STEPS = 100  # a safety net: the time budget is the real limit\n STOP_MARGIN = 10  # seconds kept free so the last command is not cut off\n MAX_OUTPUT_CHARS = 1000\n+CHECKPOINT_EVERY = 8  # tool calls between progress checkpoints\n+\n+CHECKPOINT = (\n+    \"\\n[checkpoint: {n} commands used, {t:.0f} s left] Before the next command, state in one line: \"\n+    \"which parts of the task are DONE and written to the required place, and which remain. \"\n+    \"If you have spent several commands on one sub-problem without progress, drop it, use your best \"\n+    \"guess for it, and finish the remaining parts first.\"\n+)\n \n BASH_TOOL = {\n     \"type\": \"function\",\n@@ -48,6 +56,7 @@\n         {\"role\": \"system\", \"content\": SYSTEM_PROMPT},\n         {\"role\": \"user\", \"content\": task},\n     ]\n+    calls = 0\n     for step in range(MAX_STEPS):\n         if env.time_left() < STOP_MARGIN:\n             return\n@@ -58,4 +67,7 @@\n             return  # the model answered in text: we are done\n         for call in tool_calls:\n             content = run_tool_call(call, env)\n+            calls += 1\n+            if calls % CHECKPOINT_EVERY == 0:\n+                content += CHECKPOINT.format(n=calls, t=env.time_left())\n             messages.append({\"role\": \"tool\", \"tool_call_id\": call[\"id\"], \"content\": content})\n",
-     "spend_usd": 1.023691
-    },
-    {
-     "t": 2106.21,
-     "schema": "aidev-evolve/1",
-     "run_id": "B2",
-     "kind": "iteration",
-     "iteration": 8,
-     "candidate": "c008",
-     "parent": "c001",
-     "title": "Detect repeated-command loops, force new approach",
-     "hypothesis": "Hypothesis: financial-document-processor spent 25+ calls re-running tesseract variants on one unreadable file and delivered nothing; build-pov-ray also repeated near-identical fix attempts.",
-     "accepted": false,
-     "verdict": "dropped",
-     "val_child": 0.9166666666666666,
-     "val_parent": 0.8425925925925926,
-     "best_val": 0.8425925925925926,
-     "fixed": [
-      "build-pmars",
-      "configure-git-webserver",
-      "count-dataset-tokens",
-      "extract-elf"
-     ],
-     "broke": [],
-     "diff": "--- agent.py (c001)\n+++ agent.py (c008)\n@@ -9,6 +9,7 @@\n \"\"\"\n \n import json\n+import re\n \n SYSTEM_PROMPT = \"\"\"You are an AI agent that solves tasks in a Linux terminal.\n Use the bash tool to run commands. When the task is complete, reply with a short summary.\"\"\"\n@@ -43,7 +44,23 @@\n     return format_output(result)\n \n \n+def main_program(command):\n+    \"\"\"The program name of the last command in a pipeline or && chain.\"\"\"\n+    last = re.split(r\"&&|\\|\\||[|;]\", command.strip())[-1].split()\n+    return last[0] if last else \"\"\n+\n+\n+def stuck_note(history):\n+    \"\"\"After 4 commands in a row with the same main program, tell the model to change approach.\"\"\"\n+    if len(history) >= 4 and len(set(history[-4:])) == 1:\n+        return (f\"\\n[harness: your last 4 commands all ran `{history[-1]}` and results are not improving. \"\n+                \"Try a different tool or method, or accept the best result so far \"\n+                \"and finish the other required outputs.]\")\n+    return \"\"\n+\n+\n def run(task, env):\n+    history = []\n     messages = [\n         {\"role\": \"system\", \"content\": SYSTEM_PROMPT},\n         {\"role\": \"user\", \"content\": task},\n@@ -58,4 +75,6 @@\n             return  # the model answered in text: we are done\n         for call in tool_calls:\n             content = run_tool_call(call, env)\n+            history.append(main_program(json.loads(call[\"function\"][\"arguments\"])[\"command\"]))\n+            content += stuck_note(history)\n             messages.append({\"role\": \"tool\", \"tool_call_id\": call[\"id\"], \"content\": content})\n",
-     "spend_usd": 1.132241
-    },
-    {
-     "t": 2315.52,
-     "schema": "aidev-evolve/1",
-     "run_id": "B2",
+     "run_id": "limits-first-3",
      "kind": "heldout",
-     "seed": 0.5625,
-     "best": 0.75,
+     "seed": 0.6086956521739131,
+     "best": 0.7608695652173914,
      "best_candidate": "c001",
-     "n_tasks": 8,
+     "n_tasks": 23,
      "trials": 2,
-     "diff": 0.1875,
+     "diff": 0.15217391304347827,
      "ci_low": 0.0,
-     "ci_high": 0.4375,
-     "spend_usd": 1.229181
+     "ci_high": 0.32608695652173914,
+     "spend_usd": 0.857823,
+     "per_task": {
+      "build-pov-ray": [
+       0,
+       2,
+       0,
+       2
+      ],
+      "cancel-async-tasks": [
+       1,
+       2,
+       1,
+       2
+      ],
+      "bn-fit-modify": [
+       0,
+       2,
+       0,
+       2
+      ],
+      "regex-log": [
+       1,
+       2,
+       1,
+       2
+      ],
+      "sanitize-git-repo": [
+       1,
+       2,
+       0,
+       2
+      ],
+      "polyglot-c-py": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "openssl-selfsigned-cert": [
+       1,
+       2,
+       1,
+       2
+      ],
+      "build-pmars": [
+       0,
+       2,
+       2,
+       2
+      ],
+      "sqlite-db-truncate": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "nginx-request-logging": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "log-summary-date-ranges": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "constraints-scheduling": [
+       1,
+       2,
+       2,
+       2
+      ],
+      "sqlite-with-gcov": [
+       0,
+       2,
+       2,
+       2
+      ],
+      "pypi-server": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "prove-plus-comm": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "multi-source-data-merger": [
+       1,
+       2,
+       2,
+       2
+      ],
+      "modernize-scientific-stack": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "kv-store-grpc": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "hf-model-inference": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "git-multibranch": [
+       0,
+       2,
+       1,
+       2
+      ],
+      "git-leak-recovery": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "db-wal-recovery": [
+       2,
+       2,
+       1,
+       2
+      ],
+      "configure-git-webserver": [
+       0,
+       2,
+       2,
+       2
+      ]
+     },
+     "kept": [
+      "Raise step limit, stop on time budget"
+     ],
+     "strategy": {
+      "name": "limits-first",
+      "preset": "baseline",
+      "hash": "a8c59872d6",
+      "modified": true,
+      "knobs": {
+       "traces": "all",
+       "max_traces": 8,
+       "history": "full",
+       "diffs": false,
+       "candidates": 1,
+       "val_trials": 2,
+       "z": 1.5,
+       "confirm": true,
+       "iterations": 4
+      },
+      "prompt": "Read, in this order:\n1. `agent.py`: list every hard limit the harness sets (step counts, timeouts, output caps, what is hidden from the model).\n2. `traces/INDEX.md`, then the transcripts in `traces/`. For each limit, count the transcripts where it cut the run short\n   or hid something the model needed (look for TIMED OUT, steps that stop early, cut output, missing errors).\n3. `HISTORY.md`: what earlier iterations tried, and whether validation kept or dropped it. Do not repeat a\n   dropped idea unchanged, and do not re-fix a limit an earlier kept patch already fixed.\n4. `CONTRACT.md` (what `env` offers).\n\nThen fix the limit that cut the most runs short, with one focused change to `agent.py`.\n"
+     }
+    }
+   ]
+  },
+  {
+   "name": "small-diffs-1",
+   "user": "small-diffs-1",
+   "events": [
+    {
+     "t": 112.41,
+     "schema": "aidev-evolve/1",
+     "run_id": "small-diffs-1",
+     "kind": "seed",
+     "val_score": 0.2857142857142857,
+     "search_score": 0.0,
+     "spend_usd": 0.038991,
+     "strategy": {
+      "name": "small-diffs",
+      "preset": "small-diffs",
+      "hash": "c79e1944c9",
+      "modified": false,
+      "knobs": {
+       "traces": "all",
+       "max_traces": 8,
+       "history": "full",
+       "diffs": true,
+       "candidates": 1,
+       "val_trials": 2,
+       "z": 1.0,
+       "confirm": true,
+       "iterations": 4
+      },
+      "prompt": "Read, in this order:\n1. `traces/INDEX.md`, then the transcripts in `traces/` (the current agent.py on the search tasks).\n2. `HISTORY.md`: what earlier iterations tried, and whether validation kept or dropped it. Do not repeat a\n   dropped idea unchanged.\n3. `CONTRACT.md` (what `env` offers) and `agent.py`.\n\nThen make the smallest change that removes one failure mechanism you can see in the transcripts: change at\nmost 10 lines of `agent.py` (a limit, a timeout, one sentence of the system prompt, one condition). Small\nchanges are easy to attribute and rarely break passing tasks. `HISTORY.md` shows the diffs of earlier\nattempts: do not resend a dropped diff.\n"
+     }
+    },
+    {
+     "t": 629.35,
+     "schema": "aidev-evolve/1",
+     "run_id": "small-diffs-1",
+     "kind": "iteration",
+     "iteration": 1,
+     "candidate": "c001",
+     "parent": "c000",
+     "title": "Raise step limit, show stderr",
+     "hypothesis": "Hypothesis: All four transcripts stop at the 10-step limit after only 15-56 s of 180 s, mid-work (e.g. oligotm just found, no output written); dropped stderr also hid errors (a failing `python3 --version` printed nothing).",
+     "accepted": true,
+     "verdict": "kept",
+     "val_child": 0.6428571428571429,
+     "val_parent": 0.3095238095238095,
+     "best_val": 0.6428571428571429,
+     "fixed": [
+      "fix-code-vulnerability",
+      "merge-diff-arc-agi-task",
+      "vulnerable-secret"
+     ],
+     "broke": [
+      "extract-elf"
+     ],
+     "diff": "--- agent.py (c000)\n+++ agent.py (c001)\n@@ -13,7 +13,7 @@\n SYSTEM_PROMPT = \"\"\"You are an AI agent that solves tasks in a Linux terminal.\n Use the bash tool to run commands. When the task is complete, reply with a short summary.\"\"\"\n \n-MAX_STEPS = 10\n+MAX_STEPS = 40  # runs ended at 10 steps with most of the 180 s budget unused\n MAX_OUTPUT_CHARS = 1000\n COMMAND_TIMEOUT_S = 10  # a stuck command must not eat the whole budget\n \n@@ -39,7 +39,7 @@\n \n def run_tool_call(call, env):\n     args = json.loads(call[\"function\"][\"arguments\"])\n-    result = env.shell(\"{ \" + args[\"command\"] + \"\\n} 2>/dev/null\", timeout=COMMAND_TIMEOUT_S)  # only stdout: stderr is mostly noise\n+    result = env.shell(\"{ \" + args[\"command\"] + \"\\n} 2>&1\", timeout=COMMAND_TIMEOUT_S)  # stderr holds the error messages the model needs\n     return format_output(result)\n \n \n",
+     "spend_usd": 0.322946,
+     "siblings": [],
+     "strategy": {
+      "name": "small-diffs",
+      "preset": "small-diffs",
+      "hash": "c79e1944c9",
+      "modified": false,
+      "knobs": {
+       "traces": "all",
+       "max_traces": 8,
+       "history": "full",
+       "diffs": true,
+       "candidates": 1,
+       "val_trials": 2,
+       "z": 1.0,
+       "confirm": true,
+       "iterations": 4
+      },
+      "prompt": "Read, in this order:\n1. `traces/INDEX.md`, then the transcripts in `traces/` (the current agent.py on the search tasks).\n2. `HISTORY.md`: what earlier iterations tried, and whether validation kept or dropped it. Do not repeat a\n   dropped idea unchanged.\n3. `CONTRACT.md` (what `env` offers) and `agent.py`.\n\nThen make the smallest change that removes one failure mechanism you can see in the transcripts: change at\nmost 10 lines of `agent.py` (a limit, a timeout, one sentence of the system prompt, one condition). Small\nchanges are easy to attribute and rarely break passing tasks. `HISTORY.md` shows the diffs of earlier\nattempts: do not resend a dropped diff.\n"
+     }
+    },
+    {
+     "t": 959.75,
+     "schema": "aidev-evolve/1",
+     "run_id": "small-diffs-1",
+     "kind": "iteration",
+     "iteration": 2,
+     "candidate": "c002",
+     "parent": "c001",
+     "title": "Show longer command output",
+     "hypothesis": "Hypothesis: count-dataset-tokens cut a README at 1000 chars and spent ~8 steps re-reading slices of it, then answered from partial info (FAIL).",
+     "accepted": false,
+     "verdict": "dropped",
+     "val_child": 0.5,
+     "val_parent": 0.6904761904761905,
+     "best_val": 0.6904761904761905,
+     "fixed": [],
+     "broke": [
+      "extract-elf",
+      "financial-document-processor",
+      "merge-diff-arc-agi-task",
+      "vulnerable-secret"
+     ],
+     "diff": "--- agent.py (c001)\n+++ agent.py (c002)\n@@ -14,7 +14,7 @@\n Use the bash tool to run commands. When the task is complete, reply with a short summary.\"\"\"\n \n MAX_STEPS = 40  # runs ended at 10 steps with most of the 180 s budget unused\n-MAX_OUTPUT_CHARS = 1000\n+MAX_OUTPUT_CHARS = 4000  # 1000 cut files mid-way; the model re-read the same file in slices\n COMMAND_TIMEOUT_S = 10  # a stuck command must not eat the whole budget\n \n BASH_TOOL = {\n",
+     "spend_usd": 0.534495,
+     "siblings": [],
+     "strategy": {
+      "name": "small-diffs",
+      "preset": "small-diffs",
+      "hash": "c79e1944c9",
+      "modified": false,
+      "knobs": {
+       "traces": "all",
+       "max_traces": 8,
+       "history": "full",
+       "diffs": true,
+       "candidates": 1,
+       "val_trials": 2,
+       "z": 1.0,
+       "confirm": true,
+       "iterations": 4
+      },
+      "prompt": "Read, in this order:\n1. `traces/INDEX.md`, then the transcripts in `traces/` (the current agent.py on the search tasks).\n2. `HISTORY.md`: what earlier iterations tried, and whether validation kept or dropped it. Do not repeat a\n   dropped idea unchanged.\n3. `CONTRACT.md` (what `env` offers) and `agent.py`.\n\nThen make the smallest change that removes one failure mechanism you can see in the transcripts: change at\nmost 10 lines of `agent.py` (a limit, a timeout, one sentence of the system prompt, one condition). Small\nchanges are easy to attribute and rarely break passing tasks. `HISTORY.md` shows the diffs of earlier\nattempts: do not resend a dropped diff.\n"
+     }
+    },
+    {
+     "t": 1225.49,
+     "schema": "aidev-evolve/1",
+     "run_id": "small-diffs-1",
+     "kind": "heldout",
+     "seed": 0.6086956521739131,
+     "best": 0.7391304347826086,
+     "best_candidate": "c001",
+     "n_tasks": 23,
+     "trials": 2,
+     "diff": 0.13043478260869565,
+     "ci_low": -0.043478260869565216,
+     "ci_high": 0.30434782608695654,
+     "spend_usd": 0.814006,
+     "per_task": {
+      "build-pov-ray": [
+       0,
+       2,
+       0,
+       2
+      ],
+      "cancel-async-tasks": [
+       1,
+       2,
+       0,
+       2
+      ],
+      "bn-fit-modify": [
+       0,
+       2,
+       1,
+       2
+      ],
+      "regex-log": [
+       2,
+       2,
+       0,
+       2
+      ],
+      "sanitize-git-repo": [
+       0,
+       2,
+       2,
+       2
+      ],
+      "polyglot-c-py": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "openssl-selfsigned-cert": [
+       0,
+       2,
+       2,
+       2
+      ],
+      "build-pmars": [
+       0,
+       2,
+       1,
+       2
+      ],
+      "sqlite-db-truncate": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "nginx-request-logging": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "log-summary-date-ranges": [
+       1,
+       2,
+       1,
+       2
+      ],
+      "constraints-scheduling": [
+       1,
+       2,
+       2,
+       2
+      ],
+      "sqlite-with-gcov": [
+       0,
+       2,
+       1,
+       2
+      ],
+      "pypi-server": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "prove-plus-comm": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "multi-source-data-merger": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "modernize-scientific-stack": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "kv-store-grpc": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "hf-model-inference": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "git-multibranch": [
+       0,
+       2,
+       1,
+       2
+      ],
+      "git-leak-recovery": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "db-wal-recovery": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "configure-git-webserver": [
+       1,
+       2,
+       1,
+       2
+      ]
+     },
+     "kept": [
+      "Raise step limit, show stderr"
+     ],
+     "strategy": {
+      "name": "small-diffs",
+      "preset": "small-diffs",
+      "hash": "c79e1944c9",
+      "modified": false,
+      "knobs": {
+       "traces": "all",
+       "max_traces": 8,
+       "history": "full",
+       "diffs": true,
+       "candidates": 1,
+       "val_trials": 2,
+       "z": 1.0,
+       "confirm": true,
+       "iterations": 4
+      },
+      "prompt": "Read, in this order:\n1. `traces/INDEX.md`, then the transcripts in `traces/` (the current agent.py on the search tasks).\n2. `HISTORY.md`: what earlier iterations tried, and whether validation kept or dropped it. Do not repeat a\n   dropped idea unchanged.\n3. `CONTRACT.md` (what `env` offers) and `agent.py`.\n\nThen make the smallest change that removes one failure mechanism you can see in the transcripts: change at\nmost 10 lines of `agent.py` (a limit, a timeout, one sentence of the system prompt, one condition). Small\nchanges are easy to attribute and rarely break passing tasks. `HISTORY.md` shows the diffs of earlier\nattempts: do not resend a dropped diff.\n"
+     }
+    }
+   ]
+  },
+  {
+   "name": "small-diffs-2",
+   "user": "small-diffs-2",
+   "events": [
+    {
+     "t": 184.49,
+     "schema": "aidev-evolve/1",
+     "run_id": "small-diffs-2",
+     "kind": "seed",
+     "val_score": 0.2857142857142857,
+     "search_score": 0.0,
+     "spend_usd": 0.045931,
+     "strategy": {
+      "name": "small-diffs",
+      "preset": "small-diffs",
+      "hash": "c79e1944c9",
+      "modified": false,
+      "knobs": {
+       "traces": "all",
+       "max_traces": 8,
+       "history": "full",
+       "diffs": true,
+       "candidates": 1,
+       "val_trials": 2,
+       "z": 1.0,
+       "confirm": true,
+       "iterations": 4
+      },
+      "prompt": "Read, in this order:\n1. `traces/INDEX.md`, then the transcripts in `traces/` (the current agent.py on the search tasks).\n2. `HISTORY.md`: what earlier iterations tried, and whether validation kept or dropped it. Do not repeat a\n   dropped idea unchanged.\n3. `CONTRACT.md` (what `env` offers) and `agent.py`.\n\nThen make the smallest change that removes one failure mechanism you can see in the transcripts: change at\nmost 10 lines of `agent.py` (a limit, a timeout, one sentence of the system prompt, one condition). Small\nchanges are easy to attribute and rarely break passing tasks. `HISTORY.md` shows the diffs of earlier\nattempts: do not resend a dropped diff.\n"
+     }
+    },
+    {
+     "t": 690.11,
+     "schema": "aidev-evolve/1",
+     "run_id": "small-diffs-2",
+     "kind": "iteration",
+     "iteration": 1,
+     "candidate": "c001",
+     "parent": "c000",
+     "title": "Raise step limit from 10 to 40",
+     "hypothesis": "Hypothesis: Three of four runs (count-dataset-tokens, dna-insert, sparql-university) stopped at exactly step 10 mid-exploration, using only 17-121 s of the 180 s budget.",
+     "accepted": true,
+     "verdict": "kept",
+     "val_child": 0.6428571428571429,
+     "val_parent": 0.2857142857142857,
+     "best_val": 0.6428571428571429,
+     "fixed": [
+      "extract-elf",
+      "fix-code-vulnerability",
+      "merge-diff-arc-agi-task",
+      "vulnerable-secret"
+     ],
+     "broke": [],
+     "diff": "--- agent.py (c000)\n+++ agent.py (c001)\n@@ -13,7 +13,7 @@\n SYSTEM_PROMPT = \"\"\"You are an AI agent that solves tasks in a Linux terminal.\n Use the bash tool to run commands. When the task is complete, reply with a short summary.\"\"\"\n \n-MAX_STEPS = 10\n+MAX_STEPS = 40  # runs were cut off at step 10 with >100 s of budget unused\n MAX_OUTPUT_CHARS = 1000\n COMMAND_TIMEOUT_S = 10  # a stuck command must not eat the whole budget\n \n",
+     "spend_usd": 0.312524,
+     "siblings": [],
+     "strategy": {
+      "name": "small-diffs",
+      "preset": "small-diffs",
+      "hash": "c79e1944c9",
+      "modified": false,
+      "knobs": {
+       "traces": "all",
+       "max_traces": 8,
+       "history": "full",
+       "diffs": true,
+       "candidates": 1,
+       "val_trials": 2,
+       "z": 1.0,
+       "confirm": true,
+       "iterations": 4
+      },
+      "prompt": "Read, in this order:\n1. `traces/INDEX.md`, then the transcripts in `traces/` (the current agent.py on the search tasks).\n2. `HISTORY.md`: what earlier iterations tried, and whether validation kept or dropped it. Do not repeat a\n   dropped idea unchanged.\n3. `CONTRACT.md` (what `env` offers) and `agent.py`.\n\nThen make the smallest change that removes one failure mechanism you can see in the transcripts: change at\nmost 10 lines of `agent.py` (a limit, a timeout, one sentence of the system prompt, one condition). Small\nchanges are easy to attribute and rarely break passing tasks. `HISTORY.md` shows the diffs of earlier\nattempts: do not resend a dropped diff.\n"
+     }
+    },
+    {
+     "t": 949.3,
+     "schema": "aidev-evolve/1",
+     "run_id": "small-diffs-2",
+     "kind": "iteration",
+     "iteration": 2,
+     "candidate": "c002",
+     "parent": "c001",
+     "title": "Verify every requirement before finishing",
+     "hypothesis": "Hypothesis: All four runs ended with the model declaring success after a partial check (dna-insert, sparql-university, count-dataset-tokens, break-filter-js-from-html) and still failed the hidden tests, with 50-160 s of budget unused.",
+     "accepted": false,
+     "verdict": "dropped",
+     "val_child": 0.6428571428571429,
+     "val_parent": 0.6666666666666667,
+     "best_val": 0.6666666666666667,
+     "fixed": [
+      "extract-elf",
+      "fix-code-vulnerability"
+     ],
+     "broke": [
+      "merge-diff-arc-agi-task"
+     ],
+     "diff": "--- agent.py (c001)\n+++ agent.py (c002)\n@@ -11,7 +11,9 @@\n import json\n \n SYSTEM_PROMPT = \"\"\"You are an AI agent that solves tasks in a Linux terminal.\n-Use the bash tool to run commands. When the task is complete, reply with a short summary.\"\"\"\n+Use the bash tool to run commands. When the task is complete, reply with a short summary.\n+Before you finish, re-read the task, list every requirement and constraint it states, and check each one\n+against the real files and command output (not your assumptions); fix any mismatch first.\"\"\"\n \n MAX_STEPS = 40  # runs were cut off at step 10 with >100 s of budget unused\n MAX_OUTPUT_CHARS = 1000\n",
+     "spend_usd": 0.552129,
+     "siblings": [],
+     "strategy": {
+      "name": "small-diffs",
+      "preset": "small-diffs",
+      "hash": "c79e1944c9",
+      "modified": false,
+      "knobs": {
+       "traces": "all",
+       "max_traces": 8,
+       "history": "full",
+       "diffs": true,
+       "candidates": 1,
+       "val_trials": 2,
+       "z": 1.0,
+       "confirm": true,
+       "iterations": 4
+      },
+      "prompt": "Read, in this order:\n1. `traces/INDEX.md`, then the transcripts in `traces/` (the current agent.py on the search tasks).\n2. `HISTORY.md`: what earlier iterations tried, and whether validation kept or dropped it. Do not repeat a\n   dropped idea unchanged.\n3. `CONTRACT.md` (what `env` offers) and `agent.py`.\n\nThen make the smallest change that removes one failure mechanism you can see in the transcripts: change at\nmost 10 lines of `agent.py` (a limit, a timeout, one sentence of the system prompt, one condition). Small\nchanges are easy to attribute and rarely break passing tasks. `HISTORY.md` shows the diffs of earlier\nattempts: do not resend a dropped diff.\n"
+     }
+    },
+    {
+     "t": 1189.16,
+     "schema": "aidev-evolve/1",
+     "run_id": "small-diffs-2",
+     "kind": "heldout",
+     "seed": 0.6739130434782609,
+     "best": 0.782608695652174,
+     "best_candidate": "c001",
+     "n_tasks": 23,
+     "trials": 2,
+     "diff": 0.10869565217391304,
+     "ci_low": -0.06521739130434782,
+     "ci_high": 0.2826086956521739,
+     "spend_usd": 0.877686,
+     "per_task": {
+      "build-pov-ray": [
+       0,
+       2,
+       1,
+       2
+      ],
+      "cancel-async-tasks": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "bn-fit-modify": [
+       0,
+       2,
+       0,
+       2
+      ],
+      "regex-log": [
+       1,
+       2,
+       1,
+       2
+      ],
+      "sanitize-git-repo": [
+       1,
+       2,
+       1,
+       2
+      ],
+      "polyglot-c-py": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "openssl-selfsigned-cert": [
+       2,
+       2,
+       1,
+       2
+      ],
+      "build-pmars": [
+       0,
+       2,
+       2,
+       2
+      ],
+      "sqlite-db-truncate": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "nginx-request-logging": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "log-summary-date-ranges": [
+       1,
+       2,
+       2,
+       2
+      ],
+      "constraints-scheduling": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "sqlite-with-gcov": [
+       0,
+       2,
+       2,
+       2
+      ],
+      "pypi-server": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "prove-plus-comm": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "multi-source-data-merger": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "modernize-scientific-stack": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "kv-store-grpc": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "hf-model-inference": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "git-multibranch": [
+       0,
+       2,
+       0,
+       2
+      ],
+      "git-leak-recovery": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "db-wal-recovery": [
+       2,
+       2,
+       0,
+       1
+      ],
+      "configure-git-webserver": [
+       0,
+       2,
+       2,
+       2
+      ]
+     },
+     "kept": [
+      "Raise step limit from 10 to 40"
+     ],
+     "strategy": {
+      "name": "small-diffs",
+      "preset": "small-diffs",
+      "hash": "c79e1944c9",
+      "modified": false,
+      "knobs": {
+       "traces": "all",
+       "max_traces": 8,
+       "history": "full",
+       "diffs": true,
+       "candidates": 1,
+       "val_trials": 2,
+       "z": 1.0,
+       "confirm": true,
+       "iterations": 4
+      },
+      "prompt": "Read, in this order:\n1. `traces/INDEX.md`, then the transcripts in `traces/` (the current agent.py on the search tasks).\n2. `HISTORY.md`: what earlier iterations tried, and whether validation kept or dropped it. Do not repeat a\n   dropped idea unchanged.\n3. `CONTRACT.md` (what `env` offers) and `agent.py`.\n\nThen make the smallest change that removes one failure mechanism you can see in the transcripts: change at\nmost 10 lines of `agent.py` (a limit, a timeout, one sentence of the system prompt, one condition). Small\nchanges are easy to attribute and rarely break passing tasks. `HISTORY.md` shows the diffs of earlier\nattempts: do not resend a dropped diff.\n"
+     }
+    }
+   ]
+  },
+  {
+   "name": "two-candidates-1",
+   "user": "two-candidates-1",
+   "events": [
+    {
+     "t": 111.9,
+     "schema": "aidev-evolve/1",
+     "run_id": "two-candidates-1",
+     "kind": "seed",
+     "val_score": 0.35714285714285715,
+     "search_score": 0.5,
+     "spend_usd": 0.043066,
+     "strategy": {
+      "name": "two-candidates",
+      "preset": "two-candidates",
+      "hash": "0984ba8b2e",
+      "modified": false,
+      "knobs": {
+       "traces": "all",
+       "max_traces": 8,
+       "history": "full",
+       "diffs": false,
+       "candidates": 2,
+       "val_trials": 2,
+       "z": 1.5,
+       "confirm": true,
+       "iterations": 3
+      },
+      "prompt": "Read, in this order:\n1. `traces/INDEX.md`, then the transcripts in `traces/` (the current agent.py on the search tasks).\n2. `HISTORY.md`: what earlier iterations tried, and whether validation kept or dropped it. Do not repeat a\n   dropped idea unchanged.\n3. `CONTRACT.md` (what `env` offers) and `agent.py`.\n\nThen make one focused change (one mechanism) to `agent.py` that fixes a failure mechanism you can see in\nseveral transcripts.\n"
+     }
+    },
+    {
+     "t": 580.84,
+     "schema": "aidev-evolve/1",
+     "run_id": "two-candidates-1",
+     "kind": "iteration",
+     "iteration": 1,
+     "candidate": "c001b",
+     "parent": "c000",
+     "title": "Let the time budget set the step limit",
+     "hypothesis": "Hypothesis: both failing runs (dna-insert, sparql-university) hit MAX_STEPS=10 after only ~21 s of 180 s, still exploring, never writing the output file.",
+     "accepted": true,
+     "verdict": "kept",
+     "val_child": 0.6428571428571429,
+     "val_parent": 0.33333333333333337,
+     "best_val": 0.6428571428571429,
+     "fixed": [
+      "fix-code-vulnerability",
+      "merge-diff-arc-agi-task",
+      "vulnerable-secret"
+     ],
+     "broke": [
+      "extract-elf"
+     ],
+     "diff": "--- agent.py (c000)\n+++ agent.py (c001b)\n@@ -13,7 +13,8 @@\n SYSTEM_PROMPT = \"\"\"You are an AI agent that solves tasks in a Linux terminal.\n Use the bash tool to run commands. When the task is complete, reply with a short summary.\"\"\"\n \n-MAX_STEPS = 10\n+MAX_STEPS = 60  # the 180 s budget is the real limit; runs used 10 steps in ~20 s and quit unfinished\n+MIN_TIME_LEFT_S = 8\n MAX_OUTPUT_CHARS = 1000\n COMMAND_TIMEOUT_S = 10  # a stuck command must not eat the whole budget\n \n@@ -49,6 +50,8 @@\n         {\"role\": \"user\", \"content\": task},\n     ]\n     for step in range(MAX_STEPS):\n+        if env.time_left() < MIN_TIME_LEFT_S:\n+            return  # no time for another model call\n         reply = env.llm(messages, tools=[BASH_TOOL])\n         messages.append(reply)\n         tool_calls = reply.get(\"tool_calls\") or []\n",
+     "spend_usd": 0.43274,
+     "siblings": [
+      {
+       "candidate": "c001a",
+       "title": "Budget by clock, not 10 steps",
+       "val": 0.5714285714285714,
+       "verdict": "dropped: lost the screen"
+      }
+     ],
+     "strategy": {
+      "name": "two-candidates",
+      "preset": "two-candidates",
+      "hash": "0984ba8b2e",
+      "modified": false,
+      "knobs": {
+       "traces": "all",
+       "max_traces": 8,
+       "history": "full",
+       "diffs": false,
+       "candidates": 2,
+       "val_trials": 2,
+       "z": 1.5,
+       "confirm": true,
+       "iterations": 3
+      },
+      "prompt": "Read, in this order:\n1. `traces/INDEX.md`, then the transcripts in `traces/` (the current agent.py on the search tasks).\n2. `HISTORY.md`: what earlier iterations tried, and whether validation kept or dropped it. Do not repeat a\n   dropped idea unchanged.\n3. `CONTRACT.md` (what `env` offers) and `agent.py`.\n\nThen make one focused change (one mechanism) to `agent.py` that fixes a failure mechanism you can see in\nseveral transcripts.\n"
+     }
+    },
+    {
+     "t": 1124.2,
+     "schema": "aidev-evolve/1",
+     "run_id": "two-candidates-1",
+     "kind": "iteration",
+     "iteration": 2,
+     "candidate": "c002b",
+     "parent": "c001b",
+     "title": "Show stderr so errors reach the model",
+     "hypothesis": "Hypothesis: stderr is thrown away, so failing commands return exit 1 with empty output (sparql-university steps 32-34 needed three retries to see a traceback; dna-insert scripts fail silently the same way).",
+     "accepted": true,
+     "verdict": "kept",
+     "val_child": 0.8571428571428571,
+     "val_parent": 0.6607142857142857,
+     "best_val": 0.8571428571428571,
+     "fixed": [
+      "code-from-image",
+      "extract-elf",
+      "financial-document-processor",
+      "merge-diff-arc-agi-task"
+     ],
+     "broke": [],
+     "diff": "--- agent.py (c001b)\n+++ agent.py (c002b)\n@@ -40,7 +40,7 @@\n \n def run_tool_call(call, env):\n     args = json.loads(call[\"function\"][\"arguments\"])\n-    result = env.shell(\"{ \" + args[\"command\"] + \"\\n} 2>/dev/null\", timeout=COMMAND_TIMEOUT_S)  # only stdout: stderr is mostly noise\n+    result = env.shell(\"{ \" + args[\"command\"] + \"\\n} 2>&1\", timeout=COMMAND_TIMEOUT_S)  # keep stderr: error messages are how the model learns what broke\n     return format_output(result)\n \n \n",
+     "spend_usd": 0.986351,
+     "siblings": [
+      {
+       "candidate": "c002a",
+       "title": "Verify the answer before finishing",
+       "val": 0.7857142857142857,
+       "verdict": "dropped: lost the screen"
+      }
+     ],
+     "strategy": {
+      "name": "two-candidates",
+      "preset": "two-candidates",
+      "hash": "0984ba8b2e",
+      "modified": false,
+      "knobs": {
+       "traces": "all",
+       "max_traces": 8,
+       "history": "full",
+       "diffs": false,
+       "candidates": 2,
+       "val_trials": 2,
+       "z": 1.5,
+       "confirm": true,
+       "iterations": 3
+      },
+      "prompt": "Read, in this order:\n1. `traces/INDEX.md`, then the transcripts in `traces/` (the current agent.py on the search tasks).\n2. `HISTORY.md`: what earlier iterations tried, and whether validation kept or dropped it. Do not repeat a\n   dropped idea unchanged.\n3. `CONTRACT.md` (what `env` offers) and `agent.py`.\n\nThen make one focused change (one mechanism) to `agent.py` that fixes a failure mechanism you can see in\nseveral transcripts.\n"
+     }
+    },
+    {
+     "t": 1441.25,
+     "schema": "aidev-evolve/1",
+     "run_id": "two-candidates-1",
+     "kind": "heldout",
+     "seed": 0.6956521739130435,
+     "best": 0.717391304347826,
+     "best_candidate": "c002b",
+     "n_tasks": 23,
+     "trials": 2,
+     "diff": 0.021739130434782608,
+     "ci_low": -0.13043478260869565,
+     "ci_high": 0.1956521739130435,
+     "spend_usd": 1.282728,
+     "per_task": {
+      "build-pov-ray": [
+       0,
+       2,
+       0,
+       2
+      ],
+      "cancel-async-tasks": [
+       1,
+       2,
+       1,
+       2
+      ],
+      "bn-fit-modify": [
+       0,
+       2,
+       0,
+       2
+      ],
+      "regex-log": [
+       1,
+       2,
+       1,
+       2
+      ],
+      "sanitize-git-repo": [
+       1,
+       2,
+       2,
+       2
+      ],
+      "polyglot-c-py": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "openssl-selfsigned-cert": [
+       2,
+       2,
+       1,
+       2
+      ],
+      "build-pmars": [
+       0,
+       2,
+       2,
+       2
+      ],
+      "sqlite-db-truncate": [
+       0,
+       2,
+       1,
+       2
+      ],
+      "nginx-request-logging": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "log-summary-date-ranges": [
+       2,
+       2,
+       1,
+       2
+      ],
+      "constraints-scheduling": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "sqlite-with-gcov": [
+       0,
+       2,
+       2,
+       2
+      ],
+      "pypi-server": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "prove-plus-comm": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "multi-source-data-merger": [
+       2,
+       2,
+       1,
+       2
+      ],
+      "modernize-scientific-stack": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "kv-store-grpc": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "hf-model-inference": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "git-multibranch": [
+       2,
+       2,
+       1,
+       2
+      ],
+      "git-leak-recovery": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "db-wal-recovery": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "configure-git-webserver": [
+       1,
+       2,
+       0,
+       2
+      ]
+     },
+     "kept": [
+      "Let the time budget set the step limit",
+      "Show stderr so errors reach the model"
+     ],
+     "strategy": {
+      "name": "two-candidates",
+      "preset": "two-candidates",
+      "hash": "0984ba8b2e",
+      "modified": false,
+      "knobs": {
+       "traces": "all",
+       "max_traces": 8,
+       "history": "full",
+       "diffs": false,
+       "candidates": 2,
+       "val_trials": 2,
+       "z": 1.5,
+       "confirm": true,
+       "iterations": 3
+      },
+      "prompt": "Read, in this order:\n1. `traces/INDEX.md`, then the transcripts in `traces/` (the current agent.py on the search tasks).\n2. `HISTORY.md`: what earlier iterations tried, and whether validation kept or dropped it. Do not repeat a\n   dropped idea unchanged.\n3. `CONTRACT.md` (what `env` offers) and `agent.py`.\n\nThen make one focused change (one mechanism) to `agent.py` that fixes a failure mechanism you can see in\nseveral transcripts.\n"
+     }
+    }
+   ]
+  },
+  {
+   "name": "two-candidates-2",
+   "user": "two-candidates-2",
+   "events": [
+    {
+     "t": 123.49,
+     "schema": "aidev-evolve/1",
+     "run_id": "two-candidates-2",
+     "kind": "seed",
+     "val_score": 0.35714285714285715,
+     "search_score": 0.0,
+     "spend_usd": 0.035252,
+     "strategy": {
+      "name": "two-candidates",
+      "preset": "two-candidates",
+      "hash": "0984ba8b2e",
+      "modified": false,
+      "knobs": {
+       "traces": "all",
+       "max_traces": 8,
+       "history": "full",
+       "diffs": false,
+       "candidates": 2,
+       "val_trials": 2,
+       "z": 1.5,
+       "confirm": true,
+       "iterations": 3
+      },
+      "prompt": "Read, in this order:\n1. `traces/INDEX.md`, then the transcripts in `traces/` (the current agent.py on the search tasks).\n2. `HISTORY.md`: what earlier iterations tried, and whether validation kept or dropped it. Do not repeat a\n   dropped idea unchanged.\n3. `CONTRACT.md` (what `env` offers) and `agent.py`.\n\nThen make one focused change (one mechanism) to `agent.py` that fixes a failure mechanism you can see in\nseveral transcripts.\n"
+     }
+    },
+    {
+     "t": 300.53,
+     "schema": "aidev-evolve/1",
+     "run_id": "two-candidates-2",
+     "kind": "iteration",
+     "iteration": 1,
+     "candidate": "c001a",
+     "parent": "c000",
+     "title": "Show stderr to the model",
+     "hypothesis": "Hypothesis: stderr is dropped, so failed commands return exit 127 or empty output with no reason (dna-insert: python3 missing, several blind steps; sparql-university: empty sed output), and the model burns its 10 steps guessing.",
+     "accepted": false,
+     "verdict": "dropped",
+     "val_child": 0.35714285714285715,
+     "val_parent": 0.35714285714285715,
+     "best_val": 0.35714285714285715,
+     "fixed": [
+      "extract-elf"
+     ],
+     "broke": [
+      "code-from-image"
+     ],
+     "diff": "--- agent.py (c000)\n+++ agent.py (c001a)\n@@ -39,7 +39,7 @@\n \n def run_tool_call(call, env):\n     args = json.loads(call[\"function\"][\"arguments\"])\n-    result = env.shell(\"{ \" + args[\"command\"] + \"\\n} 2>/dev/null\", timeout=COMMAND_TIMEOUT_S)  # only stdout: stderr is mostly noise\n+    result = env.shell(\"{ \" + args[\"command\"] + \"\\n} 2>&1\", timeout=COMMAND_TIMEOUT_S)  # stderr too: \"command not found\" etc. explain failures\n     return format_output(result)\n \n \n",
+     "spend_usd": 0.143005,
+     "siblings": [
+      {
+       "candidate": "c001b",
+       "title": "Show stderr to the model",
+       "val": 0.35714285714285715,
+       "verdict": "dropped: lost the screen"
+      }
+     ],
+     "strategy": {
+      "name": "two-candidates",
+      "preset": "two-candidates",
+      "hash": "0984ba8b2e",
+      "modified": false,
+      "knobs": {
+       "traces": "all",
+       "max_traces": 8,
+       "history": "full",
+       "diffs": false,
+       "candidates": 2,
+       "val_trials": 2,
+       "z": 1.5,
+       "confirm": true,
+       "iterations": 3
+      },
+      "prompt": "Read, in this order:\n1. `traces/INDEX.md`, then the transcripts in `traces/` (the current agent.py on the search tasks).\n2. `HISTORY.md`: what earlier iterations tried, and whether validation kept or dropped it. Do not repeat a\n   dropped idea unchanged.\n3. `CONTRACT.md` (what `env` offers) and `agent.py`.\n\nThen make one focused change (one mechanism) to `agent.py` that fixes a failure mechanism you can see in\nseveral transcripts.\n"
+     }
+    },
+    {
+     "t": 925.66,
+     "schema": "aidev-evolve/1",
+     "run_id": "two-candidates-2",
+     "kind": "iteration",
+     "iteration": 2,
+     "candidate": "c002b",
+     "parent": "c000",
+     "title": "Use the time budget, not 10 steps",
+     "hypothesis": "Hypothesis: three of four runs (count-dataset-tokens, sparql-university, dna-insert) hit the 10-step cap mid-investigation after only 20-59 s of the 180 s budget, so the loop stopped before the model could finish.",
+     "accepted": true,
+     "verdict": "kept",
+     "val_child": 0.7857142857142857,
+     "val_parent": 0.32142857142857145,
+     "best_val": 0.7857142857142857,
+     "fixed": [
+      "code-from-image",
+      "extract-elf",
+      "fix-code-vulnerability",
+      "merge-diff-arc-agi-task",
+      "vulnerable-secret"
+     ],
+     "broke": [],
+     "diff": "--- agent.py (c000)\n+++ agent.py (c002b)\n@@ -13,7 +13,8 @@\n SYSTEM_PROMPT = \"\"\"You are an AI agent that solves tasks in a Linux terminal.\n Use the bash tool to run commands. When the task is complete, reply with a short summary.\"\"\"\n \n-MAX_STEPS = 10\n+MAX_STEPS = 60  # a safety cap; the real budget is the time left\n+MIN_TIME_LEFT_S = 15  # do not start a new step below this\n MAX_OUTPUT_CHARS = 1000\n COMMAND_TIMEOUT_S = 10  # a stuck command must not eat the whole budget\n \n@@ -49,6 +50,8 @@\n         {\"role\": \"user\", \"content\": task},\n     ]\n     for step in range(MAX_STEPS):\n+        if env.time_left() < MIN_TIME_LEFT_S:\n+            return\n         reply = env.llm(messages, tools=[BASH_TOOL])\n         messages.append(reply)\n         tool_calls = reply.get(\"tool_calls\") or []\n",
+     "spend_usd": 0.531758,
+     "siblings": [
+      {
+       "candidate": "c002a",
+       "title": "Use the clock, not 10 steps",
+       "val": 0.7142857142857143,
+       "verdict": "dropped: lost the screen"
+      }
+     ],
+     "strategy": {
+      "name": "two-candidates",
+      "preset": "two-candidates",
+      "hash": "0984ba8b2e",
+      "modified": false,
+      "knobs": {
+       "traces": "all",
+       "max_traces": 8,
+       "history": "full",
+       "diffs": false,
+       "candidates": 2,
+       "val_trials": 2,
+       "z": 1.5,
+       "confirm": true,
+       "iterations": 3
+      },
+      "prompt": "Read, in this order:\n1. `traces/INDEX.md`, then the transcripts in `traces/` (the current agent.py on the search tasks).\n2. `HISTORY.md`: what earlier iterations tried, and whether validation kept or dropped it. Do not repeat a\n   dropped idea unchanged.\n3. `CONTRACT.md` (what `env` offers) and `agent.py`.\n\nThen make one focused change (one mechanism) to `agent.py` that fixes a failure mechanism you can see in\nseveral transcripts.\n"
+     }
+    },
+    {
+     "t": 1161.87,
+     "schema": "aidev-evolve/1",
+     "run_id": "two-candidates-2",
+     "kind": "heldout",
+     "seed": 0.5434782608695652,
+     "best": 0.8043478260869565,
+     "best_candidate": "c002b",
+     "n_tasks": 23,
+     "trials": 2,
+     "diff": 0.2608695652173913,
+     "ci_low": 0.06521739130434782,
+     "ci_high": 0.45652173913043476,
+     "spend_usd": 0.793218,
+     "per_task": {
+      "build-pov-ray": [
+       0,
+       2,
+       2,
+       2
+      ],
+      "cancel-async-tasks": [
+       0,
+       2,
+       1,
+       2
+      ],
+      "bn-fit-modify": [
+       0,
+       2,
+       0,
+       1
+      ],
+      "regex-log": [
+       0,
+       2,
+       0,
+       2
+      ],
+      "sanitize-git-repo": [
+       0,
+       2,
+       1,
+       2
+      ],
+      "polyglot-c-py": [
+       2,
+       2,
+       1,
+       2
+      ],
+      "openssl-selfsigned-cert": [
+       1,
+       2,
+       2,
+       2
+      ],
+      "build-pmars": [
+       0,
+       2,
+       2,
+       2
+      ],
+      "sqlite-db-truncate": [
+       2,
+       2,
+       1,
+       2
+      ],
+      "nginx-request-logging": [
+       1,
+       2,
+       2,
+       2
+      ],
+      "log-summary-date-ranges": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "constraints-scheduling": [
+       2,
+       2,
+       1,
+       2
+      ],
+      "sqlite-with-gcov": [
+       0,
+       2,
+       2,
+       2
+      ],
+      "pypi-server": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "prove-plus-comm": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "multi-source-data-merger": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "modernize-scientific-stack": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "kv-store-grpc": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "hf-model-inference": [
+       1,
+       2,
+       1,
+       1
+      ],
+      "git-multibranch": [
+       1,
+       2,
+       2,
+       2
+      ],
+      "git-leak-recovery": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "db-wal-recovery": [
+       1,
+       2,
+       2,
+       2
+      ],
+      "configure-git-webserver": [
+       0,
+       2,
+       2,
+       2
+      ]
+     },
+     "kept": [
+      "Use the time budget, not 10 steps"
+     ],
+     "strategy": {
+      "name": "two-candidates",
+      "preset": "two-candidates",
+      "hash": "0984ba8b2e",
+      "modified": false,
+      "knobs": {
+       "traces": "all",
+       "max_traces": 8,
+       "history": "full",
+       "diffs": false,
+       "candidates": 2,
+       "val_trials": 2,
+       "z": 1.5,
+       "confirm": true,
+       "iterations": 3
+      },
+      "prompt": "Read, in this order:\n1. `traces/INDEX.md`, then the transcripts in `traces/` (the current agent.py on the search tasks).\n2. `HISTORY.md`: what earlier iterations tried, and whether validation kept or dropped it. Do not repeat a\n   dropped idea unchanged.\n3. `CONTRACT.md` (what `env` offers) and `agent.py`.\n\nThen make one focused change (one mechanism) to `agent.py` that fixes a failure mechanism you can see in\nseveral transcripts.\n"
+     }
+    }
+   ]
+  },
+  {
+   "name": "two-candidates-3",
+   "user": "two-candidates-3",
+   "events": [
+    {
+     "t": 164.32,
+     "schema": "aidev-evolve/1",
+     "run_id": "two-candidates-3",
+     "kind": "seed",
+     "val_score": 0.2857142857142857,
+     "search_score": 0.25,
+     "spend_usd": 0.039056,
+     "strategy": {
+      "name": "two-candidates",
+      "preset": "two-candidates",
+      "hash": "0984ba8b2e",
+      "modified": false,
+      "knobs": {
+       "traces": "all",
+       "max_traces": 8,
+       "history": "full",
+       "diffs": false,
+       "candidates": 2,
+       "val_trials": 2,
+       "z": 1.5,
+       "confirm": true,
+       "iterations": 3
+      },
+      "prompt": "Read, in this order:\n1. `traces/INDEX.md`, then the transcripts in `traces/` (the current agent.py on the search tasks).\n2. `HISTORY.md`: what earlier iterations tried, and whether validation kept or dropped it. Do not repeat a\n   dropped idea unchanged.\n3. `CONTRACT.md` (what `env` offers) and `agent.py`.\n\nThen make one focused change (one mechanism) to `agent.py` that fixes a failure mechanism you can see in\nseveral transcripts.\n"
+     }
+    },
+    {
+     "t": 798.19,
+     "schema": "aidev-evolve/1",
+     "run_id": "two-candidates-3",
+     "kind": "iteration",
+     "iteration": 1,
+     "candidate": "c001a",
+     "parent": "c000",
+     "title": "Stop by time budget, not step count",
+     "hypothesis": "Hypothesis: three of four traces (count-dataset-tokens, dna-insert, sparql-university) FAILED after exactly 10 model calls using only 18-57 s of the 180 s; the model was still working when MAX_STEPS cut it off.",
+     "accepted": true,
+     "verdict": "kept",
+     "val_child": 0.7142857142857143,
+     "val_parent": 0.3095238095238095,
+     "best_val": 0.7142857142857143,
+     "fixed": [
+      "extract-elf",
+      "financial-document-processor",
+      "fix-code-vulnerability",
+      "merge-diff-arc-agi-task",
+      "vulnerable-secret"
+     ],
+     "broke": [],
+     "diff": "--- agent.py (c000)\n+++ agent.py (c001a)\n@@ -13,7 +13,8 @@\n SYSTEM_PROMPT = \"\"\"You are an AI agent that solves tasks in a Linux terminal.\n Use the bash tool to run commands. When the task is complete, reply with a short summary.\"\"\"\n \n-MAX_STEPS = 10\n+MAX_STEPS = 100  # a safety net only: the real limit is the time budget\n+STOP_MARGIN_S = 8  # do not start a model call with less time than this left\n MAX_OUTPUT_CHARS = 1000\n COMMAND_TIMEOUT_S = 10  # a stuck command must not eat the whole budget\n \n@@ -39,7 +40,7 @@\n \n def run_tool_call(call, env):\n     args = json.loads(call[\"function\"][\"arguments\"])\n-    result = env.shell(\"{ \" + args[\"command\"] + \"\\n} 2>/dev/null\", timeout=COMMAND_TIMEOUT_S)  # only stdout: stderr is mostly noise\n+    result = env.shell(\"{ \" + args[\"command\"] + \"\\n} 2>/dev/null\", timeout=max(1, min(COMMAND_TIMEOUT_S, env.time_left() - 3)))  # only stdout: stderr is mostly noise\n     return format_output(result)\n \n \n@@ -49,6 +50,8 @@\n         {\"role\": \"user\", \"content\": task},\n     ]\n     for step in range(MAX_STEPS):\n+        if env.time_left() < STOP_MARGIN_S:\n+            return\n         reply = env.llm(messages, tools=[BASH_TOOL])\n         messages.append(reply)\n         tool_calls = reply.get(\"tool_calls\") or []\n",
+     "spend_usd": 0.348932,
+     "siblings": [
+      {
+       "candidate": "c001b",
+       "title": "Show stderr to the model",
+       "val": 0.42857142857142855,
+       "verdict": "dropped: lost the screen"
+      }
+     ],
+     "strategy": {
+      "name": "two-candidates",
+      "preset": "two-candidates",
+      "hash": "0984ba8b2e",
+      "modified": false,
+      "knobs": {
+       "traces": "all",
+       "max_traces": 8,
+       "history": "full",
+       "diffs": false,
+       "candidates": 2,
+       "val_trials": 2,
+       "z": 1.5,
+       "confirm": true,
+       "iterations": 3
+      },
+      "prompt": "Read, in this order:\n1. `traces/INDEX.md`, then the transcripts in `traces/` (the current agent.py on the search tasks).\n2. `HISTORY.md`: what earlier iterations tried, and whether validation kept or dropped it. Do not repeat a\n   dropped idea unchanged.\n3. `CONTRACT.md` (what `env` offers) and `agent.py`.\n\nThen make one focused change (one mechanism) to `agent.py` that fixes a failure mechanism you can see in\nseveral transcripts.\n"
+     }
+    },
+    {
+     "t": 1066.76,
+     "schema": "aidev-evolve/1",
+     "run_id": "two-candidates-3",
+     "kind": "heldout",
+     "seed": 0.6304347826086957,
+     "best": 0.8260869565217391,
+     "best_candidate": "c001a",
+     "n_tasks": 23,
+     "trials": 2,
+     "diff": 0.1956521739130435,
+     "ci_low": 0.043478260869565216,
+     "ci_high": 0.3695652173913043,
+     "spend_usd": 0.662925,
+     "per_task": {
+      "build-pov-ray": [
+       0,
+       2,
+       2,
+       2
+      ],
+      "cancel-async-tasks": [
+       1,
+       2,
+       1,
+       2
+      ],
+      "bn-fit-modify": [
+       0,
+       2,
+       1,
+       2
+      ],
+      "regex-log": [
+       2,
+       2,
+       1,
+       2
+      ],
+      "sanitize-git-repo": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "polyglot-c-py": [
+       2,
+       2,
+       1,
+       2
+      ],
+      "openssl-selfsigned-cert": [
+       0,
+       2,
+       1,
+       2
+      ],
+      "build-pmars": [
+       0,
+       2,
+       1,
+       2
+      ],
+      "sqlite-db-truncate": [
+       1,
+       2,
+       2,
+       2
+      ],
+      "nginx-request-logging": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "log-summary-date-ranges": [
+       0,
+       2,
+       1,
+       2
+      ],
+      "constraints-scheduling": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "sqlite-with-gcov": [
+       0,
+       2,
+       2,
+       2
+      ],
+      "pypi-server": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "prove-plus-comm": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "multi-source-data-merger": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "modernize-scientific-stack": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "kv-store-grpc": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "hf-model-inference": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "git-multibranch": [
+       1,
+       2,
+       1,
+       2
+      ],
+      "git-leak-recovery": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "db-wal-recovery": [
+       2,
+       2,
+       2,
+       2
+      ],
+      "configure-git-webserver": [
+       0,
+       2,
+       2,
+       2
+      ]
+     },
+     "kept": [
+      "Stop by time budget, not step count"
+     ],
+     "strategy": {
+      "name": "two-candidates",
+      "preset": "two-candidates",
+      "hash": "0984ba8b2e",
+      "modified": false,
+      "knobs": {
+       "traces": "all",
+       "max_traces": 8,
+       "history": "full",
+       "diffs": false,
+       "candidates": 2,
+       "val_trials": 2,
+       "z": 1.5,
+       "confirm": true,
+       "iterations": 3
+      },
+      "prompt": "Read, in this order:\n1. `traces/INDEX.md`, then the transcripts in `traces/` (the current agent.py on the search tasks).\n2. `HISTORY.md`: what earlier iterations tried, and whether validation kept or dropped it. Do not repeat a\n   dropped idea unchanged.\n3. `CONTRACT.md` (what `env` offers) and `agent.py`.\n\nThen make one focused change (one mechanism) to `agent.py` that fixes a failure mechanism you can see in\nseveral transcripts.\n"
+     }
     }
    ]
   }

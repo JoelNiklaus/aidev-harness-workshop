@@ -20,6 +20,7 @@ from collections import defaultdict
 from collections.abc import Callable
 from typing import Any
 
+from . import ranking
 from .store import Invalid
 
 SCHEMA = "aidev-evolve/1"
@@ -65,6 +66,80 @@ def _tasks(v: Any, name: str) -> list[str]:
     return [_str(t, name, 100) for t in v[:100]]  # type: ignore[misc]
 
 
+PRESET = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
+HASH = re.compile(r"^[0-9a-f]{6,64}$")
+KNOB_CHOICES = {"traces": ("failed", "all"), "history": ("none", "titles", "full")}
+KNOB_RANGES = {"max_traces": (1, 8), "candidates": (1, 2), "val_trials": (1, 3), "iterations": (1, 6)}
+PROMPT_MAX, MAX_PER_TASK, MAX_KEPT, MAX_SIBLINGS = 4000, 40, 20, 4
+
+
+def _bool(v: Any, name: str) -> bool:
+    if not isinstance(v, bool):
+        raise Invalid(f"{name} must be true or false")
+    return v
+
+
+def _knobs(v: Any) -> dict[str, Any]:
+    """The strategy's knobs (part2-evolve PROTOCOL.md): known keys only, each in its range."""
+    if not isinstance(v, dict):
+        raise Invalid("strategy.knobs must be an object")
+    out: dict[str, Any] = {}
+    for k, choices in KNOB_CHOICES.items():
+        if k in v:
+            if v[k] not in choices:
+                raise Invalid(f"strategy.knobs.{k} must be one of {', '.join(choices)}")
+            out[k] = v[k]
+    for k, (lo, hi) in KNOB_RANGES.items():
+        if k in v:
+            out[k] = _int(v[k], f"strategy.knobs.{k}", lo, hi)
+    if "z" in v:
+        out["z"] = _num(v["z"], "strategy.knobs.z", 0, 3)
+    for k in ("diffs", "confirm"):
+        if k in v:
+            out[k] = _bool(v[k], f"strategy.knobs.{k}")
+    return out
+
+
+def _strategy(v: Any) -> dict[str, Any]:
+    if not isinstance(v, dict):
+        raise Invalid("strategy must be an object")
+    preset, h = v.get("preset"), v.get("hash")
+    if not isinstance(preset, str) or not PRESET.match(preset):
+        raise Invalid("strategy.preset must be a preset name")
+    if not isinstance(h, str) or not HASH.match(h):
+        raise Invalid("strategy.hash must be hex")
+    return {"name": _str(v.get("name"), "strategy.name", 60), "preset": preset, "hash": h,
+            "modified": _bool(v.get("modified", False), "strategy.modified"),
+            "prompt": _str(v.get("prompt") or "", "strategy.prompt", PROMPT_MAX), "knobs": _knobs(v.get("knobs") or {})}
+
+
+def _per_task(v: Any) -> dict[str, list[int]]:
+    """{task: [seed passes, seed trials, final passes, final trials]}, at most MAX_PER_TASK tasks."""
+    if not isinstance(v, dict):
+        raise Invalid("per_task must be an object")
+    out = {}
+    for t, c in list(v.items())[:MAX_PER_TASK]:
+        if not (isinstance(c, list) and len(c) == 4):
+            raise Invalid("per_task values must be [seed_passes, seed_trials, final_passes, final_trials]")
+        sp, sn, fp, fn = (_int(x, "per_task count", 0, 100) for x in c)
+        if sp > sn or fp > fn:
+            raise Invalid("per_task passes cannot exceed trials")
+        out[_str(t, "per_task task", 100)] = [sp, sn, fp, fn]
+    return out
+
+
+def _siblings(v: Any) -> list[dict[str, Any]]:
+    if not isinstance(v, list):
+        raise Invalid("siblings must be a list")
+    out = []
+    for sib in v[:MAX_SIBLINGS]:
+        if not isinstance(sib, dict):
+            raise Invalid("each sibling must be an object")
+        out.append({"candidate": _str(sib.get("candidate"), "sibling candidate", 20, null=True), "title": _str(sib.get("title"), "sibling title", 200, null=True),
+                    "val": _num(sib.get("val"), "sibling val", 0, 1, null=True), "verdict": _str(sib.get("verdict"), "sibling verdict", 80, null=True)})
+    return out
+
+
 def validate(event: Any) -> dict[str, Any]:
     """The event as stored: known fields only, each checked, text cut to its display limit. Raises Invalid (422)."""
     if not isinstance(event, dict):
@@ -98,6 +173,20 @@ def validate(event: Any) -> dict[str, Any]:
                    ci_high=_num(event.get("ci_high"), "ci_high", -1, 1, null=True))
     else:
         raise Invalid("kind must be 'seed', 'iteration' or 'heldout'")
+    # strategy fields (client 0.4.0, additive) and the provider that served the run (PROTOCOL.md "Providers")
+    if event.get("strategy") is not None:
+        out["strategy"] = _strategy(event["strategy"])
+    if event.get("provider") is not None:
+        out["provider"] = _str(event["provider"], "provider", 40)
+    if kind == "iteration" and event.get("siblings"):
+        out["siblings"] = _siblings(event["siblings"])
+    if kind == "heldout":
+        if event.get("per_task") is not None:
+            out["per_task"] = _per_task(event["per_task"])
+        if event.get("kept") is not None:
+            if not isinstance(event["kept"], list):
+                raise Invalid("kept must be a list of titles")
+            out["kept"] = [_str(t, "kept title", 200) for t in event["kept"][:MAX_KEPT]]
     return out
 
 
@@ -125,6 +214,8 @@ class EvolveStore:
         # but keeps its first arrival time (the feed's order).
         diff = event.get("diff") if event["kind"] == "iteration" else None
         summary = {k: v for k, v in event.items() if not (k == "diff" and diff is not None)}
+        if event["kind"] == "iteration" and "strategy" in summary:  # the prompt rides on every event; seed and held-out keep it
+            summary["strategy"] = {k: v for k, v in summary["strategy"].items() if k != "prompt"}
         if diff is not None:
             summary["diff_lines"] = list(diff_size(diff))
         self._db.execute("""INSERT INTO evolve_events VALUES (?,?,?,?,?,?,?)
@@ -284,18 +375,87 @@ def level_at(curve: list[list[float]], x: int) -> float | None:
     return v
 
 
+# ---- strategy ranking -------------------------------------------------------------------------------
+
+
+def ranking_runs(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The runs `ranking.rank` takes: every run whose held-out event carries per-task counts and a strategy."""
+    out = []
+    for e in events:
+        if e["kind"] == "heldout" and e.get("per_task") and e.get("strategy"):
+            out.append({"run_id": e["run_id"], "user": e["user"], "strategy": e["strategy"],
+                        "heldout": {"per_task": e["per_task"], "best_candidate": e.get("best_candidate")}, "kept": e.get("kept") or []})
+    return out
+
+
+def _rank_both(runs: list[dict[str, Any]], rank: Callable[..., dict[str, Any]]) -> tuple[dict[str, Any], dict[str, Any]]:
+    return rank(runs, by="hash"), rank(runs, by="preset")
+
+
+class RankCache:
+    """`ranking.rank` takes ~2 s for 500 runs (task bootstrap) and a held-out result arrives once per run, at its end.
+    Rank again only when the held-out results changed, and then only after 10x the last ranking's cost (cheap while
+    few runs have ended, at most every ~30 s at 500): in between the last ranking is served."""
+
+    COST_FACTOR = 10.0
+
+    def __init__(self, *, clock: Callable[[], float] = time.monotonic, rank: Callable[..., dict[str, Any]] = ranking.rank):
+        self.clock, self.rank = clock, rank
+        self.key: Any = None
+        self.at = self.cost = 0.0
+        self.value: tuple[dict[str, Any], dict[str, Any]] | None = None
+        self._lock = threading.Lock()
+
+    def get(self, runs: list[dict[str, Any]]) -> tuple[dict[str, Any], dict[str, Any]]:
+        key = tuple(sorted((r["user"], r["run_id"], json.dumps(r["heldout"]["per_task"], sort_keys=True), r["strategy"]["hash"]) for r in runs))
+        with self._lock:
+            now = self.clock()
+            if self.value is None or (key != self.key and now - self.at >= self.COST_FACTOR * self.cost):
+                self.value, self.key = _rank_both(runs, self.rank), key
+                self.at = self.clock()
+                self.cost = self.at - now
+            return self.value
+
+
+def _with_details(result: dict[str, Any], events: list[dict[str, Any]], runs: list[dict[str, Any]]) -> dict[str, Any]:
+    """The ranking plus what the Winner view shows: each winning strategy's knobs and prompt (a preset pooled with
+    edited copies shows the preset's own), and the winning patch's kept iterations with their diff links."""
+    w = result.get("winner")
+    if not w:
+        return result
+    by = result["by"]
+    strategies = []
+    for k in w["keys"]:
+        members = [r["strategy"] for r in runs if r["strategy"].get(by, r["strategy"]["hash"]) == k]
+        st = next((m for m in members if not m.get("modified")), members[0])
+        entry = next(e for e in result["strategies"] if e["key"] == k)
+        strategies.append({"key": k, "name": entry["name"], "preset": st.get("preset"), "knobs": st.get("knobs") or {}, "prompt": st.get("prompt") or "",
+                           "n_runs": entry["n_runs"], "gain": entry["gain"], "ci": entry["ci"]})
+    p = dict(w["patch"])
+    p["iterations"] = [{"iteration": e["iteration"], "title": e.get("title") or "(untitled patch)",
+                        "diff_url": f"api/evolve/diff/{e['user']}/{e['run_id']}/{e['iteration']}"}
+                       for e in sorted((e for e in events if e["kind"] == "iteration" and e["accepted"] and e["user"] == p["user"]
+                                        and e["run_id"] == p["run_id"]), key=lambda e: e["iteration"])]
+    return {**result, "winner": {**w, "strategies": strategies, "patch": p}}
+
+
 # ---- board payload ----------------------------------------------------------------------------------
 
 
-def build_state(events: list[dict[str, Any]], reference: list[dict[str, Any]], *, mode: str = "live") -> dict[str, Any]:
-    """`events`: EvolveStore.events() (arrival order). `reference`: recorded runs [{label, curve}] (live-mode backdrop)."""
+def build_state(events: list[dict[str, Any]], reference: list[dict[str, Any]], *, mode: str = "live",
+                rank_cache: RankCache | None = None) -> dict[str, Any]:
+    """`events`: EvolveStore.events() (arrival order). `reference`: recorded runs [{label, curve}] (live-mode backdrop).
+    `rank_cache`: reuse the strategy ranking between rebuilds (None: rank now)."""
     runs: dict[tuple[str, str], dict[str, Any]] = {}
     feed: list[dict[str, Any]] = []
     tally: dict[str, list[int]] = defaultdict(lambda: [0, 0])
     for e in events:
         key = (e["user"], e["run_id"])
         r = runs.setdefault(key, {"run_id": e["run_id"], "user": e["user"], "events": [], "kept": 0, "iterations": 0, "spend_usd": 0.0,
-                                  "heldout": None, "last_at": 0.0})
+                                  "heldout": None, "last_at": 0.0, "strategy": None, "preset": None, "provider": None})
+        if e.get("strategy"):
+            r["strategy"], r["preset"] = e["strategy"].get("name"), e["strategy"].get("preset")
+        r["provider"] = e.get("provider") or r["provider"]
         r["spend_usd"] = max(r["spend_usd"], e.get("spend_usd") or 0.0)  # spend only grows; the latest is the largest
         r["last_at"] = max(r["last_at"], e["received_at"])
         if e["kind"] == "seed":
@@ -322,7 +482,7 @@ def build_state(events: list[dict[str, Any]], reference: list[dict[str, Any]], *
         seed = next((e["val_score"] for e in r["events"] if e["kind"] == "seed"), None)
         out_runs.append({"run_id": r["run_id"], "user": r["user"], "curve": curve, "current": curve[-1][1] if curve else None,
                          "seed": seed, "kept": r["kept"], "iterations": r["iterations"], "spend_usd": round(r["spend_usd"], 4),
-                         "heldout": r["heldout"], "last_at": r["last_at"]})
+                         "heldout": r["heldout"], "last_at": r["last_at"], "strategy": r["strategy"], "preset": r["preset"], "provider": r["provider"]})
 
     max_x = max((c[0] for r in out_runs for c in r["curve"]), default=0)
     levels = []
@@ -341,5 +501,8 @@ def build_state(events: list[dict[str, Any]], reference: list[dict[str, Any]], *
     out_runs.sort(key=lambda r: (-(r["current"] if r["current"] is not None else -1), -r["last_at"]))
     fixes = sorted(({"label": k, "tried": v[0], "kept": v[1]} for k, v in tally.items()), key=lambda f: (-f["tried"], -f["kept"], f["label"]))
     feed.reverse()  # events come in arrival order: newest first
+    ranked = ranking_runs(events)
+    by_hash, by_preset = rank_cache.get(ranked) if rank_cache is not None else _rank_both(ranked, ranking.rank)
     return {"mode": mode, "totals": totals, "runs": out_runs[:MAX_RUNS], "leader": leader, "baseline": baseline,
-            "reference": reference, "feed": feed[:FEED_LEN], "fixes": fixes[:FIXES_LEN], "max_iteration": max_x}
+            "reference": reference, "feed": feed[:FEED_LEN], "fixes": fixes[:FIXES_LEN], "max_iteration": max_x,
+            "strategies": _with_details(by_hash, events, ranked), "presets": _with_details(by_preset, events, ranked), "min_runs": ranking.MIN_RUNS}

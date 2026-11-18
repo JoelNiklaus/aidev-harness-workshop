@@ -11,11 +11,11 @@ FIX = Path(__file__).parent / "fixtures" / "trial_pass"
 PRICE = {"input": 0.15, "cached_input": 0.03, "output": 0.5}
 CLAIM = {"cell_id": "pi|nginx-request-logging|0", "harness": "pi", "task": "nginx-request-logging", "trial": 0, "model": "zai-org/GLM-5.3-Flash"}
 KEYS = {"cell_id", "harness", "harness_version", "task", "trial", "model", "reward", "passed", "started_at", "finished_at", "wall_s", "n_input_tokens",
-        "n_cached_tokens", "n_output_tokens", "n_calls", "cost_usd", "error", "hf_user", "runner_version", "sandbox_id", "trajectory_url"}
+        "n_cached_tokens", "n_output_tokens", "n_calls", "cost_usd", "error", "hf_user", "runner_version", "sandbox_id", "trajectory_url", "provider", "n_provider_errors"}
 
 
 def build(trial_dir=FIX, **kw):
-    return R.build_result(CLAIM, trial_dir, PRICE, hf_user="alice", runner_version="0.1.0", **kw)
+    return R.build_result(CLAIM, trial_dir, PRICE, hf_user="alice", runner_version="0.1.0", **{"provider": "novita", **kw})
 
 
 def test_result_has_exactly_the_protocol_fields():
@@ -79,3 +79,14 @@ def copy_fixture(tmp_path, reward=1.0, exception=None):
     (d / "result.json").write_text(json.dumps(res))
     (d / "agent" / "hlb-meter.jsonl").write_text((FIX / "agent" / "hlb-meter.jsonl").read_text())
     return d
+
+
+def test_result_records_the_provider_and_its_429_or_5xx_answers(tmp_path):
+    import shutil
+
+    d = tmp_path / "t"
+    shutil.copytree(FIX, d)
+    log = d / "agent" / "hlb-meter.jsonl"
+    log.write_text(log.read_text() + json.dumps({"path": "/v1/chat/completions", "status": 200, "fallback": 429}) + "\n")
+    r = build(d, provider="novita")
+    assert r["provider"] == "novita" and r["n_provider_errors"] == 1

@@ -20,19 +20,33 @@ def recorded():
     ]
 
 
-def test_shipped_recording_holds_two_complete_valid_runs():
+def test_shipped_recording_holds_the_phase_3_strategy_runs():
+    # Phase 3, batch loops2 (talk folder evolve/runs/p3): 13 runs of 4 presets plus an edited copy, config C
     runs = load_recorded(paths.evolve_replay_path())
-    assert [r["name"] for r in runs] == ["B1", "B2"]
+    assert len(runs) == 13
+    assert {r["events"][0]["strategy"]["preset"] for r in runs} == {"baseline", "failures-first", "small-diffs", "two-candidates"}
     for r in runs:
         kinds = [e["kind"] for e in r["events"]]
-        assert kinds == ["seed"] + ["iteration"] * 8 + ["heldout"]
+        assert kinds[0] == "seed" and kinds[-1] == "heldout" and 1 <= kinds.count("iteration") <= 2
         ts = [e["t"] for e in r["events"]]
         assert ts == sorted(ts) and ts[0] > 0
         for e in r["events"]:
-            evolve.validate({k: v for k, v in e.items() if k != "t"})
-        its = [e for e in r["events"] if e["kind"] == "iteration"]
-        assert sum(e["accepted"] for e in its) == 1 and its[0]["accepted"]  # Phase 2: the step-limit fix, then drops
-        assert all(e.get("hypothesis") for e in its)
+            v = evolve.validate({k: x for k, x in e.items() if k != "t"})
+            assert v["strategy"]["hash"] == r["events"][0]["strategy"]["hash"]
+        ho = evolve.validate({k: x for k, x in r["events"][-1].items() if k != "t"})
+        assert len(ho["per_task"]) == 23 and ho["kept"]
+        assert all(e.get("hypothesis") for e in r["events"] if e["kind"] == "iteration")
+
+
+def test_replayed_strategy_runs_rank_like_the_phase_3_report():
+    # p3-numbers.md, minimum 5 runs: no single strategy has 5 runs; pooled by preset, baseline (3 + 3 edited copies) has 6
+    clock, store = Clock(), evolve.EvolveStore(clock=Clock())
+    rp = EvolveReplayer(store, load_recorded(paths.evolve_replay_path()), minutes=1, clock=clock)
+    clock.advance(61)
+    rp.step()
+    s = evolve.build_state(store.events(), [], mode="replay")
+    assert s["strategies"]["n_runs"] == 13 and s["strategies"]["groups"] == []
+    assert s["presets"]["groups"] == [["baseline"]] and s["presets"]["winner"]["patch"]["iterations"]
 
 
 def test_replay_schedule_is_squeezed_into_the_given_minutes():

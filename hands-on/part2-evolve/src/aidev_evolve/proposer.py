@@ -24,20 +24,18 @@ TIMEOUT_S = 300
 CLAUDE_TOOLS = "Read,Edit,Write,Glob,Grep"
 STRIP_ENV = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "OPENAI_API_KEY", "HF_TOKEN")
 
-PROMPT = """You are improving a small coding-agent harness: the Python file `agent.py` in this folder.
+HEADER = """You are improving a small coding-agent harness: the Python file `agent.py` in this folder.
 A fixed model (GLM-5.3-Flash) runs inside this harness on Terminal-Bench 2.1 tasks: Linux terminal tasks
 checked by hidden tests. Each task run gets {budget_s:.0f} seconds; the model, its settings and the time
 budget are fixed. Only the harness can change: prompts, the loop, tools, how outputs are shown to the
 model, when to stop, how to recover from mistakes.
 
-This is iteration {iteration}. Read, in this order:
-1. `traces/INDEX.md`, then the failed transcripts in `traces/` (the current agent.py on the search tasks).
-2. `HISTORY.md`: what earlier iterations tried, and whether validation kept or dropped it. Do not repeat a
-   dropped idea unchanged.
-3. `CONTRACT.md` (what `env` offers) and `agent.py`.
+This is iteration {iteration}.
+"""
 
-Then make one focused change (one mechanism) to `agent.py` that fixes a failure mechanism you can see in several
-transcripts. Rules:
+# The fixed part of every proposer prompt: a strategy's prompt file cannot remove or change it.
+RULES = """
+Rules (fixed for everyone):
 - General harness behaviour only: never mention benchmark task names or task-specific content.
 - Keep the contract: `run(task, env)`; only `env.llm` and `env.shell` reach the model and the container;
   standard-library imports from: json, re, time, textwrap, shlex, collections, dataclasses, itertools,
@@ -78,8 +76,15 @@ class ProposerResult:
     log: str = ""
 
 
-def build_prompt(*, iteration: int, budget_s: float) -> str:
-    return PROMPT.format(iteration=iteration, budget_s=budget_s)
+def build_prompt(*, iteration: int, budget_s: float, approach: str | None = None, hint: str = "") -> str:
+    """The fixed header, the strategy's approach (its proposer_prompt.md; default: the baseline preset), an optional
+    hint for a second candidate, then the fixed rules."""
+    if approach is None:
+        from aidev_evolve import strategy
+
+        approach = strategy.load("baseline").prompt
+    extra = f"\n{hint.strip()}\n" if hint.strip() else ""
+    return HEADER.format(iteration=iteration, budget_s=budget_s) + "\n" + approach.strip() + "\n" + extra + RULES
 
 
 def _claude_json(out: str) -> dict[str, Any] | None:

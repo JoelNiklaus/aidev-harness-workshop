@@ -1,6 +1,8 @@
 """aidev-evolve command line.
 
-- `aidev-evolve run`: the evolve loop (seed -> propose -> evaluate -> keep or drop), see loop.py.
+- `aidev-evolve run --strategy <preset|folder>`: the evolve loop (seed -> propose -> evaluate -> keep or drop), see loop.py.
+- `aidev-evolve strategies` / `strategy-init <preset> <dir>`: the optimization strategies (strategy.py).
+- `aidev-evolve rank <run folders>`: rank strategies by held-out gain with CIs and ties (ranking.py).
 - `aidev-evolve replay`: play a recorded loop offline (no network).
 - `aidev-evolve eval --agent agent.py --tasks a,b --trials K`: score one agent.py once (one HF Job).
 - `aidev-evolve eval-job`: what the HF Job runs (reads its spec from the environment).
@@ -15,7 +17,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from aidev_evolve import __version__, board, launch, loop
+from aidev_evolve import __version__, board, launch, loop, ranking, strategy
 
 
 def _bundled_budget() -> float:
@@ -76,9 +78,9 @@ def cmd_check(args: argparse.Namespace) -> int:
     try:
         r = _http().get(f"{args.board.rstrip('/')}/api/evolve/state")
         line(True if r.status_code == 200 else None,
-             f"room board {board.page_url(args.board)}: " + ("reachable" if r.status_code == 200 else f"HTTP {r.status_code} (not live yet; your loop runs without it)"))
+             f"workshop board {board.page_url(args.board)}: " + ("reachable" if r.status_code == 200 else f"HTTP {r.status_code} (not live yet; your loop runs without it)"))
     except Exception as e:  # noqa: BLE001 - the board is a display, never a blocker
-        line(None, f"room board {board.page_url(args.board)}: {type(e).__name__} (your loop runs without it and sends its updates later)")
+        line(None, f"workshop board {board.page_url(args.board)}: {type(e).__name__} (your loop runs without it and sends its updates later)")
     if args.job and session:
         from aidev_evolve import loop
 
@@ -138,18 +140,32 @@ def make_evolver(args: argparse.Namespace, run_dir: Path, write: Any = None) -> 
         extra["seed_source"] = Path(args.seed).read_text()
     splits = json.loads(Path(args.splits).read_text()) if args.splits else loop.default_splits()
     budget_s = args.budget_s or splits["budget_s"]  # the budget the splits' tasks were selected for
+    session_s = None if getattr(args, "no_time_box", False) else strategy.SESSION_MINUTES * 60
     return loop.Evolver(run_dir, splits=splits, evaluate=evaluate, propose=propose, board=room, budget_s=budget_s, color=sys.stdout.isatty(),
                         proposer_name=args.proposer, run_id=f"{user}-{run_dir.name}", write=write or (lambda s: print(s, end="", flush=True)),
-                        resume=getattr(args, "resume", False), val_trials=args.val_trials, z=args.z, confirm=args.confirm, **extra)
+                        resume=getattr(args, "resume", False), strategy=strategy.load(args.strategy), session_s=session_s,
+                        parallel_proposals=args.proposer != "manual", **extra)
 
 
 def _run_dir(base: str | None) -> Path:
     return Path(base) if base else Path("runs") / time.strftime("%Y%m%d-%H%M%S")
 
 
+def _strategy_or_exit(spec: str) -> strategy.Strategy | None:
+    try:
+        return strategy.load(spec)
+    except strategy.StrategyError as e:
+        print(f"Strategy {spec!r}: {e}")
+        return None
+
+
 def cmd_run(args: argparse.Namespace) -> int:
     from aidev_evolve import proposer
 
+    s = _strategy_or_exit(args.strategy)  # before any login check or paid call
+    if s is None:
+        return 2
+    print("Strategy " + strategy.describe(s), flush=True)
     if args.proposer != "manual":  # the seed calibration costs credits: a logged-out proposer must stop us before it
         ok, msg = proposer.probe(args.proposer)
         if not ok:
@@ -157,18 +173,25 @@ def cmd_run(args: argparse.Namespace) -> int:
             return 1
     evo = make_evolver(args, _run_dir(args.run_dir))
     if args.board:
-        print(f"Room board: {board.page_url(args.board)}  (your progress appears there; --no-board keeps it private)", flush=True)
-    evo.run(iterations=args.iterations, heldout_trials=args.heldout_trials)
+        print(f"Workshop board: {board.page_url(args.board)}  (your progress appears there; --no-board keeps it private)", flush=True)
+    try:
+        evo.run(heldout_trials=strategy.HELDOUT_TRIALS)
+    except launch.EvalJobError as e:  # the seed calibration or held-out Job failed: nothing to continue on
+        print(f"\nAn evaluation Job failed: {e}\nFix the cause, then `aidev-evolve run --resume --run-dir {evo.run_dir}` "
+              f"continues without repeating paid work.")
+        return 1
     room = getattr(evo, "board", None)
     left = room.flush(retries=4) if isinstance(room, board.QueuedBoard) else 0
     if left:
-        print(f"\nThe room board did not take {left} updates; `aidev-evolve run --resume --run-dir {evo.run_dir}` sends them later.")
+        print(f"\nThe workshop board did not take {left} updates; `aidev-evolve run --resume --run-dir {evo.run_dir}` sends them later.")
     print(f"\nRun folder: {evo.run_dir}")
     return 0
 
 
 def cmd_experiment(args: argparse.Namespace) -> int:
     """Phase 2 entry point: R independent runs of the same loop, each with its held-out check; one summary."""
+    if _strategy_or_exit(args.strategy) is None:
+        return 2
     base = _run_dir(args.run_dir)
     summary = []
     for k in range(args.runs):
@@ -178,6 +201,45 @@ def cmd_experiment(args: argparse.Namespace) -> int:
                         "val_curve": st["curve"], "heldout": st["heldout"], "spend_usd": st["spend_usd"], "proposer_usd": st["proposer_usd"]})
         (base / "summary.json").write_text(json.dumps(summary, indent=2))
     print(json.dumps(summary, indent=2))
+    return 0
+
+
+def cmd_strategies(args: argparse.Namespace) -> int:
+    print(f"Optimization strategies (fixed for everyone: model, {loop.default_splits()['budget_s']:.0f} s per task, the splits and held-out set, "
+          f"the seed, {strategy.HELDOUT_TRIALS} held-out trials, a {strategy.SESSION_MINUTES:.0f}-min session, at most ${strategy.USD_CAP:.0f}):\n")
+    for name in strategy.presets():
+        print(strategy.describe(strategy.load(name)) + "\n")
+    print("Edit one: `aidev-evolve strategy-init <preset> my-strategy`, change strategy.toml and proposer_prompt.md, "
+          "then `aidev-evolve run --strategy my-strategy`.")
+    return 0
+
+
+def cmd_strategy_init(args: argparse.Namespace) -> int:
+    try:
+        d = strategy.init(args.preset, Path(args.directory))
+    except (strategy.StrategyError, FileExistsError) as e:
+        print(e)
+        return 2
+    print(f"Copied {args.preset} to {d}/: edit strategy.toml (knobs) and proposer_prompt.md (your proposer's approach),\n"
+          f"then run it with `aidev-evolve run --strategy {d}` (the file is checked before anything is spent).")
+    return 0
+
+
+def run_entry(run_dir: Path) -> dict[str, Any]:
+    """A run folder as the ranking reads it (the same fields as the board's heldout event)."""
+    config = json.loads((run_dir / "config.json").read_text())
+    state = json.loads((run_dir / "state.json").read_text())
+    rid = state.get("run_id") or config.get("run_id") or run_dir.name
+    return {"run_id": rid, "user": rid.split("-")[0], "strategy": config["strategy"], "heldout": state.get("heldout"),
+            "kept": [h.get("title") for h in state.get("history", []) if h.get("verdict") == "kept"]}
+
+
+def cmd_rank(args: argparse.Namespace) -> int:
+    runs = [run_entry(Path(d)) for d in args.run_dirs]
+    result = ranking.rank(runs, by=args.by, min_runs=args.min_runs)
+    print(ranking.format_table(result))
+    if args.json:
+        Path(args.json).write_text(json.dumps(result, indent=2))
     return 0
 
 
@@ -193,18 +255,15 @@ def _loop_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--proposer", choices=["claude", "codex", "manual"], default="claude")
     p.add_argument("--model", default=None, help="proposer model (claude: sonnet, opus; codex: its model names)")
     p.add_argument("--proposer-timeout-s", type=float, default=300)
-    p.add_argument("--iterations", type=int, default=loop.ITERATIONS)
-    p.add_argument("--val-trials", type=int, default=loop.VAL_TRIALS, help="trials per validation task for child and parent each iteration")
-    p.add_argument("--heldout-trials", type=int, default=loop.HELDOUT_TRIALS, help="0 skips the final held-out check")
+    p.add_argument("--strategy", default="baseline",
+                   help=f"optimization strategy: a preset ({', '.join(strategy.presets())}) or a folder from `strategy-init`")
     p.add_argument("--budget-s", type=float, default=None, help="agent time per task (default: the budget the splits were selected for)")
-    p.add_argument("--z", type=float, default=loop.Z, help="keep a patch if it wins by z paired standard errors (at least one task)")
-    p.add_argument("--no-confirm", dest="confirm", action="store_false", help="keep a winning patch without re-measuring it")
     p.add_argument("--seed", default=None, help="starting agent.py (default: the bundled seed)")
     p.add_argument("--splits", default=None, help="splits JSON (default: the bundled splits)")
     p.add_argument("--run-dir", default=None)
     p.add_argument("--resume", action="store_true", help="continue the run in --run-dir after a crash or Ctrl-C (iterations = total)")
-    p.add_argument("--board", default=board.ROOM_URL, help=f"room board to post your progress to (default: the coordinator Space, {board.ROOM_URL})")
-    p.add_argument("--no-board", dest="board", action="store_const", const=None, help="do not post to the room board")
+    p.add_argument("--board", default=board.ROOM_URL, help=f"workshop board to post your progress to (default: the coordinator Space, {board.ROOM_URL})")
+    p.add_argument("--no-board", dest="board", action="store_const", const=None, help="do not post to the workshop board")
     p.add_argument("--package-url", default=None)
 
 
@@ -212,7 +271,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="aidev-evolve")
     p.add_argument("--version", action="version", version=__version__)
     sub = p.add_subparsers(dest="cmd", required=True)
-    c = sub.add_parser("check", help="check your setup: HF login, your coding agent, the room board (free, seconds)")
+    c = sub.add_parser("check", help="check your setup: HF login, your coding agent, the workshop board (free, seconds)")
     c.add_argument("--proposer", choices=["claude", "codex"], default=None, help="check only this coding agent (default: both, one must answer)")
     c.add_argument("--board", default=board.ROOM_URL)
     c.add_argument("--job", action="store_true", help="also run one seed trial in an HF Job (about a minute, under a cent)")
@@ -234,6 +293,9 @@ def build_parser() -> argparse.ArgumentParser:
     x = sub.add_parser("experiment", help="several independent runs with held-out checks (Phase 2)")
     _loop_args(x)
     x.add_argument("--runs", type=int, default=3)
+    x.add_argument("--iterations", type=int, default=None, help="(dev) iterations per run (default: the strategy's, inside the time box)")
+    x.add_argument("--heldout-trials", type=int, default=strategy.HELDOUT_TRIALS, help="(dev) 0 skips the held-out check")
+    x.add_argument("--no-time-box", action="store_true", help="(dev) no session time box")
     x.set_defaults(fn=cmd_experiment)
     room = sub.add_parser("room-init", help="create an offline shared-seed proposal kit")
     room.add_argument("directory")
@@ -249,6 +311,18 @@ def build_parser() -> argparse.ArgumentParser:
         room_module.diff(Path(args.directory))
         return 0
     rd.set_defaults(fn=diff_room)
+    st = sub.add_parser("strategies", help="list the optimization strategy presets with their knobs, time and credits")
+    st.set_defaults(fn=cmd_strategies)
+    si = sub.add_parser("strategy-init", help="copy a strategy preset into a folder to edit it")
+    si.add_argument("preset")
+    si.add_argument("directory", nargs="?", default="my-strategy")
+    si.set_defaults(fn=cmd_strategy_init)
+    rk = sub.add_parser("rank", help="rank strategies by held-out gain (95%% CIs, ties) from run folders")
+    rk.add_argument("run_dirs", nargs="+")
+    rk.add_argument("--by", choices=["hash", "preset", "name"], default="hash", help="pool identical strategies (hash) or every edit of a preset")
+    rk.add_argument("--min-runs", type=int, default=ranking.MIN_RUNS)
+    rk.add_argument("--json", default=None, help="also write the full ranking as JSON")
+    rk.set_defaults(fn=cmd_rank)
     rp = sub.add_parser("replay", help="play a recorded run (offline, no credits)")
     rp.add_argument("run_dir", nargs="?", default=None)
     rp.add_argument("--speed", type=float, default=20.0)

@@ -42,7 +42,7 @@ def test_state_shows_progress_grid_feed_and_unreached_harnesses(store, clock, gr
     ref = [{**make_result("openclaw__t1__0", user="harness-leaderboard"), "cost_usd": 0.05}]
     s = build_state(grid, store.snapshot(), ref, META, mode="live")
 
-    assert s["counts"] == {"cells_total": 12, "done": 2, "passed": 1, "running": 1, "contributors": 3, "max_claims_per_cell": 1}
+    assert s["counts"] == {"cells_total": 12, "done": 2, "passed": 1, "running": 1, "contributors": 3, "max_claims_per_cell": 1, "by_provider": {"unknown": 2}}
     # grid: one string per harness, task-major blocks of trials: t1 trials then t2 trials
     assert s["grid"]["tasks"] == ["t1", "t2"] and s["grid"]["trials"] == 2
     assert s["grid"]["rows"]["opencode"] == "pcfo"
@@ -70,3 +70,13 @@ def test_results_outside_the_grid_do_not_count(store, grid):
     snap["results"] = [make_result("gone__t9__0")]
     s = build_state(grid, snap, [], META, mode="live")
     assert s["counts"]["done"] == 0
+
+
+def test_state_counts_results_per_provider(store, grid):
+    # PROTOCOL.md "Providers": each result names its provider (0.4.0 runners send none)
+    for user, provider in (("alice", "novita"), ("bob", "zai-org"), ("carol", None)):
+        c = store.claim(user)[0]
+        extra = {"provider": provider, "n_provider_errors": 0} if provider else {}
+        store.submit(c["cell_id"], user, make_result(c["cell_id"], user=user, **extra))
+    s = build_state(grid, store.snapshot(), [], META, mode="live")
+    assert s["counts"]["by_provider"] == {"novita": 1, "zai-org": 1, "unknown": 1}

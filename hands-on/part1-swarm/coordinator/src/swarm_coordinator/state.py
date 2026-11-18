@@ -47,6 +47,14 @@ def aggregate(results: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     return out
 
 
+def by_provider(results: list[dict[str, Any]]) -> dict[str, int]:
+    """Results per GLM-5.3-Flash provider (PROTOCOL.md "Providers"); runners before 0.4.1 name none: "unknown"."""
+    out: dict[str, int] = defaultdict(int)
+    for r in results:
+        out[r.get("provider") or "unknown"] += 1
+    return dict(sorted(out.items()))
+
+
 def build_state(grid: Grid, snap: dict[str, Any], reference: list[dict[str, Any]], meta: dict[str, dict[str, str]], *, mode: str) -> dict[str, Any]:
     in_grid = {c.cell_id for c in grid.cells}
     results = [r for r in snap["results"] if r["cell_id"] in in_grid]
@@ -67,7 +75,8 @@ def build_state(grid: Grid, snap: dict[str, Any], reference: list[dict[str, Any]
     return {
         "mode": mode, "model": grid.model, "generated_at": snap["now"], "version": snap["version"],
         "counts": {"cells_total": len(in_grid), "done": len(results), "passed": sum(1 for r in results if r["passed"]),
-                   "running": len(running), "contributors": len(contributors), "max_claims_per_cell": snap["max_claims"]},
+                   "running": len(running), "contributors": len(contributors), "max_claims_per_cell": snap["max_claims"],
+                   "by_provider": by_provider(results)},
         "harnesses": harnesses,
         "grid": {"tasks": list(grid.tasks), "trials": grid.trials_per_cell, "rows": rows},
         "feed": feed,

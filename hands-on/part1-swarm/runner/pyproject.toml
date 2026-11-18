@@ -1,6 +1,6 @@
 [project]
 name = "aidev-swarm"
-version = "0.4.0"
+version = "0.4.1"
 description = "Launch an HF Job that claims Terminal-Bench 2.1 trials from the workshop swarm, runs them with Harbor on HF Sandbox under your own HF token, and submits the results."
 readme = "README.md"
 requires-python = ">=3.12"

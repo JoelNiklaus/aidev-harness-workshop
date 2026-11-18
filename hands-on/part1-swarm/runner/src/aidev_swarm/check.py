@@ -22,13 +22,19 @@ def job_spec(user: str) -> dict[str, Any]:
             "flavor": "cpu-basic", "timeout": 300, "labels": dict(LABEL), "namespace": user}
 
 
+class ProviderBusy(RuntimeError):
+    """The provider answered 429 or 5xx: worth trying the next provider of the attendee's list."""
+
+
 def chat(token: str, model: str, provider: str) -> str:
-    """One short reply from `model` on `provider`, billed to the token's account."""
+    """One short reply from `model` on `provider`, billed to the token's account. Raises ProviderBusy on 429/5xx."""
     import httpx
 
     r = httpx.post(ROUTER, headers={"Authorization": f"Bearer {token}"}, timeout=120, json={
         "model": f"{model}:{provider}", "max_tokens": 200, "reasoning_effort": "low",
         "messages": [{"role": "user", "content": "Reply with the single word: ok"}]})
+    if r.status_code == 429 or r.status_code >= 500:
+        raise ProviderBusy(f"HTTP {r.status_code}: {r.text[:200]}")
     if r.status_code != 200:
         raise RuntimeError(f"HTTP {r.status_code}: {r.text[:200]}")
     msg = r.json()["choices"][0]["message"]

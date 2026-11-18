@@ -115,3 +115,33 @@ def test_hypothesis_candidates_cut_at_semicolons_and_conjunctions_not_inside_a_l
 
 def test_hypothesis_without_a_boundary_has_only_itself():
     assert _cands("runs end at the step cap") == ["runs end at the step cap"]
+
+
+# ---- strategies (part2-evolve/REQUESTS.md: Strategies panel and Winner view) ----------------------------
+
+
+def test_page_has_a_strategies_panel_by_preset_first_then_by_exact_strategy():
+    assert ">Strategies<" in PAGE
+    assert PAGE.index("by preset") < PAGE.index("edited copies")
+    assert "s.presets" in PAGE and "s.strategies" in PAGE
+    assert "needs ${" in PAGE and "s.min_runs" in PAGE  # unranked rows say how many runs they need
+    assert "held-out gain" in PAGE.lower() and "95% CI" in PAGE
+
+
+def test_strategy_rows_show_shared_ranks_with_an_equals_sign_and_bracket_tie_groups():
+    assert '"=" +' in PAGE or "'=' +" in PAGE
+    for cls in ("tie-top", "tie-mid", "tie-bot"):
+        assert cls in PAGE
+
+
+def test_winner_view_names_the_strategy_or_the_tie_and_shows_the_winning_patch():
+    for text in ("Winning strategy", "Tie for first", "Winning patch", "one run: about ±15-20 points", "view=winner"):
+        assert text in PAGE, text
+    assert "diff_url" in PAGE and "knobs" in PAGE and "prompt" in PAGE
+
+
+def test_strategy_and_patch_text_goes_through_esc():
+    # strategy names, presets, prompts, kept titles and diffs come from attendees
+    for field in ("e.name", "e.preset", "st.name", "t", "line", "p.user", "p.run_id"):
+        assert f"${{esc({field})}}" in PAGE, field
+    assert "${esc(st.prompt." in PAGE

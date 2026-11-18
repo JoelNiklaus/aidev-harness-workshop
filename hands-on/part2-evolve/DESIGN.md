@@ -112,3 +112,53 @@ points, 95% CI over tasks [+2, +31]); config A (Phase 1 seed, 240 s) looked as g
 scored 2-4 points below its seed on the 25 unseen tasks. Open for the room: after the iteration-1 fix, validation
 saturates at 83-90% and later patches cannot clear the margin, so attendees see one big kept patch followed by
 dropped ones (gallery: talk folder `evolve/patch-gallery.html`).
+
+## Phase 3: attendees own an optimization strategy, and the room ranks strategies (helper, 18 Nov)
+
+Joel: "let them make some changes to the optimization process so we have a winner in the end and not just random
+noise". Each attendee runs `aidev-evolve run --strategy <preset|folder>`; the board ranks strategies by held-out gain.
+
+**Strategy = `strategy.toml` + `proposer_prompt.md`** (`src/aidev_evolve/strategy.py`, presets in
+`src/aidev_evolve/strategies/`; `aidev-evolve strategy-init small-diffs my-strategy` copies one in a second):
+
+| Knob | Values | What it changes |
+|---|---|---|
+| proposer prompt (`proposer_prompt.md`) | free text, <= 4,000 chars | how the coding agent approaches a patch; the loop appends fixed rules (contract, imports, no task names, PATCH.md) |
+| `evidence.traces` | `failed` / `all` | which search transcripts it reads (failures first) |
+| `evidence.max_traces` | 1-8 | how many |
+| `evidence.history` | `none` / `titles` / `full` | what it sees of earlier attempts |
+| `evidence.diffs` | bool | earlier attempts' diffs in HISTORY.md |
+| `proposer.candidates` | 1 / 2 | two proposals per iteration, both measured in one Job with the parent, the better goes through the keep rule (re-measure forced: picking the better of two is a selection) |
+| `proposer.second_hint` | text | steers the second proposal (preset: "fix the second most common failure") |
+| `keep.val_trials`, `keep.z`, `keep.confirm` | 1-3, 0-3, bool | the keep rule |
+| `iterations` | 1-6 | the most iterations; the session time box decides how many start |
+
+**Fixed (refused in a strategy file):** model and effort, 180 s per task, the splits and held-out set, the seed, 2
+held-out trials, the 22-min session (an iteration starts only if it, as long as the longest so far, and the 5.5-min
+held-out check still fit), and the $2 worst-case credit cap (checked when the strategy loads). The proposer (Claude
+Code or Codex, and its model) is the attendee's own and is recorded, not fixed.
+
+**Presets:** `baseline` (Phase 2 loop: all transcripts, full history, 1 candidate, z 1.5), `failures-first` (only
+failures, a FAILURES.md tally first, titles-only history), `small-diffs` (<= 10 changed lines, z 1.0, sees earlier
+diffs), `two-candidates` (2 per iteration, 3 iterations max). Each fits the session with 2-3 iterations and costs at
+most $1.4-1.9 on splits C.
+
+**Winner, not noise (`src/aidev_evolve/ranking.py`):** every run ends with seed vs final on the 23 held-out tasks x 2
+trials (about 5 min, $0.35). One run's gain has a ±17-point CI, so individuals are not ranked. Runs are pooled per
+strategy (identical knobs + prompt = same hash; a by-preset view pools edits with their preset); score = mean final
+pass rate; gain = score - seed pooled over the room; CI = Welch t over run scores (tasks fixed); ties = CI of the
+difference covers 0; tie groups and shared ranks with the Harness Leaderboard rule; < 5 runs = listed, not ranked.
+Final view: winning strategy (or "tie for first") and winning patch (best run in that group with its own CI).
+Numbers: talk folder `evolve/strategy-noise.md`.
+
+**Result (19 real runs, PROGRESS.md):** the machinery works (every run ends with a paired held-out gain; ties are
+called), but the five strategies tried tie: every run keeps the same first patch (lift the step limit, +15-25 points
+held-out) and a second patch was kept once in 19 runs (it did not hold on held-out). The kill fix was proposed once in
+41 proposals. Likely cause: the search transcripts show few killed commands. Next step (open): kill-heavy tasks in search.
+
+| # | Decision | Why | By |
+|---|---|---|---|
+| 16 | Seed C = seed B4 + every command killed after 10 s; splits C (validation 7, held-out = the 23 other pool tasks) | Sweep: step fix +22, kill fix +13, residual after the step fix +10 (B: +3.7); held-out large enough to rank strategies | helper (gate from the runbook) |
+| 17 | Rank strategies (pooled runs), not individuals; Welch t over runs, tasks fixed; min 5 runs | Simulation: one run ±17 pts; bootstrap over 5 runs under-covers (11% false winners), Welch 4% | helper |
+| 18 | Session time box 22 min (not 20) | Calibration 3 + 2 iterations 8.4 + one re-measure 2.5 + held-out 5.5 = 19.4 min; 20 would allow only 1-2 iterations | helper |
+| 19 | Held-out trials 2 per task (not 1) | 1 trial halves the power of the strategy comparison (gap 8, 5 runs: 40% vs 75%) for $0.18 less | helper |

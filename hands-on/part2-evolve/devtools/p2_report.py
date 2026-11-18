@@ -3,7 +3,7 @@
     uv run --with matplotlib python devtools/p2_report.py --runs A1,A2,B1,B2 --out "<talk>/evolve"
 
 Writes `<out>/p2-numbers.md` (every number the gallery and the report quote), `<out>/p2-validation.png`
-(best validation pass rate over iterations, one line per run) and `<out>/p2-heldout.png` (held-out: seed vs
+(validation pass rate of the current kept harness over iterations, pooled over its measurements, so it can drop on a re-measure; one line per run) and `<out>/p2-heldout.png` (held-out: seed vs
 the run's final agent, paired difference with its 95% task-bootstrap CI). Figures are drawn at the size they
 take on a 13.33 x 7.5 in slide, every text >= 24 pt, through figure_check.save_checked.
 """
@@ -168,7 +168,7 @@ def fig_validation(runs: list[dict], path: Path) -> None:
         ax.step(range(len(curve)), curve, where="post", color=COLOR[cfg], lw=3, marker=MARKER.get(k, "o"), ms=11,
                 label=r["name"])
     ax.set_xlabel("Iteration")
-    ax.set_ylabel("Validation pass (%)")
+    ax.set_ylabel("Current harness:\nvalidation pass (%)")
     ax.set_ylim(0, 105)
     ax.set_xticks(range(0, max(len(r["state"]["curve"]) for r in runs), 2))
     ax.grid(axis="y", color="#E2E8F0")

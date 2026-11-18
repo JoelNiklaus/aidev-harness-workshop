@@ -2,7 +2,7 @@
 
 Offline fallback (no network): each recorded event is posted at its recorded time (seconds after its run
 started), squeezed so the longest run takes `minutes`. Events go through the same EvolveStore and validation
-as live submissions; the board shows a REPLAY badge and the users `recorded-B1`, `recorded-B2`.
+as live submissions; the board shows a REPLAY badge and the recorded runs under their names (`baseline-1`, ...).
 In live mode the same recording is the race chart's backdrop (`reference_curves`).
 
 Recording format (`replay/evolve-recorded.json`, built by `replay/build_evolve_replay.py`):

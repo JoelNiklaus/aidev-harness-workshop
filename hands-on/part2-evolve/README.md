@@ -1,7 +1,8 @@
 # aidev-evolve: evolve a coding-agent harness on Terminal-Bench 2.1
 
 Part 2 hands-on of the AI Dev NYC workshop ("Don't train the model, evolve the harness"). You start with a
-58-line terminal agent (`src/aidev_evolve/seed/agent.py`) with four realistic weaknesses. Your own coding agent (Claude Code or Codex)
+59-line terminal agent (`src/aidev_evolve/seed/agent.py`) with realistic weaknesses (a 10-step limit, every
+command killed after 10 s, head-only output, hidden stderr), and you pick or edit an **optimization strategy**. Your own coding agent (Claude Code or Codex)
 reads its failed transcripts and patches it; an HF Job in your account scores each patch with GLM-5.3-Flash
 on Terminal-Bench 2.1 tasks in HF Sandboxes; the loop keeps a patch only if it wins on validation tasks the
 proposer never sees. Same model and benchmark as Part 1.
@@ -10,25 +11,39 @@ proposer never sees. Same model and benchmark as Part 1.
 
 ```bash
 # at home: uv installed, HF account with credits (coupon), `uvx hf auth login`, and Claude Code or Codex logged in
-W="https://github.com/JoelNiklaus/aidev-harness-workshop/releases/download/evolve-v0.3.0/aidev_evolve-0.3.0-py3-none-any.whl"
-uvx --from "$W" aidev-evolve check                       # HF login, your coding agent, the room board (free, seconds)
-uvx --from "$W" aidev-evolve run --proposer claude       # or --proposer codex; --proposer manual: paste into any agent
+W="https://github.com/JoelNiklaus/aidev-harness-workshop/releases/download/evolve-v0.4.0/aidev_evolve-0.4.0-py3-none-any.whl"
+uvx --from "$W" aidev-evolve check                       # HF login, your coding agent, the workshop board (free, seconds)
+uvx --from "$W" aidev-evolve strategies                  # the four presets: knobs, time, credits
+uvx --from "$W" aidev-evolve run --strategy baseline --proposer claude   # or failures-first, small-diffs, two-candidates; --proposer codex|manual
 uvx --from "$W" aidev-evolve replay                      # no Wi-Fi: a recorded real run, offline, no credits
 ```
 
-`<WHEEL_URL>` is today `https://github.com/JoelNiklaus/aidev-harness-workshop/releases/download/evolve-v0.3.0/aidev_evolve-0.3.0-py3-none-any.whl`
+`<WHEEL_URL>` is today `https://github.com/JoelNiklaus/aidev-harness-workshop/releases/download/evolve-v0.4.0/aidev_evolve-0.4.0-py3-none-any.whl`
 (a release asset of this public repo: no login needed; each evaluation Job downloads the same file).
 
-`run` prints the room board URL (`https://agent-harness-workshop-aidev-swarm.hf.space/evolve`) and then, per
+`run` prints the workshop board URL (`https://agent-harness-workshop-aidev-swarm.hf.space/evolve`) and then, per
 iteration: the proposer's title and one-line hypothesis, the coloured diff of `agent.py`, each trial as it finishes,
 validation before -> after, KEPT or DROPPED with the fixed and broken tasks, and the HF credits spent. Every update
 also goes to the board; when the Wi-Fi drops, updates wait in `runs/<time>/outbox.jsonl` and go out with the next
 one (`--no-board` keeps your run private). `check --job` adds one real seed trial in an HF Job (about a minute, under
 a cent). Ctrl-C, then `run --resume --run-dir runs/<time>` continues without repeating paid work.
 
-Defaults (Phase 2, config B): 6 iterations, 180 s per task, validation 2 trials per task, keep at z = 1.5 plus one
-re-measure, and a held-out check with 2 trials per task. Measured: about 4 min and $0.14 per iteration, a full run
-about $1.0-1.3 (PROGRESS.md). Results go to `runs/<time>/` (see DESIGN.md).
+## Your optimization strategy (0.4.0)
+
+`--strategy` takes a preset or a folder: `aidev-evolve strategy-init small-diffs my-strategy` copies a preset; edit
+`my-strategy/strategy.toml` (which transcripts the proposer reads, how much history, 1 or 2 candidates per iteration,
+validation trials, keep margin z, re-measure, iterations) and `my-strategy/proposer_prompt.md` (how your coding agent
+should approach a patch), then `aidev-evolve run --strategy my-strategy`. Fixed for everyone, so strategies compete
+fairly: the model, 180 s per task, the splits and the 23 held-out tasks, the seed, 2 held-out trials, a 22-minute
+session (a new iteration starts only if it and the held-out check still fit) and at most $2 of HF credits.
+
+Every run ends with the seed and your final agent on the 23 held-out tasks (2 trials each, about 4-5 min, $0.30) and a
+paired gain with a 95% CI. One run's interval is about ±17 points, so the board ranks **strategies**, pooling every
+run of the same strategy (and every edit of a preset), with Welch intervals and leaderboard-style ties
+(`aidev-evolve rank runs/*` does the same offline). Details: DESIGN.md, "Phase 3".
+
+Measured (PROGRESS.md): about 3 min for the seed, 4 min per iteration (7 with a re-measure), 2 iterations per session,
+$0.8-1.3 per run.
 
 ## Shared room exercise: offline fallback
 

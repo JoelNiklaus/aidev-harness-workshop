@@ -29,8 +29,9 @@ log = logging.getLogger("swarm.app")
 STATE_TTL_S = 2.0
 EVOLVE_PER_MINUTE, EVOLVE_BURST = 6, 10  # an attendee sends ~1 event per 4 min; a resumed run may flush a few at once
 CLAIM_AGAIN_S = 30  # every free cell is taken, but a leased one returns if its runner dies: ask again after this
-# Runners older than 0.4.0 heartbeat every 2 min against a 90 s lease, so they would lose their cells: they may not claim.
-MIN_RUNNER = (0, 4, 0)
+# Runners older than 0.4.0 heartbeat every 2 min against a 90 s lease, so they would lose their cells; 0.4.0 sends every
+# trial to zai-org and records no provider (PROTOCOL.md "Providers"). Neither may claim.
+MIN_RUNNER = (0, 4, 1)
 RUNNER_UA = re.compile(r"^aidev-swarm/(\d+)\.(\d+)\.(\d+)")
 BOOT_OPEN = b'<script id="boot" type="application/json">'
 BOOT_SLOT = BOOT_OPEN + b"null</script>"
@@ -89,7 +90,8 @@ def create_app(store: Store, auth: Any, *, reference: list[dict[str, Any]], meta
     evolve_store = evolve_store or evolve.EvolveStore()
     evolve_limiter = evolve_limiter or evolve.RateLimiter(per_minute=EVOLVE_PER_MINUTE, burst=EVOLVE_BURST)
     swarm_state = CachedJson(lambda: build_state(store.grid, store.snapshot(), reference, meta, mode=mode), mono, state_ttl_s)
-    evolve_state = CachedJson(lambda: evolve.build_state(evolve_store.events(), evolve_reference or [], mode=mode), mono, state_ttl_s)
+    ranks = evolve.RankCache(clock=mono)
+    evolve_state = CachedJson(lambda: evolve.build_state(evolve_store.events(), evolve_reference or [], mode=mode, rank_cache=ranks), mono, state_ttl_s)
 
     @app.exception_handler(Unauthorized)
     async def _401(_: Request, e: Unauthorized) -> JSONResponse:

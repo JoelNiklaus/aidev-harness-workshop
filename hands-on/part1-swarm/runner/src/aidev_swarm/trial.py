@@ -73,7 +73,7 @@ def run_trial(claim: dict[str, Any], grid: dict[str, Any], token: str, hf_user: 
               harbor: Callable[[dict[str, Any]], None] = harbor_run, environ: MutableMapping[str, str] | None = None) -> Path:
     """Run the claimed cell; returns its trial folder (result.json, agent/hlb-meter.jsonl, trajectory)."""
     rc = {**{k: grid[k] for k in ("reasoning_effort", "provider", "benchmark") if k in grid}, **(claim.get("run_config") or {})}
-    run = build_run(claim["model"], rc.get("reasoning_effort", "low"), rc.get("provider", "zai-org"))
+    run = build_run(claim["model"], rc.get("reasoning_effort", "low"), rc["provider"])  # the attendee's (cli.Session) or the coordinator's
     prepare_env(os.environ if environ is None else environ, token, hf_user, run["run_id"])
     job_name = f"{run['run_id']}-{claim['harness']}"
     cfg = job_config(run, claim["harness"], claim["task"], claim["cell_id"], Path(workdir), job_name, rc.get("provider"), rc.get("benchmark", "terminal-bench-2.1"))

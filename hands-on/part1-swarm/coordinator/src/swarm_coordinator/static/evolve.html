@@ -41,6 +41,36 @@ h1 small{display:block;font-size:28px;color:var(--mute);font-weight:600;margin-t
 .feed .title{font-size:30px;margin-top:2px}
 .feed .hyp{font-size:26px;line-height:32px;color:var(--mute);font-weight:600;margin-top:2px}
 .empty{color:var(--mute);font-weight:600;padding:12px 0;font-size:26px}
+.right{display:grid;grid-template-rows:auto minmax(0,1fr);gap:14px;min-height:0}
+.right > .panel:first-child{max-height:52vh}  /* the feed keeps the rest */
+.strats{display:grid;grid-template-columns:12px max-content minmax(0,max-content) max-content minmax(140px,1fr) max-content;column-gap:12px;row-gap:4px;align-items:center;font-size:26px}
+.strats .sub{grid-column:1/-1;color:var(--mute);font-weight:600;margin-top:4px}
+.strats .rk{font-variant-numeric:tabular-nums;text-align:right;min-width:2.2em}
+.strats .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.strats .nm small{font-size:26px;color:var(--mute);font-weight:600}
+.strats .nr{color:var(--mute);white-space:nowrap;font-variant-numeric:tabular-nums}
+.strats .gn{white-space:nowrap;font-variant-numeric:tabular-nums;text-align:right}
+.strats .un{opacity:.45}
+.strats .br{align-self:stretch;border-left:4px solid transparent}
+.strats .tie-top,.strats .tie-mid,.strats .tie-bot{border-color:var(--acc)}
+.strats .tie-top{border-top:4px solid var(--acc);margin-top:10px}
+.strats .tie-bot{border-bottom:4px solid var(--acc);margin-bottom:10px}
+.ci{position:relative;height:26px}
+.ci .z{position:absolute;top:0;bottom:0;width:2px;background:var(--mute);opacity:.6}
+.ci .w{position:absolute;top:11px;height:4px;background:var(--fg);border-radius:2px}
+.ci .w:before,.ci .w:after{content:"";position:absolute;top:-7px;width:3px;height:18px;background:var(--fg)}
+.ci .w:before{left:-1px}.ci .w:after{right:-1px}
+.ci .d{position:absolute;top:3px;width:20px;height:20px;margin-left:-10px;border-radius:50%;background:var(--acc)}
+#winner{display:none;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);gap:14px;flex:1;min-height:0}
+body.winner .main{display:none}body.winner #winner{display:grid}
+.wname{font-size:52px;line-height:1.1;margin:4px 0 8px}
+.wline{font-size:30px;margin:2px 0 8px}
+.knobs{display:grid;grid-template-columns:max-content minmax(0,1fr) max-content minmax(0,1fr);column-gap:14px;row-gap:2px;font-size:26px;margin:6px 0 10px}
+.knobs span:nth-child(odd){color:var(--mute);font-weight:600}
+pre{margin:0;font:600 26px/32px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-word;overflow:hidden;min-height:0;flex:1}
+pre .a{color:var(--pass)}pre .r{color:var(--fail)}pre .h{color:var(--mute)}
+.kept{margin:2px 0 8px;padding-left:1.1em;font-size:28px}
+.wfoot{font-size:26px;color:var(--mute);font-weight:600;margin-top:8px}
 #net{display:inline-block;width:14px;height:14px;border-radius:50%;background:var(--pass);margin-left:10px;vertical-align:middle}
 #net.down{background:var(--fail)}
 </style>
@@ -67,9 +97,27 @@ h1 small{display:block;font-size:28px;color:var(--mute);font-weight:600;margin-t
       <div class="fixes" id="fixes"></div>
     </section>
   </div>
+  <div class="right">
+    <section class="panel">
+      <h2><span>Strategies</span><span class="note">held-out gain, 95% CI</span></h2>
+      <div class="strats" id="strats"></div>
+    </section>
+    <section class="panel">
+      <h2>Newest kept patches</h2>
+      <ul class="feed" id="feed"></ul>
+    </section>
+  </div>
+</div>
+<div id="winner">
   <section class="panel">
-    <h2>Newest kept patches</h2>
-    <ul class="feed" id="feed"></ul>
+    <h2><span id="w-head">Winning strategy</span><span class="note" id="w-note"></span></h2>
+    <div id="w-strat"></div>
+  </section>
+  <section class="panel">
+    <h2><span>Winning patch</span><span class="note" id="w-run"></span></h2>
+    <ul class="kept" id="w-kept"></ul>
+    <pre id="w-diff"></pre>
+    <div class="wfoot" id="w-foot"></div>
   </section>
 </div>
 <script id="boot" type="application/json">null</script>
@@ -194,13 +242,97 @@ function feed(s) {
   while (ul.children.length > 1 && ul.scrollHeight > ul.clientHeight + 1) ul.lastElementChild.remove();
 }
 
+
+// ---- strategies: ranked by pooled held-out gain (part2-evolve ranking.py); presets first, then edited strategies
+const pts = v => (v >= 0 ? "+" : "−") + Math.abs(Math.round(v * 100));
+function rankLabel(e, list) {
+  if (!e.ranked) return "";
+  return list.filter(x => x.rank === e.rank).length > 1 ? "=" + e.rank : String(e.rank);
+}
+function tieClass(e, list, i) {
+  if (!e.ranked || e.group == null) return "";
+  const members = list.filter(x => x.group === e.group);
+  if (members.length < 2) return "";
+  const k = members.indexOf(e);
+  return k === 0 ? "tie-top" : k === members.length - 1 ? "tie-bot" : "tie-mid";
+}
+function stratRows(list, scale, edited) {
+  return list.map((e, i) => {
+    const un = e.ranked ? "" : " un", ci = e.ci || [e.gain, e.gain];
+    const x = v => (100 * Math.min(1, Math.max(0, (v - scale[0]) / (scale[1] - scale[0])))).toFixed(1) + "%";  // clipped to the axis
+    const name = edited ? `${esc(e.name)} <small>(${esc(e.preset)}, edited)</small>` : `${esc(e.name)}`;
+    return `<span class="br ${tieClass(e, list, i)}"></span><span class="rk${un}">${rankLabel(e, list)}</span>` +
+      `<span class="nm${un}">${name}</span><span class="nr${un}">${e.n_runs} run${e.n_runs === 1 ? "" : "s"}</span>` +
+      `<span class="ci${un}"><span class="z" style="left:${x(0)}"></span>` + (e.ci ? `<span class="w" style="left:${x(ci[0])};width:calc(${x(ci[1])} - ${x(ci[0])})"></span>` : "") +
+      `<span class="d" style="left:${x(e.gain)}"></span></span>` +
+      `<span class="gn${un}">${e.ranked ? pts(e.gain) + " pts" : `needs ${s_min} runs`}</span>`;
+  }).join("");
+}
+let s_min = 5;
+function strategies(s) {
+  s_min = s.min_runs || 5;
+  const presets = (s.presets && s.presets.strategies) || [], hashes = ((s.strategies && s.strategies.strategies) || []).filter(e => e.name !== e.preset);
+  const all = [...presets, ...hashes], box = $("strats");
+  if (!presets.length) { box.innerHTML = '<span class="empty" style="grid-column:1/-1">Ranks appear as runs finish their held-out check</span>'; return; }
+  // the axis spans the gains and the intervals of strategies with 3+ runs: a 2-run interval is too wide to set the scale
+  const vals = all.flatMap(e => [e.gain, ...(e.n_runs >= 3 && e.ci ? e.ci : [])]).concat([0]);
+  const pad = 0.03, scale = [Math.min(...vals) - pad, Math.max(...vals) + pad];
+  const panel = box.closest(".panel");
+  // whole rows only: show as many edited strategies as fit under the presets
+  for (let n = hashes.length; n >= 0; n--) {
+    box.innerHTML = `<span class="sub">by preset (${s.presets.n_runs} runs, seed ${pct(s.presets.seed)})</span>` + stratRows(presets, scale, false) +
+      (n ? '<span class="sub">edited copies</span>' + stratRows(hashes.slice(0, n), scale, true) : "");
+    if (panel.scrollHeight <= panel.clientHeight + 1) break;
+  }
+}
+
+// ---- winner view (?view=winner, or press w): the winning strategy and the winning patch
+const KNOB_LABELS = [["traces", "traces"], ["max_traces", "max traces"], ["history", "history"], ["diffs", "diffs"], ["candidates", "candidates"],
+                     ["val_trials", "val trials"], ["z", "z"], ["confirm", "re-measure"], ["iterations", "iterations"]];
+let shownDiff = null;
+function winner(s) {
+  const r = (s.presets && s.presets.winner) ? s.presets : (s.strategies && s.strategies.winner ? s.strategies : null);
+  if (!r) {
+    $("w-head").textContent = "Winning strategy";
+    $("w-note").textContent = "";
+    $("w-strat").innerHTML = `<div class="empty">No strategy has ${s.min_runs || 5} runs with a held-out result yet</div>`;
+    $("w-run").textContent = ""; $("w-kept").innerHTML = ""; $("w-diff").textContent = ""; $("w-foot").textContent = "";
+    return;
+  }
+  const w = r.winner, ranked = r.strategies.filter(e => e.ranked).length;
+  $("w-head").textContent = w.tie ? "Tie for first" : "Winning strategy";
+  $("w-note").textContent = `${r.by === "preset" ? "by preset" : "by exact strategy"} · ${ranked} ranked`;
+  $("w-strat").innerHTML = w.strategies.map(st =>
+    `<div class="wname">${esc(st.name)}</div>` +
+    `<div class="wline">${pts(st.gain)} pts held-out` + (st.ci ? ` (95% CI ${pts(st.ci[0])} to ${pts(st.ci[1])})` : "") + ` · ${st.n_runs} runs</div>` +
+    `<div class="knobs">${KNOB_LABELS.filter(([k]) => k in st.knobs).map(([k, lab]) => `<span>${lab}</span><span>${esc(String(st.knobs[k]))}</span>`).join("")}</div>` +
+    (w.tie ? "" : `<pre>${esc(st.prompt.split("\n").slice(0, 8).join("\n"))}</pre>`)).join("") +
+    (ranked === 1 && r.strategies.length > 1 ? `<div class="wfoot">The only strategy with ${s.min_runs} runs so far</div>` : "");
+  const p = w.patch;
+  $("w-run").innerHTML = `${esc(p.user)} · ${esc(p.run_id)}`;
+  $("w-kept").innerHTML = p.kept.map(t => `<li>${esc(t)}</li>`).join("") || "<li>nothing kept</li>";
+  $("w-foot").textContent = `this run: ${pts(p.gain)} pts held-out vs its seed (95% CI ${pts(p.ci[0])} to ${pts(p.ci[1])}) · one run: about ±15-20 points`;
+  const urls = p.iterations.map(i => i.diff_url), key = urls.join(" ");
+  if (key === shownDiff) return;
+  shownDiff = key;
+  Promise.all(urls.map(u => fetch(u).then(x => x.ok ? x.text() : ""))).then(texts => {
+    $("w-diff").innerHTML = texts.join("\n").split("\n").filter(line => line.trim()).map(line =>
+      `<span class="${line.startsWith("+++") || line.startsWith("---") || line.startsWith("@@") ? "h" : line.startsWith("+") ? "a" : line.startsWith("-") ? "r" : ""}">${esc(line)}</span>`).join("\n");
+  }).catch(() => { shownDiff = null; });
+}
+const params = new URLSearchParams(location.search);
+if (params.get("view") === "winner") document.body.classList.add("winner");
+addEventListener("keydown", e => { if (e.key === "w") { document.body.classList.toggle("winner"); if (lastState) render(lastState); } });
+
 // Attendees' browsers share the venue IP with the loops, and the HF edge throttles busy IPs:
 // poll every 10 s by default (?every=3 on the projector), back off up to 60 s on errors and 429s.
-const EVERY = Math.max(2000, (parseFloat(new URLSearchParams(location.search).get("every")) || 0) * 1000 || 10000);
+const EVERY = Math.max(2000, (parseFloat(params.get("every")) || 0) * 1000 || 10000);
 let lastState = null, backoff = EVERY;
 function render(s) {
   lastState = s;
-  header(s); fixes(s); feed(s); race(s);  // the chart last: it takes the height the other panels leave
+  header(s);
+  if (document.body.classList.contains("winner")) winner(s);
+  else { fixes(s); strategies(s); feed(s); race(s); }  // the chart last: it takes the height the other panels leave
   if (!document.documentElement.dataset.drawn) document.documentElement.dataset.drawnAt = performance.now().toFixed(1);
   document.documentElement.dataset.drawn = "1";
 }

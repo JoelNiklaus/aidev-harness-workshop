@@ -14,6 +14,8 @@ from typing import Any
 
 from hlb.scoring import meter_summary
 
+from aidev_swarm.providers import provider_errors
+
 METER_LOG = Path("agent") / "hlb-meter.jsonl"
 
 
@@ -37,14 +39,17 @@ def _error(result: dict[str, Any]) -> str | None:
 
 
 def build_result(claim: dict[str, Any], trial_dir: Path, price: dict[str, float], *, hf_user: str, runner_version: str,
-                 sandbox_id: str | None = None, trajectory_url: str | None = None) -> dict[str, Any]:
+                 provider: str, sandbox_id: str | None = None, trajectory_url: str | None = None) -> dict[str, Any]:
+    """`provider`: the GLM-5.3-Flash provider the trial was routed to (PROTOCOL.md "Providers"); `n_provider_errors`:
+    its calls answered 429/5xx (the meter sends a 429'd call of a non-reference provider on to zai-org)."""
     trial_dir = Path(trial_dir)
     try:
         result = json.loads((trial_dir / "result.json").read_text())
     except (FileNotFoundError, json.JSONDecodeError) as e:
         result = {"exception_info": {"exception_type": "NoTrialResult", "exception_message": f"{type(e).__name__} reading result.json"}}
     meter_path = trial_dir / METER_LOG
-    m = meter_summary(meter_path.read_text()) if meter_path.exists() else {"input": 0, "cached": 0, "output": 0, "n_calls": 0}
+    meter_text = meter_path.read_text() if meter_path.exists() else ""
+    m = meter_summary(meter_text) if meter_text else {"input": 0, "cached": 0, "output": 0, "n_calls": 0}
     rewards = (result.get("verifier_result") or {}).get("rewards") or {}
     reward = float(rewards.get("reward", 0.0))
     return {
@@ -69,4 +74,6 @@ def build_result(claim: dict[str, Any], trial_dir: Path, price: dict[str, float]
         "runner_version": runner_version,
         "sandbox_id": sandbox_id,
         "trajectory_url": trajectory_url,
+        "provider": provider,
+        "n_provider_errors": provider_errors(meter_text),
     }

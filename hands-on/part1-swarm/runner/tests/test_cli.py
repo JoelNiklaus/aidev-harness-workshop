@@ -69,10 +69,12 @@ class Harness:
         self.trials = []
         self.can_pay = can_pay
         self._trial = trial
+        self.providers = []  # the provider each trial was asked to use
 
     def deps(self):
         def run_trial(claim, grid, token, user, workdir):
             self.trials.append((claim["cell_id"], token, user))
+            self.providers.append(grid.get("provider"))
             assert Path(workdir) == WORKDIR
             return (self._trial or (lambda *a: copy_trial(workdir)))(claim, workdir)
 
@@ -207,7 +209,7 @@ def test_local_mode_runs_one_trial_without_a_coordinator(capsys):
 
 def test_packaged_config_matches_the_repo_config():
     repo = Path(__file__).parents[2] / "config"
-    for name in ("grid.json", "prices.json"):
+    for name in ("grid.json", "prices.json", "providers.json"):
         assert (repo / name).read_text() == cli.data_text(name), f"runner/src/aidev_swarm/data/{name} is stale: copy config/{name}"
 
 
@@ -549,3 +551,73 @@ def test_a_lost_lease_is_reported_by_the_heartbeat(capsys):
     h._trial = slow
     main(h, "run", "--coordinator", "https://c")
     assert "lease lost" in capsys.readouterr().out
+
+
+# ---- provider spread (config/providers.json): one provider per attendee, the next one after provider trouble
+
+
+def provider_trouble(n_errors, *, infra=False):
+    """A finished trial whose meter saw `n_errors` 429/5xx answers (or, with infra, no model call at all)."""
+    import json
+
+    def trial(claim, workdir):
+        d = copy_trial(workdir)
+        log = d / "agent" / "hlb-meter.jsonl"
+        if infra:
+            res = json.loads((d / "result.json").read_text())
+            res["verifier_result"], res["exception_info"] = None, {"exception_type": "AgentError", "exception_message": "429 from upstream"}
+            (d / "result.json").write_text(json.dumps(res))
+            log.write_text("")
+        else:
+            log.write_text(log.read_text() + "".join(json.dumps({"path": "/v1/chat/completions", "status": 429}) + "\n" for _ in range(n_errors)))
+        return d
+
+    return trial
+
+
+def test_each_trial_uses_the_attendees_provider_and_the_result_records_it():
+    from aidev_swarm import providers
+
+    first = providers.order("alice", providers.load())[0]
+    h = Harness([cell(0), cell(1)])
+    assert main(h, "run", "--coordinator", "https://c", "--loop") == 0
+    assert h.providers == [first, first]
+    assert {r["provider"] for r in h.coord.submitted.values()} == {first}
+    assert all(r["n_provider_errors"] == 0 for r in h.coord.submitted.values())
+
+
+def test_a_trial_with_provider_errors_moves_the_next_trial_to_the_next_provider(capsys):
+    from aidev_swarm import providers
+
+    order = providers.order("alice", providers.load())
+    calls = iter([provider_trouble(cli.PROVIDER_ERRORS_TO_SWITCH), provider_trouble(0)])
+    h = Harness([cell(0), cell(1)], trial=lambda claim, workdir: next(calls)(claim, workdir))
+    assert main(h, "run", "--coordinator", "https://c", "--loop") == 0
+    assert h.providers == [order[0], order[1]]
+    assert h.coord.submitted["opencode|nginx-request-logging|0"]["n_provider_errors"] == cli.PROVIDER_ERRORS_TO_SWITCH
+    assert f"switching to {order[1]}" in capsys.readouterr().out
+
+
+def test_a_few_provider_errors_keep_the_provider():
+    calls = iter([provider_trouble(cli.PROVIDER_ERRORS_TO_SWITCH - 1), provider_trouble(0)])
+    h = Harness([cell(0), cell(1)], trial=lambda claim, workdir: next(calls)(claim, workdir))
+    assert main(h, "run", "--coordinator", "https://c", "--loop") == 0
+    assert h.providers[0] == h.providers[1]
+
+
+def test_an_infra_failure_before_any_model_call_also_moves_to_the_next_provider():
+    from aidev_swarm import providers
+
+    order = providers.order("alice", providers.load())
+    calls = iter([provider_trouble(0, infra=True), provider_trouble(0)])
+    h = Harness([cell(0), cell(1)], trial=lambda claim, workdir: next(calls)(claim, workdir))
+    main(h, "run", "--coordinator", "https://c", "--loop")
+    assert h.providers == [order[0], order[1]]
+
+
+def test_the_coordinator_can_still_force_a_provider_through_run_config():
+    c = cell(0)
+    c["run_config"] = {"provider": "zai-org"}
+    h = Harness([c])
+    assert main(h, "run", "--coordinator", "https://c") == 0
+    assert h.coord.submitted[c["cell_id"]]["provider"] == "zai-org"

@@ -1,4 +1,4 @@
-"""Seed C (Phase 3 candidate, NOT MEASURED): the bundled seed B4 plus a 10-second kill on every command.
+"""A small terminal agent: the starting harness for aidev-evolve (Phase 3 seed C, bundled since 0.4.0).
 
 The loop: send the conversation to the model, run the bash commands it asks for, append the output,
 repeat until the model answers without a tool call or the step limit is reached.

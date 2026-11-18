@@ -73,3 +73,25 @@ def test_bundled_splits_carry_their_budget_and_selection_record():
     every = splits["search"] + splits["validation"] + splits["heldout"]
     assert len(every) == len(set(every)) and "headless-terminal" not in every
     assert all(splits["calibration"][t]["kind"] == "headroom" for t in splits["validation"][:4])
+
+
+def test_seed_kills_every_command_after_ten_seconds():
+    """Phase 3 seed C: the second weakness (long builds and servers get killed); its fix is a different mechanism
+    from the step limit (sweep 18 Nov: +13 points, step fix +22)."""
+    timeouts = []
+
+    def shell(cmd, timeout=None):
+        timeouts.append(timeout)
+        return ShellResult(0, "ok\n")
+
+    llm = script_llm([tool_call("c1", "make -j4"), {"role": "assistant", "content": "done"}])
+    runtime.run_agent(SEED, "build it", shell=shell, llm=llm, budget_s=180)
+    assert timeouts and all(t == 10 for t in timeouts)
+
+
+def test_bundled_held_out_set_is_every_pool_task_the_loop_never_sees():
+    import json
+
+    splits = json.loads(resources.files("aidev_evolve.data").joinpath("splits.json").read_text())
+    assert len(splits["heldout"]) >= 20  # enough tasks to rank strategies (devtools/strategy_noise.py)
+    assert not set(splits["heldout"]) & set(splits["search"] + splits["validation"])

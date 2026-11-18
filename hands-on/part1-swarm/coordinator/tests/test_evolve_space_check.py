@@ -15,6 +15,7 @@ def test_check_events_are_a_short_real_loop_under_a_check_run_id():
     evs = check.check_events(load_recorded(paths.evolve_replay_path()), "check-123")
     assert [e["kind"] for e in evs] == ["seed", "iteration", "iteration", "heldout"]
     assert {e["run_id"] for e in evs} == {"check-123"}
+    assert all(e["strategy"]["preset"] == "baseline" for e in evs) and evs[-1]["per_task"]  # strategy fields reach the board too
     for e in evs:
         # what the part2 client sends: its Board.submit adds the schema
         evolve.validate({"schema": evolve.SCHEMA, **e})
@@ -28,4 +29,5 @@ def test_problems_name_what_the_board_lacks():
     state = evolve.build_state(store.events(), reference=[{"label": "recorded B1", "curve": [[0, 0.4]]}])
     assert check.problems(state, "joel", "check-123") == []
     empty = evolve.build_state([], reference=[])
-    assert check.problems(empty, "joel", "check-123") == ["run check-123 of joel is not on the board", "no recorded backdrop"]
+    assert check.problems(empty, "joel", "check-123") == ["run check-123 of joel is not on the board", "no recorded backdrop",
+                                                          "check-123 missing from the strategy ranking"]

@@ -69,8 +69,10 @@ def run(f, can_pay=True):
 def test_check_calls_the_workshop_model_once_runs_a_tiny_job_and_reports_ready(capsys):
     f = Fakes()
     assert run(f) == 0
+    from aidev_swarm import providers
+
     grid = json.loads(cli.data_text("grid.json"))
-    assert f.chats == [(TOKEN, grid["model"], grid["provider"])]
+    assert f.chats == [(TOKEN, grid["model"], providers.order("alice", providers.load())[0])]
     [(token, spec)] = f.jobs
     assert token == TOKEN and spec["namespace"] == "alice" and spec["flavor"] == "cpu-basic"
     assert spec["timeout"] <= 600 and spec["labels"] == {"aidev-swarm": "check"}
@@ -159,3 +161,40 @@ def test_a_job_status_read_that_fails_is_a_reported_problem_not_a_crash(capsys):
     assert run(f) == 1
     err = capsys.readouterr().err
     assert "503" in err and "6912chk" in err and TOKEN not in err
+
+
+def test_a_busy_provider_in_check_falls_back_to_the_next_one(capsys):
+    from aidev_swarm import providers
+
+    order = providers.order("alice", providers.load())
+    f = Fakes()
+
+    def chat(token, model, provider):
+        f.chats.append((token, model, provider))
+        if provider == order[0]:
+            raise check.ProviderBusy("HTTP 429: rate limited")
+        return "ok"
+
+    f.chat = chat
+    assert run(f) == 0
+    assert [c[2] for c in f.chats] == order[:2]
+    assert f"{order[0]} busy" in capsys.readouterr().out
+
+
+def test_a_refused_token_in_check_does_not_try_other_providers(capsys):
+    f = Fakes(refuse_chat="HTTP 401: unauthorized")
+    assert run(f) == 1
+    assert len(f.chats) == 1 and "Inference Providers" in capsys.readouterr().err
+
+
+def test_chat_raises_provider_busy_on_429_and_5xx(monkeypatch):
+    import httpx
+
+    for status, busy in ((429, True), (503, True), (401, False)):
+        monkeypatch.setattr(httpx, "post", lambda *a, status=status, **k: httpx.Response(status, text="no", request=httpx.Request("POST", check.ROUTER)))
+        try:
+            check.chat(TOKEN, "m", "p")
+        except check.ProviderBusy:
+            assert busy
+        except RuntimeError:
+            assert not busy

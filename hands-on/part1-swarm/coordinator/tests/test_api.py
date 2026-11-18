@@ -29,7 +29,7 @@ class Mono:
         return self.t
 
 
-RUNNER_UA = "aidev-swarm/0.4.0"
+RUNNER_UA = "aidev-swarm/0.4.1"
 
 
 def H(user, ua=RUNNER_UA):
@@ -98,15 +98,16 @@ def test_claim_204_says_when_to_ask_again_while_leased_cells_may_still_come_back
     assert r.status_code == 204 and "retry-after" not in r.headers  # the grid is full: stop
 
 
-@pytest.mark.parametrize("ua", ["python-httpx/0.28.1", "aidev-swarm/0.3.1", "testclient", ""])
+@pytest.mark.parametrize("ua", ["python-httpx/0.28.1", "aidev-swarm/0.3.1", "aidev-swarm/0.4.0", "testclient", ""])
 def test_a_claim_from_a_runner_older_than_the_short_lease_protocol_is_426(client, ua):
-    """0.3.1 beats every 2 min against a 90 s lease: it would lose its cells. It must not claim at all."""
+    """0.3.1 beats every 2 min against a 90 s lease: it would lose its cells. 0.4.0 sends every trial to zai-org and
+    records no provider (PROTOCOL.md "Providers"). Neither may claim."""
     r = client.post("/api/claim", headers=H("alice", ua=ua))
     assert r.status_code == 426 and "aidev-swarm" in r.json()["detail"] and "/join" in r.json()["detail"]
     assert client.get("/api/state").json()["counts"]["running"] == 0
 
 
-@pytest.mark.parametrize("ua", ["aidev-swarm/0.4.0", "aidev-swarm/0.4.12", "aidev-swarm/1.0.0 (job)"])
+@pytest.mark.parametrize("ua", ["aidev-swarm/0.4.1", "aidev-swarm/0.4.12", "aidev-swarm/1.0.0 (job)"])
 def test_current_runners_may_claim(client, ua):
     assert client.post("/api/claim", headers=H("alice", ua=ua)).status_code == 200
 

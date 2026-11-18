@@ -23,7 +23,7 @@ uvx --from "<WHEEL_URL>" aidev-swarm launch --n 2    # or exactly 2 trials
 URL. Or paste `AGENT_PROMPT.md` into your coding agent and let it do this. In the room, the coordinator's
 `/join` page (the slide's QR code) shows both with Copy buttons.
 
-`<WHEEL_URL>` is today `https://github.com/JoelNiklaus/aidev-harness-workshop/releases/download/swarm-v0.4.0/aidev_swarm-0.4.0-py3-none-any.whl`
+`<WHEEL_URL>` is today `https://github.com/JoelNiklaus/aidev-harness-workshop/releases/download/swarm-v0.4.1/aidev_swarm-0.4.1-py3-none-any.whl`
 (a release asset of this public repo: no login needed; the Job downloads the same file). The laptop install is
 26 MB (httpx and huggingface_hub; 4 s with an empty uv cache). Harbor and the harness wiring (about 290 MB)
 install only inside the Job (the `run` extra, about 8 s there).
@@ -50,7 +50,7 @@ The coordinator defaults to `https://agent-harness-workshop-aidev-swarm.hf.space
 - `result.py` builds the protocol's Result from the trial folder: tokens from the meter log, cost =
   tokens x `data/prices.json` (cached input at its rate).
 - `coordinator.py` speaks the protocol (claim, heartbeat, submit, release; User-Agent `aidev-swarm/<version>`,
-  the coordinator refuses claims from runners older than 0.4.0). Transient errors (429 from the HF edge's
+  the coordinator refuses claims from runners older than 0.4.1). Transient errors (429 from the HF edge's
   per-IP limit, 5xx, network) are retried with capped backoff: submit for 35 min, claim 10 min, heartbeat
   25 s (the next beat retries), release 2 min (6 s on the way out of a cancelled Job). A result the
   coordinator still does not take is kept in `<workdir>/unsent/` and sent again before the next claim.
@@ -64,6 +64,12 @@ The coordinator defaults to `https://agent-harness-workshop-aidev-swarm.hf.space
   it straight back. Three failed trials in a row stop the run. Every way out the runner can catch gives
   its cells back at once: a cancelled or timed-out Job (SIGTERM), Ctrl-C, crashes, and an exit hook.
 - A user can hold two leases: a second runner of the same attendee claims with `?n=2` after a 409.
+- `providers.py` spreads the room over GLM-5.3-Flash providers: each attendee gets one provider from
+  `data/providers.json` (novita 3 : zai-org 1, the providers the Harness Leaderboard admits for the model),
+  picked by a weighted hash of the HF username, so the same attendee always gets the same one. Inside a trial
+  the meter sends a call novita answers with 429 on to zai-org; a trial with 3+ calls answered 429/5xx, or one
+  that ended before any model call, moves the next trials to the next provider. Every result records
+  `provider` and `n_provider_errors` (PROTOCOL.md "Providers").
 
 ## Develop
 
