@@ -5,7 +5,7 @@
 """Board check in headless Chromium: load time (navigation start to the first full draw), screenshot at
 projector size (1920x1080), and legibility: anything overflowing the viewport or its panel, clipped or
 ellipsized text, the smallest font (HTML and the scatter's SVG text at screen scale; the projector minimum
-is 26 px), and scatter text whose ink touches other text or a marker.
+is 26 px), scatter text whose ink touches other text or a marker, and SVG text cut off by the chart or its panel.
 
     uv run scripts/board_check.py --url http://127.0.0.1:8761/ --shot /tmp/board.png [--runs 3] [--header "Authorization: Bearer ..."]
 
@@ -77,7 +77,11 @@ def main() -> None:
                     const pairs = [];
                     texts.forEach((a, i) => texts.slice(i + 1).forEach(b => { if (hit(a.b, b.b)) pairs.push(a.t + ' / ' + b.t); }));
                     const onMarker = texts.filter(a => marks.some(m => hit(a.b, m))).map(a => a.t);
-                    return {min_font_px: Math.min(...texts.map(a => a.px)), text_overlaps: pairs, text_on_marker: onMarker, n_text: texts.length};
+                    // text the chart's box or its panel cuts off (a long end-of-line label past the right edge)
+                    const sb = svg.getBoundingClientRect(), pb = (svg.closest('.panel') || svg).getBoundingClientRect();
+                    const vis = {left: Math.max(sb.left, pb.left), right: Math.min(sb.right, pb.right), top: Math.max(sb.top, pb.top), bottom: Math.min(sb.bottom, pb.bottom)};
+                    const outside = texts.filter(a => a.b.left < vis.left - 0.5 || a.b.right > vis.right + 0.5 || a.b.top < vis.top - 0.5 || a.b.bottom > vis.bottom + 0.5).map(a => a.t);
+                    return {min_font_px: Math.min(...texts.map(a => a.px)), text_overlaps: pairs, text_on_marker: onMarker, text_outside: outside, n_text: texts.length};
                 })()""")
                 # /evolve patch feed: each hypothesis must fit two lines and end at a sentence or clause boundary
                 out["feed_hypotheses"] = page.evaluate("""[...document.querySelectorAll('.feed .hyp')].map(e => ({

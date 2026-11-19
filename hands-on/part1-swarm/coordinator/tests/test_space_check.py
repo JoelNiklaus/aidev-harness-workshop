@@ -49,3 +49,13 @@ def test_the_live_check_claims_as_a_current_runner():
     from swarm_coordinator.app import runner_ok
 
     assert runner_ok(space_check.USER_AGENT)
+
+
+def test_target_picks_the_space_and_bucket_prod_by_default():
+    from swarm_coordinator import deploy
+    a = space_check.parse_args(["--target", "staging"])
+    assert (a.space, a.bucket) == deploy.TARGETS["staging"]
+    a = space_check.parse_args([])
+    assert (a.space, a.bucket) == deploy.TARGETS["prod"]
+    a = space_check.parse_args(["--target", "staging", "--space", "org/other"])
+    assert (a.space, a.bucket) == ("org/other", deploy.TARGETS["staging"][1])

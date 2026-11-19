@@ -138,3 +138,51 @@ def test_deploy_requests_the_hardware_of_an_existing_space(tmp_path):
     hub = FakeHub(hardware="cpu-basic")
     deploy.deploy("org/space", "org/results", api=hub, token_file=token_file(tmp_path))
     assert not any(c[0] == "hardware" for c in hub.calls)
+
+
+# ---- staging target (Fri 20 Nov dry run with colleagues; never touches the prod board) ------------------------------
+
+
+def test_targets_name_a_separate_staging_space_and_private_bucket():
+    assert deploy.TARGETS["prod"] == (deploy.DEFAULT_SPACE, deploy.DEFAULT_BUCKET)
+    space, bucket = deploy.TARGETS["staging"]
+    assert space == "agent-harness-workshop/aidev-swarm-staging" and bucket == "agent-harness-workshop/aidev-swarm-staging-results"
+    assert deploy.space_url(space) == "https://agent-harness-workshop-aidev-swarm-staging.hf.space"
+
+
+def test_main_deploys_the_chosen_target_prod_by_default(monkeypatch, capsys):
+    seen = []
+    monkeypatch.setattr(deploy, "deploy", lambda space, bucket, **kw: seen.append((space, bucket, kw.get("hardware"), kw.get("staging"))) or "abc")
+    deploy.main(["--target", "staging", "--hardware", "cpu-upgrade"])
+    deploy.main([])
+    assert seen == [(*deploy.TARGETS["staging"], "cpu-upgrade", True), (*deploy.TARGETS["prod"], "cpu-basic", False)]
+    assert "aidev-swarm-staging.hf.space" in capsys.readouterr().out
+
+
+def test_staging_space_says_staging_in_its_readme(tmp_path):
+    assert "staging" in (stage(tmp_path / "s", staging=True) / "README.md").read_text().lower()
+    assert "staging" not in (stage(tmp_path / "p") / "README.md").read_text().lower()
+
+
+def test_deploy_wakes_a_paused_space_only_when_asked(tmp_path):
+    class Paused(FakeHub):
+        def get_space_runtime(self, space):
+            return type("R", (), {"requested_hardware": self.hardware, "hardware": None, "stage": "PAUSED"})()
+
+        def restart_space(self, space):
+            self.calls.append(("restart", space))
+
+    hub = Paused()
+    deploy.deploy("org/space", "org/results", api=hub, token_file=token_file(tmp_path))
+    assert ("restart", "org/space") not in hub.calls  # prod stays paused after a deploy
+    hub = Paused()
+    deploy.deploy("org/space", "org/results", api=hub, token_file=token_file(tmp_path), wake=True)
+    assert hub.calls[-1] == ("restart", "org/space")
+
+
+def test_target_args_resolve_overrides_on_top_of_the_target():
+    import argparse
+    ap = argparse.ArgumentParser()
+    deploy.add_target_args(ap)
+    a = deploy.resolve_target(ap.parse_args(["--target", "staging", "--bucket", "org/b"]))
+    assert (a.space, a.bucket, a.target) == (deploy.TARGETS["staging"][0], "org/b", "staging")

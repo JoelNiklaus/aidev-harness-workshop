@@ -138,6 +138,39 @@ def test_coordinator_url_can_come_from_the_environment():
     assert h.coord.submitted
 
 
+def _urls_used(*args, env):
+    h = Harness([cell()])
+    urls = []
+    deps = h.deps()
+    deps.coordinator = lambda url, token: urls.append(url) or h.coord
+    assert cli.main(["run", *args], deps=deps, environ={"HF_TOKEN": TOKEN, "AIDEV_SWARM_WORKDIR": str(WORKDIR), **env}) == 0
+    return urls
+
+
+def test_board_url_comes_from_AIDEV_BOARD_shared_with_aidev_evolve():
+    # one setting for both hands-ons (the Fri 20 Nov dry run points both at the staging Space)
+    assert _urls_used(env={"AIDEV_BOARD": "https://staging.example"}) == ["https://staging.example"]
+    assert _urls_used(env={"AIDEV_BOARD": "https://staging.example", "AIDEV_SWARM_URL": "https://old"}) == ["https://staging.example"]
+
+
+def test_board_flag_overrides_the_environment_and_is_an_alias_of_coordinator():
+    assert _urls_used("--board", "https://flag.example", env={"AIDEV_BOARD": "https://env"}) == ["https://flag.example"]
+    assert _urls_used("--coordinator", "https://flag.example", env={"AIDEV_BOARD": "https://env"}) == ["https://flag.example"]
+
+
+def test_launch_passes_the_board_url_from_AIDEV_BOARD_to_the_job():
+    h = Harness([cell()])
+    deps = h.deps()
+    seen = {}
+    real = cli._launch
+    try:
+        cli._launch = lambda args, deps, token, user, url: seen.setdefault("url", url) and 0
+        assert cli.main(["launch"], deps=deps, environ={"HF_TOKEN": TOKEN, "AIDEV_BOARD": "https://staging.example"}) == 0
+    finally:
+        cli._launch = real
+    assert seen["url"] == "https://staging.example"
+
+
 def test_without_a_coordinator_url_the_workshop_space_is_used():
     h = Harness([cell()])
     urls = []

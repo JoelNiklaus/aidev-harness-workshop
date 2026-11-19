@@ -10,7 +10,7 @@ You need a Hugging Face account with credits and a fine-grained token with the p
 
 ```bash
 uvx hf auth login
-uvx --from "https://github.com/JoelNiklaus/aidev-harness-workshop/releases/download/swarm-v0.4.1/aidev_swarm-0.4.1-py3-none-any.whl" aidev-swarm check
+uvx --from "https://github.com/JoelNiklaus/aidev-harness-workshop/releases/download/swarm-v0.4.2/aidev_swarm-0.4.2-py3-none-any.whl" aidev-swarm check
 ```
 
 `check` makes one GLM-5.3-Flash call, runs one tiny HF Job and one command in an HF Sandbox (about 15 s, well under one cent) and ends with `ready: ...`. It claims no workshop task.
@@ -18,7 +18,7 @@ uvx --from "https://github.com/JoelNiklaus/aidev-harness-workshop/releases/downl
 ## Part 1 in the room
 
 ```bash
-uvx --from "https://github.com/JoelNiklaus/aidev-harness-workshop/releases/download/swarm-v0.4.1/aidev_swarm-0.4.1-py3-none-any.whl" aidev-swarm launch
+uvx --from "https://github.com/JoelNiklaus/aidev-harness-workshop/releases/download/swarm-v0.4.2/aidev_swarm-0.4.2-py3-none-any.whl" aidev-swarm launch
 ```
 
 `launch` submits one cpu-basic HF Job in your own namespace and returns in about a second. The Job claims a cell (harness, task, trial), runs it with [Harbor](https://github.com/laude-institute/harbor) in an HF Sandbox, submits the result to the board and claims the next one. Your laptop can close. Or paste [`AGENT_PROMPT.md`](hands-on/part1-swarm/runner/AGENT_PROMPT.md) into your coding agent and let it run and watch the Job.
@@ -28,7 +28,7 @@ uvx --from "https://github.com/JoelNiklaus/aidev-harness-workshop/releases/downl
 Run one trial without the workshop's grid, for example to compare harnesses on this model. It installs Harbor and the Harness Leaderboard's harness setup on your laptop (about 290 MB) and runs the trial in an HF Sandbox in your namespace:
 
 ```bash
-uvx --from "aidev-swarm[run] @ https://github.com/JoelNiklaus/aidev-harness-workshop/releases/download/swarm-v0.4.1/aidev_swarm-0.4.1-py3-none-any.whl" \
+uvx --from "aidev-swarm[run] @ https://github.com/JoelNiklaus/aidev-harness-workshop/releases/download/swarm-v0.4.2/aidev_swarm-0.4.2-py3-none-any.whl" \
   aidev-swarm run --local --harness opencode --task nginx-request-logging
 ```
 
@@ -37,7 +37,7 @@ Change `--harness` (for example `pi`, `openclaw`, `codex`) or `--task` (any task
 ## Part 2 in the room
 
 ```bash
-W="https://github.com/JoelNiklaus/aidev-harness-workshop/releases/download/evolve-v0.5.0/aidev_evolve-0.5.0-py3-none-any.whl"
+W="https://github.com/JoelNiklaus/aidev-harness-workshop/releases/download/evolve-v0.5.1/aidev_evolve-0.5.1-py3-none-any.whl"
 uvx --from "$W" aidev-evolve check                                     # HF login, your coding agent, the workshop board
 uvx --from "$W" aidev-evolve strategies                                # six optimization strategies to pick from
 uvx --from "$W" aidev-evolve run --proposer claude                     # default strategy code-audit; --strategy <preset>; --proposer codex

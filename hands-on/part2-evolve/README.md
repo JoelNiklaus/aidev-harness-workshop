@@ -12,21 +12,22 @@ proposer never sees. Same model and benchmark as Part 1.
 
 ```bash
 # at home: uv installed, HF account with credits (coupon), `uvx hf auth login`, and Claude Code or Codex logged in
-W="https://github.com/JoelNiklaus/aidev-harness-workshop/releases/download/evolve-v0.5.0/aidev_evolve-0.5.0-py3-none-any.whl"
+W="https://github.com/JoelNiklaus/aidev-harness-workshop/releases/download/evolve-v0.5.1/aidev_evolve-0.5.1-py3-none-any.whl"
 uvx --from "$W" aidev-evolve check                       # HF login, your coding agent, the workshop board (free, seconds)
 uvx --from "$W" aidev-evolve strategies                  # the six presets: knobs, time, credits
 uvx --from "$W" aidev-evolve run --proposer claude       # default strategy code-audit; --strategy baseline|every-weakness|...; --proposer codex|manual
 uvx --from "$W" aidev-evolve replay                      # no Wi-Fi: a recorded real run, offline, no credits
 ```
 
-`<WHEEL_URL>` is today `https://github.com/JoelNiklaus/aidev-harness-workshop/releases/download/evolve-v0.5.0/aidev_evolve-0.5.0-py3-none-any.whl`
+`<WHEEL_URL>` is today `https://github.com/JoelNiklaus/aidev-harness-workshop/releases/download/evolve-v0.5.1/aidev_evolve-0.5.1-py3-none-any.whl`
 (a release asset of this public repo: no login needed; each evaluation Job downloads the same file).
 
 `run` prints the workshop board URL (`https://agent-harness-workshop-aidev-swarm.hf.space/evolve`) and then, per
 iteration: the proposer's title and one-line hypothesis, the coloured diff of `agent.py`, each trial as it finishes,
 validation before -> after, KEPT or DROPPED with the fixed and broken tasks, and the HF credits spent. Every update
 also goes to the board; when the Wi-Fi drops, updates wait in `runs/<time>/outbox.jsonl` and go out with the next
-one (`--no-board` keeps your run private). `check --job` adds one real seed trial in an HF Job (about a minute, under
+one (`--no-board` keeps your run private; `--board <url>` or `export AIDEV_BOARD=<url>`, the setting `aidev-swarm` reads
+too, posts to another board, e.g. a staging Space for a dry run). `check --job` adds one real seed trial in an HF Job (about a minute, under
 a cent). Ctrl-C, then `run --resume --run-dir runs/<time>` continues without repeating paid work.
 
 ## Your optimization strategy (0.4.0; six presets since 0.5.0)

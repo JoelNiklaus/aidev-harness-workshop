@@ -1,6 +1,6 @@
 [project]
 name = "aidev-evolve"
-version = "0.5.0"
+version = "0.5.1"
 description = "Evolve a small coding-agent harness on Terminal-Bench 2.1: your coding agent proposes patches, an HF Job scores them on HF Sandboxes with GLM-5.3-Flash, and the loop keeps a patch only if it wins on validation."
 readme = "README.md"
 requires-python = ">=3.12"

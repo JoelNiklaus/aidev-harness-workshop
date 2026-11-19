@@ -210,10 +210,15 @@ function race(s) {
     g += `<circle cx="${cx}" cy="${cy}" r="8" fill="${TOP[i]}"/>`;
     // a dotted leader, so it never reads as the run going on to the last iteration
     g += `<polyline fill="none" stroke="${TOP[i]}" stroke-width="2" stroke-dasharray="2 7" stroke-opacity=".8" points="${cx + 12},${cy} ${lx - 14},${cy} ${lx - 4},${ly[i]}"/>`;
-    const name = r.user.length > 12 ? r.user.slice(0, 11) + "…" : r.user;
-    g += `<text x="${lx}" y="${ly[i] + 9}" font-size="${FS}" fill="${TOP[i]}">${esc(name)} ${pct(ends[i][1])}</text>`;
+    const name = r.user;  // shortened below, once its width can be measured (textContent: no markup)
+    g += `<text class="rl" data-name="${esc(name)}" data-v="${pct(ends[i][1])}" x="${lx}" y="${ly[i] + 9}" font-size="${FS}" fill="${TOP[i]}">${esc(name)} ${pct(ends[i][1])}</text>`;
   });
   svg.innerHTML = g;
+  // end-of-line labels: measured, the name shortened until "name pct" fits the right margin (wide letters cut earlier)
+  svg.querySelectorAll("text.rl").forEach(t => {
+    const name = t.dataset.name, v = t.dataset.v, room = W - parseFloat(t.getAttribute("x")) - 6;
+    for (let k = name.length; k > 1 && t.getComputedTextLength() > room; k--) t.textContent = `${name.slice(0, k - 1)}… ${v}`;
+  });
   $("race-note").textContent = `${s.totals.runs} run${s.totals.runs === 1 ? "" : "s"}`;  // short: the heading takes the width
 }
 

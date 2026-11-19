@@ -1,4 +1,4 @@
-"""Evolve replay: the recorded Phase 2 runs (B1, B2) stream into the /evolve board offline, and in live mode they
+"""Evolve replay: recorded runs (here B1, B2; shipped: the Phase 4 runs) stream into the /evolve board offline, and in live mode they
 are the board's backdrop (reference curves)."""
 
 from __future__ import annotations
@@ -20,33 +20,38 @@ def recorded():
     ]
 
 
-def test_shipped_recording_holds_the_phase_3_strategy_runs():
-    # Phase 3, batch loops2 (talk folder evolve/runs/p3): 13 runs of 4 presets plus an edited copy, config C
+def test_shipped_recording_holds_the_phase_4_strategy_runs():
+    # Phase 4 (talk folder evolve/runs/p4/loops): 20 runs, seed E / splits E (21 held-out tasks), presets
+    # baseline (8), every-weakness (7), code-audit (5), all unedited
     runs = load_recorded(paths.evolve_replay_path())
-    assert len(runs) == 13
-    assert {r["events"][0]["strategy"]["preset"] for r in runs} == {"baseline", "failures-first", "small-diffs", "two-candidates"}
+    assert len(runs) == 20
+    presets = [r["events"][0]["strategy"]["preset"] for r in runs]
+    assert {p: presets.count(p) for p in set(presets)} == {"baseline": 8, "every-weakness": 7, "code-audit": 5}
     for r in runs:
         kinds = [e["kind"] for e in r["events"]]
-        assert kinds[0] == "seed" and kinds[-1] == "heldout" and 1 <= kinds.count("iteration") <= 2
+        assert kinds[0] == "seed" and kinds[-1] == "heldout" and 1 <= kinds.count("iteration") <= 6
         ts = [e["t"] for e in r["events"]]
         assert ts == sorted(ts) and ts[0] > 0
         for e in r["events"]:
             v = evolve.validate({k: x for k, x in e.items() if k != "t"})
-            assert v["strategy"]["hash"] == r["events"][0]["strategy"]["hash"]
+            assert v["strategy"]["hash"] == r["events"][0]["strategy"]["hash"] and not v["strategy"]["modified"]
         ho = evolve.validate({k: x for k, x in r["events"][-1].items() if k != "t"})
-        assert len(ho["per_task"]) == 23 and ho["kept"]
+        assert len(ho["per_task"]) == 21 and ho["kept"]
         assert all(e.get("hypothesis") for e in r["events"] if e["kind"] == "iteration")
 
 
-def test_replayed_strategy_runs_rank_like_the_phase_3_report():
-    # p3-numbers.md, minimum 5 runs: no single strategy has 5 runs; pooled by preset, baseline (3 + 3 edited copies) has 6
+def test_replayed_strategy_runs_rank_like_the_phase_4_report():
+    # part2-evolve 0.5.0 (commit 027f7be): code-audit wins alone on the 20 Phase 4 runs; every preset has 5+ runs
     clock, store = Clock(), evolve.EvolveStore(clock=Clock())
     rp = EvolveReplayer(store, load_recorded(paths.evolve_replay_path()), minutes=1, clock=clock)
     clock.advance(61)
     rp.step()
     s = evolve.build_state(store.events(), [], mode="replay")
-    assert s["strategies"]["n_runs"] == 13 and s["strategies"]["groups"] == []
-    assert s["presets"]["groups"] == [["baseline"]] and s["presets"]["winner"]["patch"]["iterations"]
+    assert s["presets"]["n_runs"] == 20 and s["presets"]["groups"][0] == ["code-audit"]
+    assert s["strategies"]["groups"][0] == ["c7ffe234ad"]  # by hash: the code-audit preset's hash
+    w = s["presets"]["winner"]
+    assert [x["name"] for x in w["strategies"]] == ["code-audit"] and w["patch"]["run_id"].startswith("code-audit-")
+    assert w["patch"]["iterations"]
 
 
 def test_replay_schedule_is_squeezed_into_the_given_minutes():
@@ -80,3 +85,32 @@ def test_reference_curves_are_the_same_step_lines_as_live_runs():
 def test_replay_needs_a_positive_duration():
     with pytest.raises(ValueError):
         EvolveReplayer(evolve.EvolveStore(), recorded(), minutes=0)
+
+
+def _builder():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("build_evolve_replay", paths.root() / "replay" / "build_evolve_replay.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_builder_carries_the_provider_and_provider_calls_of_a_0_5_run(tmp_path):
+    # a client-0.5.0 run folder: config.json names the attendee's providers, history and held-out count who answered
+    import json
+    d = tmp_path / "code-audit-9"
+    d.mkdir()
+    (d / "config.json").write_text(json.dumps({"providers": ["novita", "zai-org"], "strategy": {
+        "name": "code-audit", "preset": "code-audit", "hash": "c7ffe234ad", "modified": False, "knobs": {}, "prompt": "Audit agent.py."}}))
+    (d / "state.json").write_text(json.dumps({"curve": [0.2], "spend_usd": 1.5, "history": [
+        {"iteration": 1, "candidate": "c001", "parent": "c000", "title": "t", "hypothesis": "h", "verdict": "kept", "val_child": 0.4,
+         "val_parent": 0.2, "best_val": 0.4, "spend_usd": 0.5, "iter_usd": 0.3, "provider_calls": {"novita": 12, "zai-org": 1}}],
+        "heldout": {"seed": 0.3, "best": 0.5, "best_candidate": "c001", "n_tasks": 21, "trials": 2, "diff": 0.2, "ci_low": 0.0,
+                    "ci_high": 0.4, "per_task": {"t": [0, 2, 1, 2]}, "kept": ["t"], "provider_calls": {"novita": 40}}}))
+    (d / "transcript.jsonl").write_text("\n".join(json.dumps(r) for r in (
+        {"t": 10, "text": "Seed agent: search 20%"}, {"t": 50, "text": "Iteration 1 of 6"}, {"t": 90, "text": "done"})))
+    events = _builder().run_events(d)
+    assert {e["provider"] for e in events} == {"novita"}
+    assert [e.get("provider_calls") for e in events] == [None, {"novita": 12, "zai-org": 1}, {"novita": 40}]
+    for e in events:
+        evolve.validate({k: x for k, x in e.items() if k != "t"})

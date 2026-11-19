@@ -1,8 +1,8 @@
 """Live check of /evolve on the deployed Space, through the Part 2 client and the Space's real storage.
 
-    HF_TOKEN=<a token that can read the private Space and write its bucket> uv run python scripts/evolve_space_check.py [--keep]
+    HF_TOKEN=<a token that can read the private Space and write its bucket> uv run python scripts/evolve_space_check.py [--target staging] [--keep]
 
-1. Posts a short real loop (the recorded Phase 3 run baseline-1: seed, iterations 1-2, held-out with its strategy) under the
+1. Posts a short real loop (the recorded Phase 4 run baseline-1: seed, iterations 1-2, held-out with its strategy) under the
    run id `check-<time>` with `aidev_evolve.board.Board` (the attendee CLI's own client, from ../../part2-evolve).
 2. /api/evolve/state must show the run (curve, kept patch in the feed, held-out, its strategy in the ranking) next to
    the recorded backdrop;
@@ -55,16 +55,19 @@ def problems(state: dict[str, Any], user: str, run_id: str) -> list[str]:
     return out
 
 
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    deploy.add_target_args(ap)
+    ap.add_argument("--keep", action="store_true", help="leave the check run on the board (for screenshots); delete it later with a rerun")
+    return deploy.resolve_target(ap.parse_args(argv))
+
+
 def main(argv: list[str] | None = None) -> int:
     import httpx
     from aidev_evolve.board import Board
     from huggingface_hub import HfApi
 
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--space", default=deploy.DEFAULT_SPACE)
-    ap.add_argument("--bucket", default=deploy.DEFAULT_BUCKET)
-    ap.add_argument("--keep", action="store_true", help="leave the check run on the board (for screenshots); delete it later with a rerun")
-    a = ap.parse_args(argv)
+    a = parse_args(argv)
     token = os.environ["HF_TOKEN"]
     api, url = HfApi(token=token), deploy.space_url(a.space)
     http = httpx.Client(base_url=url, headers={"Authorization": f"Bearer {token}"}, timeout=60)

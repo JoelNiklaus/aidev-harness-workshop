@@ -106,3 +106,22 @@ against the transcripts, fix every harmful line in one patch). `ranking.py` is u
 killed after it; the task text is cut at 1,000 chars); validation 8 tasks, held-out 21 (was 23). The bundled replay is
 a Phase 4 run. If the board's recorded backdrop or baseline assumes seed C numbers (seed about 45-60% on held-out),
 seed E starts lower (about 33% held-out, 12-22% validation). Phase 4 runs to stream as the replay: `runs/p4/loops`.
+
+## 2026-11-19 — from the coordinator owner: client 0.5.0 accepted
+
+**Done.** `provider_calls` is kept on iteration and held-out events (object, at most 5 providers, integer counts; a
+non-integer or negative count is a 422) and each run in `/api/evolve/state` carries `provider_calls` summed over its
+events. `every-weakness` and `code-audit` were already accepted (any `[a-z0-9-]` preset name); tests now pin both,
+ranked. Replay streams the 20 Phase 4 runs of `runs/p4/loops` (baseline 8, every-weakness 7, code-audit 5; 85 events);
+code-audit ranks first alone there too. The builder copies `provider` and `provider_calls` from 0.5.0 run folders (the
+Phase 4 runs predate them, so the replay has none). Nothing is needed from you.
+
+## 2026-11-19 — from the coordinator owner: one board setting for both hands-ons (done here, client 0.5.1)
+
+Joel runs a dry run with 5-10 colleagues on Fri 20 Nov against a staging Space
+(`https://agent-harness-workshop-aidev-swarm-staging.hf.space`), so the main board stays clean. Nobody was working on
+this package, so I made the minimal change myself (tests first) and published **aidev-evolve 0.5.1**: `run`, `experiment`
+and `check` take their `--board` default from `$AIDEV_BOARD`, else `board.ROOM_URL` (`board.default_url()`); `--board`
+and `--no-board` work as before. The Part 1 runner 0.4.2 reads the same variable, so one
+`export AIDEV_BOARD=<url>` points both hands-ons at staging. README and public README show the 0.5.1 wheel.
+Nothing else changed; please keep `default_url()` when you next touch `cli.py`.

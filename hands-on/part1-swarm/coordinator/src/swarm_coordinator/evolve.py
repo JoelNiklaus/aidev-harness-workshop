@@ -70,7 +70,7 @@ PRESET = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
 HASH = re.compile(r"^[0-9a-f]{6,64}$")
 KNOB_CHOICES = {"traces": ("failed", "all"), "history": ("none", "titles", "full")}
 KNOB_RANGES = {"max_traces": (1, 8), "candidates": (1, 2), "val_trials": (1, 3), "iterations": (1, 6)}
-PROMPT_MAX, MAX_PER_TASK, MAX_KEPT, MAX_SIBLINGS = 4000, 40, 20, 4
+PROMPT_MAX, MAX_PER_TASK, MAX_KEPT, MAX_SIBLINGS, MAX_PROVIDERS = 4000, 40, 20, 4, 5
 
 
 def _bool(v: Any, name: str) -> bool:
@@ -140,6 +140,14 @@ def _siblings(v: Any) -> list[dict[str, Any]]:
     return out
 
 
+def _provider_calls(v: Any) -> dict[str, int]:
+    """{provider: calls} (client 0.5.0): who answered the model calls, at most MAX_PROVIDERS providers."""
+    if not isinstance(v, dict):
+        raise Invalid("provider_calls must be an object")
+    return {_str(p, "provider_calls provider", 40): _int(n, "provider_calls count", 0, 1_000_000)
+            for p, n in list(v.items())[:MAX_PROVIDERS]}  # type: ignore[misc]
+
+
 def validate(event: Any) -> dict[str, Any]:
     """The event as stored: known fields only, each checked, text cut to its display limit. Raises Invalid (422)."""
     if not isinstance(event, dict):
@@ -178,6 +186,8 @@ def validate(event: Any) -> dict[str, Any]:
         out["strategy"] = _strategy(event["strategy"])
     if event.get("provider") is not None:
         out["provider"] = _str(event["provider"], "provider", 40)
+    if kind in ("iteration", "heldout") and event.get("provider_calls") is not None:
+        out["provider_calls"] = _provider_calls(event["provider_calls"])
     if kind == "iteration" and event.get("siblings"):
         out["siblings"] = _siblings(event["siblings"])
     if kind == "heldout":
@@ -452,10 +462,13 @@ def build_state(events: list[dict[str, Any]], reference: list[dict[str, Any]], *
     for e in events:
         key = (e["user"], e["run_id"])
         r = runs.setdefault(key, {"run_id": e["run_id"], "user": e["user"], "events": [], "kept": 0, "iterations": 0, "spend_usd": 0.0,
-                                  "heldout": None, "last_at": 0.0, "strategy": None, "preset": None, "provider": None})
+                                  "heldout": None, "last_at": 0.0, "strategy": None, "preset": None, "provider": None,
+                                  "provider_calls": defaultdict(int)})
         if e.get("strategy"):
             r["strategy"], r["preset"] = e["strategy"].get("name"), e["strategy"].get("preset")
         r["provider"] = e.get("provider") or r["provider"]
+        for p, n in (e.get("provider_calls") or {}).items():
+            r["provider_calls"][p] += n
         r["spend_usd"] = max(r["spend_usd"], e.get("spend_usd") or 0.0)  # spend only grows; the latest is the largest
         r["last_at"] = max(r["last_at"], e["received_at"])
         if e["kind"] == "seed":
@@ -482,7 +495,8 @@ def build_state(events: list[dict[str, Any]], reference: list[dict[str, Any]], *
         seed = next((e["val_score"] for e in r["events"] if e["kind"] == "seed"), None)
         out_runs.append({"run_id": r["run_id"], "user": r["user"], "curve": curve, "current": curve[-1][1] if curve else None,
                          "seed": seed, "kept": r["kept"], "iterations": r["iterations"], "spend_usd": round(r["spend_usd"], 4),
-                         "heldout": r["heldout"], "last_at": r["last_at"], "strategy": r["strategy"], "preset": r["preset"], "provider": r["provider"]})
+                         "heldout": r["heldout"], "last_at": r["last_at"], "strategy": r["strategy"], "preset": r["preset"], "provider": r["provider"],
+                         "provider_calls": dict(r["provider_calls"])})
 
     max_x = max((c[0] for r in out_runs for c in r["curve"]), default=0)
     levels = []

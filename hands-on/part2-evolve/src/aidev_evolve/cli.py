@@ -265,7 +265,8 @@ def _loop_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--splits", default=None, help="splits JSON (default: the bundled splits)")
     p.add_argument("--run-dir", default=None)
     p.add_argument("--resume", action="store_true", help="continue the run in --run-dir after a crash or Ctrl-C (iterations = total)")
-    p.add_argument("--board", default=board.ROOM_URL, help=f"workshop board to post your progress to (default: the coordinator Space, {board.ROOM_URL})")
+    p.add_argument("--board", default=board.default_url(),
+                   help=f"workshop board to post your progress to (default: $AIDEV_BOARD, else the coordinator Space, {board.ROOM_URL})")
     p.add_argument("--no-board", dest="board", action="store_const", const=None, help="do not post to the workshop board")
     p.add_argument("--package-url", default=None)
 
@@ -276,7 +277,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub = p.add_subparsers(dest="cmd", required=True)
     c = sub.add_parser("check", help="check your setup: HF login, your coding agent, the workshop board (free, seconds)")
     c.add_argument("--proposer", choices=["claude", "codex"], default=None, help="check only this coding agent (default: both, one must answer)")
-    c.add_argument("--board", default=board.ROOM_URL)
+    c.add_argument("--board", default=board.default_url(), help="workshop board (default: $AIDEV_BOARD, else the coordinator Space)")
     c.add_argument("--job", action="store_true", help="also run one seed trial in an HF Job (about a minute, under a cent)")
     c.add_argument("--package-url", default=None)
     c.set_defaults(fn=cmd_check)

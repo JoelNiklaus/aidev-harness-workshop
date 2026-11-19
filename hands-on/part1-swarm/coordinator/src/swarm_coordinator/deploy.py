@@ -1,14 +1,15 @@
 """Deploy the coordinator as a public Docker Space (results in a PRIVATE bucket), both in the workshop org.
 
-    HF_TOKEN=<an admin token of the org> uv run python -m swarm_coordinator.deploy [--hardware cpu-upgrade]
+    HF_TOKEN=<an admin token of the org> uv run python -m swarm_coordinator.deploy [--hardware cpu-upgrade] [--target staging]
 
 Stages coordinator/ (code, lock), config/, replay/{reference,evolve-recorded}.json and the runner's README and agent prompt
 (for /join) into a temp folder with a Dockerfile
 and the Space README, creates the bucket (private) and the Space (public: board and /join, Joel 18 Nov) if
 missing (an existing Space keeps its visibility; the script refuses a public bucket), sets the Space secret HF_TOKEN to the scoped
 org token in `space-token.txt` (`SPACE_HF_TOKEN=`, gitignored; read here, never printed) and SWARM_BUCKET as a
-variable, requests the hardware, and uploads. Rerun after grid.json changes. The upload rebuilds and starts the Space,
-so a paused Space wakes up (and bills) after a deploy.
+variable, requests the hardware, and uploads. Rerun after grid.json changes. The upload rebuilds a running Space; a PAUSED
+Space stays paused (and does not bill) until `--wake` or `restart_space`. `--target staging` deploys the same code to
+agent-harness-workshop/aidev-swarm-staging (bucket ...-staging-results) and wakes it; prod is the default.
 """
 
 from __future__ import annotations
@@ -24,6 +25,9 @@ from . import paths
 COORD = Path(__file__).resolve().parents[2]
 DEFAULT_SPACE = "agent-harness-workshop/aidev-swarm"
 DEFAULT_BUCKET = "agent-harness-workshop/aidev-swarm-results"
+# prod = the workshop board; staging = the same code for dry runs (Fri 20 Nov with colleagues), its own private bucket
+TARGETS = {"prod": (DEFAULT_SPACE, DEFAULT_BUCKET),
+           "staging": ("agent-harness-workshop/aidev-swarm-staging", "agent-harness-workshop/aidev-swarm-staging-results")}
 TOKEN_FILE = COORD / "space-token.txt"
 TOKEN_KEY = "SPACE_HF_TOKEN"
 
@@ -75,7 +79,14 @@ API: see PROTOCOL.md in the workshop repo. Results persist to a private HF bucke
 """
 
 
-def stage(out: Path) -> Path:
+STAGING_NOTE = """
+**STAGING copy** for dry runs: same code as the workshop Space, its own private results bucket. Point both hands-ons
+here with `export AIDEV_BOARD=https://agent-harness-workshop-aidev-swarm-staging.hf.space`; empty it afterwards with
+`python -m swarm_coordinator.reset`.
+"""
+
+
+def stage(out: Path, *, staging: bool = False) -> Path:
     out = Path(out)
     if out.exists():
         shutil.rmtree(out)
@@ -94,11 +105,14 @@ def stage(out: Path) -> Path:
     for name in ("README.md", "AGENT_PROMPT.md"):  # the /join page's command and prompt
         shutil.copy2(paths.runner_dir() / name, out / "runner" / name)
     (out / "Dockerfile").write_text(DOCKERFILE)
-    (out / "README.md").write_text(README)
+    (out / "README.md").write_text(README.replace("title: AI Dev NYC workshop boards", "title: AI Dev NYC workshop boards (staging)")
+                                   + STAGING_NOTE if staging else README)
     return out
 
 
-def deploy(space: str, bucket: str, *, hardware: str = "cpu-basic", api: Any = None, token_file: Path = TOKEN_FILE) -> str:
+def deploy(space: str, bucket: str, *, hardware: str = "cpu-basic", api: Any = None, token_file: Path = TOKEN_FILE,
+           staging: bool = False, wake: bool = False) -> str:
+    """Upload the app. A paused Space stays paused after the upload (it does not rebuild); `wake` restarts it."""
     token = space_token(token_file)  # fail before any Hub call
     if api is None:
         from huggingface_hub import HfApi
@@ -113,19 +127,34 @@ def deploy(space: str, bucket: str, *, hardware: str = "cpu-basic", api: Any = N
     api.add_space_secret(space, "HF_TOKEN", token)
     api.add_space_variable(space, "SWARM_BUCKET", bucket)
     with tempfile.TemporaryDirectory() as tmp:
-        staged = stage(Path(tmp) / "space")
+        staged = stage(Path(tmp) / "space", staging=staging)
         commit = api.upload_folder(repo_id=space, repo_type="space", folder_path=str(staged), commit_message="Deploy coordinator",
                                    delete_patterns=["*"])
+    if wake and getattr(api.get_space_runtime(space), "stage", None) == "PAUSED":
+        api.restart_space(space)
     return commit.oid
+
+
+def add_target_args(ap: argparse.ArgumentParser) -> None:
+    """--target prod|staging plus --space/--bucket overrides (deploy and the live check scripts)."""
+    ap.add_argument("--target", choices=sorted(TARGETS), default="prod", help="prod: the workshop board; staging: the dry-run copy")
+    ap.add_argument("--space", help="override the target's Space")
+    ap.add_argument("--bucket", help="override the target's results bucket")
+
+
+def resolve_target(a: argparse.Namespace) -> argparse.Namespace:
+    a.space, a.bucket = a.space or TARGETS[a.target][0], a.bucket or TARGETS[a.target][1]
+    return a
 
 
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--space", default=DEFAULT_SPACE)
-    ap.add_argument("--bucket", default=DEFAULT_BUCKET)
+    add_target_args(ap)
     ap.add_argument("--hardware", default="cpu-basic")
-    a = ap.parse_args(argv)
-    print("deployed commit", deploy(a.space, a.bucket, hardware=a.hardware), "->", space_url(a.space))
+    ap.add_argument("--wake", action="store_true", help="restart the Space when it is paused (staging always is woken)")
+    a = resolve_target(ap.parse_args(argv))
+    staging = a.target == "staging"
+    print("deployed commit", deploy(a.space, a.bucket, hardware=a.hardware, staging=staging, wake=a.wake or staging), "->", space_url(a.space))
 
 
 if __name__ == "__main__":

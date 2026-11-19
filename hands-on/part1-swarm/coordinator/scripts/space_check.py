@@ -1,6 +1,6 @@
 """Live check of the deployed coordinator Space, end to end through its real storage.
 
-    HF_TOKEN=<a token that can read the private Space and its bucket> uv run python scripts/space_check.py
+    HF_TOKEN=<a token that can read the private Space and its bucket> uv run python scripts/space_check.py [--target staging]
 
 1. /healthz answers; /api/state reads 0 of all cells done and the full reference layer.
 2. One claim -> submit of a SYNTHETIC result (error field says so) through the API; the result file must appear in
@@ -53,14 +53,17 @@ def state_problems(state: dict[str, Any], *, done: int, grid: Grid) -> list[str]
     return problems
 
 
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    deploy.add_target_args(ap)
+    return deploy.resolve_target(ap.parse_args(argv))
+
+
 def main(argv: list[str] | None = None) -> int:
     import httpx
     from huggingface_hub import HfApi
 
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--space", default=deploy.DEFAULT_SPACE)
-    ap.add_argument("--bucket", default=deploy.DEFAULT_BUCKET)
-    a = ap.parse_args(argv)
+    a = parse_args(argv)
     token = os.environ["HF_TOKEN"]
     api, url, grid = HfApi(token=token), deploy.space_url(a.space), Grid.load(paths.grid_path())
     http = httpx.Client(base_url=url, headers={"Authorization": f"Bearer {token}", "User-Agent": USER_AGENT}, timeout=60)

@@ -9,6 +9,7 @@ so a retried event replaces, never duplicates.
 from __future__ import annotations
 
 import json
+import os
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -19,6 +20,11 @@ import httpx
 SCHEMA = "aidev-evolve/1"
 ROOM_URL = "https://agent-harness-workshop-aidev-swarm.hf.space"  # the Part 1 coordinator Space (runner cli.DEFAULT_COORDINATOR)
 RETRYABLE_4XX = (401, 408, 429)  # a token check that timed out, a slow request, a rate limit: try again later
+
+
+def default_url() -> str:
+    """The board to post to: $AIDEV_BOARD (shared with the Part 1 runner; a staging Space for a dry run), else ROOM_URL."""
+    return os.environ.get("AIDEV_BOARD") or ROOM_URL
 
 
 def page_url(url: str = ROOM_URL) -> str:

@@ -284,3 +284,18 @@ def test_a_failed_evaluation_job_ends_run_with_a_message_not_a_traceback(tmp_pat
     assert cli.main(["run", "--run-dir", str(tmp_path), "--proposer", "manual", "--no-board"]) == 1
     out = capsys.readouterr().out
     assert "curl: (22) 404" in out and f"--resume --run-dir {tmp_path}" in out
+
+
+def test_board_url_comes_from_AIDEV_BOARD_shared_with_the_part1_runner(monkeypatch):
+    # one setting for both hands-ons: a dry run points both at the staging Space
+    monkeypatch.setenv("AIDEV_BOARD", "https://staging.example")
+    p = cli.build_parser()
+    assert p.parse_args(["run"]).board == "https://staging.example"
+    assert p.parse_args(["check"]).board == "https://staging.example"
+    assert p.parse_args(["run", "--board", "https://flag.example"]).board == "https://flag.example"
+    assert p.parse_args(["run", "--no-board"]).board is None
+
+
+def test_without_AIDEV_BOARD_the_workshop_space_is_the_board(monkeypatch):
+    monkeypatch.delenv("AIDEV_BOARD", raising=False)
+    assert cli.build_parser().parse_args(["check"]).board == board.ROOM_URL

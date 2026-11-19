@@ -62,6 +62,12 @@ def _coordinator(url: str, token: str):
     return Coordinator(url, token)
 
 
+def board_url(flag: str | None, environ: Mapping[str, str]) -> str:
+    """The board both hands-ons post to: --board, else $AIDEV_BOARD (shared with aidev-evolve; a staging Space for a dry
+    run), else $AIDEV_SWARM_URL (what `launch` sets inside the Job), else the workshop Space."""
+    return flag or environ.get("AIDEV_BOARD") or environ.get("AIDEV_SWARM_URL") or DEFAULT_COORDINATOR
+
+
 def _workdir(environ: Mapping[str, str]) -> Path:
     return Path(environ.get("AIDEV_SWARM_WORKDIR") or Path.home() / ".cache" / "aidev-swarm" / "jobs")
 
@@ -115,10 +121,10 @@ def _parser() -> argparse.ArgumentParser:
     sub.add_parser("check", help="test this account at home: one model call and one tiny HF Job (a few cents at most), nothing claimed")
     la = sub.add_parser("launch", help="submit an HF Job that claims and runs trials on HF (your laptop can close)")
     la.add_argument("--n", type=_positive, help="run K trials, then stop (default: keep going until the grid is full)")
-    la.add_argument("--coordinator", help=f"coordinator URL (default: $AIDEV_SWARM_URL or {DEFAULT_COORDINATOR})")
+    la.add_argument("--board", "--coordinator", dest="coordinator", help=f"board (coordinator) URL (default: $AIDEV_BOARD or {DEFAULT_COORDINATOR})")
     la.add_argument("--package", help="runner wheel URL the Job installs (default: this version's wheel)")
     r = sub.add_parser("run", help="claim a cell, run it, submit the result (what the launched Job runs)")
-    r.add_argument("--coordinator", help=f"coordinator URL (default: $AIDEV_SWARM_URL or {DEFAULT_COORDINATOR})")
+    r.add_argument("--board", "--coordinator", dest="coordinator", help=f"board (coordinator) URL (default: $AIDEV_BOARD or {DEFAULT_COORDINATOR})")
     r.add_argument("--dry", action="store_true", help="check token and credits, claim nothing")
     mode = r.add_mutually_exclusive_group()
     mode.add_argument("--loop", action="store_true", help="claim the next cell after each trial until the grid is full")
@@ -517,7 +523,7 @@ def main(argv: list[str] | None = None, deps: Deps | None = None, environ: Mappi
         return 2
     if args.cmd == "check":
         return _check(deps, token, user)
-    url = args.coordinator or environ.get("AIDEV_SWARM_URL") or DEFAULT_COORDINATOR
+    url = board_url(args.coordinator, environ)
     if args.cmd == "launch":
         return _launch(args, deps, token, user, url)
     grid, prices = json.loads(data_text("grid.json")), json.loads(data_text("prices.json"))

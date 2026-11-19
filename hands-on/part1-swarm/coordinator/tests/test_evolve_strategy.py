@@ -188,3 +188,46 @@ def test_rank_cache_reranks_at_once_while_ranking_is_cheap():
     cache = evolve.RankCache(clock=clock)
     evolve.build_state(store_with(room(n_per_preset=2)).events(), [], rank_cache=cache)
     assert evolve.build_state(store_with(room(n_per_preset=3)).events(), [], rank_cache=cache)["presets"]["n_runs"] == 12
+
+
+# ---- client 0.5.0 (REQUESTS.md 19 Nov): provider_calls, presets every-weakness and code-audit ----------------------
+
+
+def test_provider_calls_survive_on_iteration_and_heldout_events():
+    calls = {"novita": 41, "zai-org": 3}
+    assert evolve.validate({**it(1), "provider": "novita", "provider_calls": calls})["provider_calls"] == calls
+    assert evolve.validate({**heldout(), "provider": "novita", "provider_calls": calls})["provider_calls"] == calls
+
+
+def test_provider_calls_keep_at_most_five_providers_and_refuse_non_counts():
+    many = {f"p{i}": i for i in range(8)}
+    assert evolve.validate({**it(1), "provider_calls": many})["provider_calls"] == {f"p{i}": i for i in range(5)}
+    for bad in ({"novita": "3"}, {"novita": -1}, {"novita": True}, ["novita"], {"novita": 2.5}):
+        with pytest.raises(Invalid):
+            evolve.validate({**it(1), "provider_calls": bad})
+
+
+def test_provider_calls_are_not_kept_on_seed_events():
+    assert "provider_calls" not in evolve.validate({**seed(), "provider_calls": {"novita": 1}})
+
+
+def test_runs_sum_provider_calls_over_iterations_and_heldout():
+    events = [("alice", {**seed(), "provider": "novita"}),
+              ("alice", {**it(1, accepted=True, best=0.8), "provider": "novita", "provider_calls": {"novita": 10}}),
+              ("alice", {**it(2, best=0.8), "provider": "novita", "provider_calls": {"novita": 8, "zai-org": 2}}),
+              ("alice", {**heldout(), "provider": "novita", "provider_calls": {"novita": 30}})]
+    store = evolve.EvolveStore(clock=Clock())
+    for user, e in events:
+        store.add(user, evolve.validate(e))
+    r = evolve.build_state(store.events(), [])["runs"][0]
+    assert r["provider_calls"] == {"novita": 48, "zai-org": 2}
+
+
+@pytest.mark.parametrize("preset", ["every-weakness", "code-audit"])
+def test_client_0_5_presets_are_accepted_and_ranked(preset):
+    rng, store = random.Random(5), evolve.EvolveStore(clock=Clock())
+    for k in range(5):
+        for user, e in full_run(f"u{k}", preset, 0.8, rng=rng):
+            store.add(user, evolve.validate(e))
+    s = evolve.build_state(store.events(), [])
+    assert [e["name"] for e in s["presets"]["strategies"]] == [preset] and s["presets"]["groups"] == [[preset]]

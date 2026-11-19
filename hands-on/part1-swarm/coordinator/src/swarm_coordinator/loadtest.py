@@ -242,7 +242,7 @@ async def run_loadtest(base_url: str, n_runners: int = 300, *, transport: httpx.
     }
 
 
-PRESETS = ("baseline", "failures-first", "small-diffs", "two-candidates")
+PRESETS = ("baseline", "failures-first", "small-diffs", "two-candidates", "every-weakness", "code-audit")
 HELDOUT_TASKS = [f"heldout-{t:02d}" for t in range(23)]
 
 

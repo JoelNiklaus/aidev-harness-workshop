@@ -1,12 +1,13 @@
 """Build replay/evolve-recorded.json: recorded evolve runs as the events their loops would have posted to /evolve
 (seed, one per iteration, held-out), with the time each was printed.
 
-    python3 replay/build_evolve_replay.py --runs <talk folder>/evolve/runs/p3/loops2      # every run folder in it
+    python3 replay/build_evolve_replay.py --runs <talk folder>/evolve/runs/p4/loops      # every run folder in it
 
 Reads each run folder's `state.json` (history, curve, held-out, spend), `config.json` (the optimization strategy,
 when the run had one) and `transcript.jsonl` (when the seed summary, each iteration card and the end were printed).
-The events mirror `aidev_evolve.loop` (`_submit`, client 0.4.0): the strategy block on every event, the iteration's
-`hypothesis` and `siblings`, the held-out `per_task` counts and `kept` titles. Stdlib only; the coordinator's tests
+The events mirror `aidev_evolve.loop` (`_submit`, client 0.5.0): the strategy block and `provider` (config.json's first
+provider, when the run had one) on every event, the iteration's `hypothesis`, `siblings` and `provider_calls`, the held-out
+`per_task` counts, `kept` titles and `provider_calls`. Stdlib only; the coordinator's tests
 validate the output.
 """
 
@@ -67,6 +68,8 @@ def run_events(folder: Path) -> list[dict]:
                        "val_parent": h.get("val_parent"), "best_val": h["best_val"], "fixed": h.get("fixed", []),
                        "broke": h.get("broke", []), "diff": (h.get("diff") or "")[:8000], "spend_usd": h["spend_usd"],
                        "siblings": h.get("siblings", [])})
+        if h.get("provider_calls"):
+            events[-1]["provider_calls"] = h["provider_calls"]
     ho = state.get("heldout")
     if ho:
         events.append({"t": end, "schema": SCHEMA, "run_id": rid, "kind": "heldout",
@@ -74,6 +77,13 @@ def run_events(folder: Path) -> list[dict]:
                        "spend_usd": round(state["spend_usd"], 6)})
         if "per_task" in ho:
             events[-1].update(per_task=ho["per_task"], kept=ho.get("kept", []))
+        if ho.get("provider_calls"):
+            events[-1]["provider_calls"] = ho["provider_calls"]
+    cfg = folder / "config.json"
+    providers = (json.loads(cfg.read_text()).get("providers") or []) if cfg.exists() else []
+    if providers:
+        for e in events:
+            e["provider"] = providers[0]
     if strategy:
         for e in events:
             e["strategy"] = strategy
@@ -84,8 +94,8 @@ def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--runs", required=True, help="folder holding the run folders")
     ap.add_argument("--names", nargs="+", help="run folders to take (default: every folder with a state.json)")
-    ap.add_argument("--source", default="Part 2 Phase 3 evolve runs (batch loops2, 18 Nov 2026): seed C, splits C, 22-min time box, "
-                                        "4 strategies plus an edited copy, GLM-5.3-Flash on TB2.1")
+    ap.add_argument("--source", default="Part 2 Phase 4 evolve runs (runs/p4/loops, 19 Nov 2026): seed E, splits E, 22-min time box, "
+                                        "presets baseline, every-weakness and code-audit, GLM-5.3-Flash on TB2.1")
     ap.add_argument("--out", default=str(Path(__file__).with_name("evolve-recorded.json")))
     a = ap.parse_args(argv)
     names = a.names or sorted(d.name for d in Path(a.runs).iterdir() if (d / "state.json").is_file())

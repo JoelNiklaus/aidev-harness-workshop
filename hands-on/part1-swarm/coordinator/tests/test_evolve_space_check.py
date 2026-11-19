@@ -31,3 +31,13 @@ def test_problems_name_what_the_board_lacks():
     empty = evolve.build_state([], reference=[])
     assert check.problems(empty, "joel", "check-123") == ["run check-123 of joel is not on the board", "no recorded backdrop",
                                                           "check-123 missing from the strategy ranking"]
+
+
+def test_target_picks_the_space_and_bucket_prod_by_default():
+    from swarm_coordinator import deploy
+    a = check.parse_args(["--target", "staging"])
+    assert (a.space, a.bucket) == deploy.TARGETS["staging"]
+    a = check.parse_args([])
+    assert (a.space, a.bucket) == deploy.TARGETS["prod"]
+    a = check.parse_args(["--target", "staging", "--space", "org/other"])
+    assert (a.space, a.bucket) == ("org/other", deploy.TARGETS["staging"][1])
