@@ -30,8 +30,10 @@ STATE_TTL_S = 2.0
 EVOLVE_PER_MINUTE, EVOLVE_BURST = 6, 10  # an attendee sends ~1 event per 4 min; a resumed run may flush a few at once
 CLAIM_AGAIN_S = 30  # every free cell is taken, but a leased one returns if its runner dies: ask again after this
 # Runners older than 0.4.0 heartbeat every 2 min against a 90 s lease, so they would lose their cells; 0.4.0 sends every
-# trial to zai-org and records no provider (PROTOCOL.md "Providers"). Neither may claim.
-MIN_RUNNER = (0, 4, 1)
+# trial to zai-org and records no provider (PROTOCOL.md "Providers"). Up to 0.4.2 the pinned Harness Leaderboard code
+# (hlb 0.1.7) did not stop an agent whose time was up, so it could keep working while the tests ran and pass on that
+# work (fixed in hlb 0.1.9, 2026-11-19; 0.4.3 pins hlb 0.1.11). None of them may claim.
+MIN_RUNNER = (0, 4, 3)
 RUNNER_UA = re.compile(r"^aidev-swarm/(\d+)\.(\d+)\.(\d+)")
 BOOT_OPEN = b'<script id="boot" type="application/json">'
 BOOT_SLOT = BOOT_OPEN + b"null</script>"

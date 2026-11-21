@@ -9,7 +9,7 @@ resolution-markers = [
 
 [[package]]
 name = "aidev-swarm"
-version = "0.4.2"
+version = "0.4.3"
 source = { editable = "." }
 dependencies = [
     { name = "httpx" },
@@ -29,7 +29,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "harness-leaderboard", extras = ["worker"], marker = "extra == 'run'", git = "https://huggingface.co/spaces/joelniklaus/harness-leaderboard?rev=11357c3091b8bdcb1de9a28171d1d809cb533c02" },
+    { name = "harness-leaderboard", extras = ["worker"], marker = "extra == 'run'", git = "https://huggingface.co/spaces/joelniklaus/harness-leaderboard?rev=3cf8a20805cbe6bccad1c34db2287aa76487df8e" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "huggingface-hub", specifier = ">=1.33,<2" },
 ]
@@ -832,8 +832,8 @@ hf-sandbox = [
 
 [[package]]
 name = "harness-leaderboard"
-version = "0.1.7"
-source = { git = "https://huggingface.co/spaces/joelniklaus/harness-leaderboard?rev=11357c3091b8bdcb1de9a28171d1d809cb533c02#11357c3091b8bdcb1de9a28171d1d809cb533c02" }
+version = "0.1.11"
+source = { git = "https://huggingface.co/spaces/joelniklaus/harness-leaderboard?rev=3cf8a20805cbe6bccad1c34db2287aa76487df8e#3cf8a20805cbe6bccad1c34db2287aa76487df8e" }
 dependencies = [
     { name = "huggingface-hub" },
 ]

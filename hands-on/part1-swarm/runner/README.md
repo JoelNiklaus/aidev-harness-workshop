@@ -23,7 +23,7 @@ uvx --from "<WHEEL_URL>" aidev-swarm launch --n 2    # or exactly 2 trials
 URL. Or paste `AGENT_PROMPT.md` into your coding agent and let it do this. In the room, the coordinator's
 `/join` page (the slide's QR code) shows both with Copy buttons.
 
-`<WHEEL_URL>` is today `https://github.com/JoelNiklaus/aidev-harness-workshop/releases/download/swarm-v0.4.2/aidev_swarm-0.4.2-py3-none-any.whl`
+`<WHEEL_URL>` is today `https://github.com/JoelNiklaus/aidev-harness-workshop/releases/download/swarm-v0.4.3/aidev_swarm-0.4.3-py3-none-any.whl`
 (a release asset of this public repo: no login needed; the Job downloads the same file). The laptop install is
 26 MB (httpx and huggingface_hub; 4 s with an empty uv cache). Harbor and the harness wiring (about 290 MB)
 install only inside the Job (the `run` extra, about 8 s there).
@@ -44,13 +44,14 @@ or `export AIDEV_BOARD=<url>`, the same setting `aidev-evolve` reads (a dry run 
   the Job secret `HF_TOKEN`; the command downloads this version's wheel from the GitHub release (no
   credentials sent) and runs
   `uvx --from "aidev-swarm[run] @ file://<wheel>" aidev-swarm run --loop | --n K`.
-- `trial.py` reuses the Harness Leaderboard's wiring (`hlb`, pinned to the deployed Space revision):
+- `trial.py` reuses the Harness Leaderboard's wiring (`hlb` 0.1.11, pinned to the deployed Space revision; it stops
+  an agent whose time is up before the tests start):
   per-harness Harbor configs, the HF Sandbox environment and the in-sandbox meter. Harnesses get a dummy
   key; only the meter inside the sandbox holds your token. Sandboxes run in your namespace.
 - `result.py` builds the protocol's Result from the trial folder: tokens from the meter log, cost =
   tokens x `data/prices.json` (cached input at its rate).
 - `coordinator.py` speaks the protocol (claim, heartbeat, submit, release; User-Agent `aidev-swarm/<version>`,
-  the coordinator refuses claims from runners older than 0.4.1). Transient errors (429 from the HF edge's
+  the coordinator refuses claims from runners older than 0.4.3). Transient errors (429 from the HF edge's
   per-IP limit, 5xx, network) are retried with capped backoff: submit for 35 min, claim 10 min, heartbeat
   25 s (the next beat retries), release 2 min (6 s on the way out of a cancelled Job). A result the
   coordinator still does not take is kept in `<workdir>/unsent/` and sent again before the next claim.

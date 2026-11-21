@@ -1,6 +1,6 @@
 [project]
 name = "aidev-swarm"
-version = "0.4.2"
+version = "0.4.3"
 description = "Launch an HF Job that claims Terminal-Bench 2.1 trials from the workshop swarm, runs them with Harbor on HF Sandbox under your own HF token, and submits the results."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -16,7 +16,7 @@ run = [
     # The Harness Leaderboard's harness wiring, in-sandbox meter and HF Sandbox environment,
     # pinned to the deployed Space revision (public). It pins huggingface-hub 1.33.0 and,
     # with [worker], harbor[hf-sandbox] 0.24.0.
-    "harness-leaderboard[worker] @ git+https://huggingface.co/spaces/joelniklaus/harness-leaderboard@11357c3091b8bdcb1de9a28171d1d809cb533c02",
+    "harness-leaderboard[worker] @ git+https://huggingface.co/spaces/joelniklaus/harness-leaderboard@3cf8a20805cbe6bccad1c34db2287aa76487df8e",
 ]
 
 [project.scripts]

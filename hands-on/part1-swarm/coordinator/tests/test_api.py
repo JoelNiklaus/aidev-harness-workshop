@@ -29,7 +29,7 @@ class Mono:
         return self.t
 
 
-RUNNER_UA = "aidev-swarm/0.4.1"
+RUNNER_UA = "aidev-swarm/0.4.3"
 
 
 def H(user, ua=RUNNER_UA):
@@ -107,7 +107,17 @@ def test_a_claim_from_a_runner_older_than_the_short_lease_protocol_is_426(client
     assert client.get("/api/state").json()["counts"]["running"] == 0
 
 
-@pytest.mark.parametrize("ua", ["aidev-swarm/0.4.1", "aidev-swarm/0.4.12", "aidev-swarm/1.0.0 (job)"])
+@pytest.mark.parametrize("ua", ["aidev-swarm/0.4.1", "aidev-swarm/0.4.2"])
+def test_a_claim_from_a_runner_whose_agents_work_on_after_their_timeout_is_426(client, ua):
+    """Up to 0.4.2 the runner's pinned Harness Leaderboard code (hlb 0.1.7) did not stop an agent whose time was up:
+    it could keep calling the model and editing files while the tests ran, so a pass could come from work done after
+    the timeout (the board re-ran 1,130 such trials on 19-20 Nov). 0.4.3 pins hlb 0.1.11, which stops it."""
+    r = client.post("/api/claim", headers=H("alice", ua=ua))
+    assert r.status_code == 426 and "0.4.3" in r.json()["detail"]
+    assert client.get("/api/state").json()["counts"]["running"] == 0
+
+
+@pytest.mark.parametrize("ua", ["aidev-swarm/0.4.3", "aidev-swarm/0.4.12", "aidev-swarm/1.0.0 (job)"])
 def test_current_runners_may_claim(client, ua):
     assert client.post("/api/claim", headers=H("alice", ua=ua)).status_code == 200
 

@@ -5,7 +5,7 @@
 """Board check in headless Chromium: load time (navigation start to the first full draw), screenshot at
 projector size (1920x1080), and legibility: anything overflowing the viewport or its panel, clipped or
 ellipsized text, the smallest font (HTML and the scatter's SVG text at screen scale; the projector minimum
-is 26 px), scatter text whose ink touches other text or a marker, and SVG text cut off by the chart or its panel.
+is 26 px), table cells cut at their panel's right edge, scatter text whose ink touches other text or a marker, and SVG text cut off by the chart or its panel.
 
     uv run scripts/board_check.py --url http://127.0.0.1:8761/ --shot /tmp/board.png [--runs 3] [--header "Authorization: Bearer ..."]
 
@@ -58,7 +58,10 @@ def main() -> None:
                     const d = document.documentElement;
                     const bad = [...document.querySelectorAll('td,th,.gname,.feed li,h1,h2,.plegend,.legend,.nr,.counter,.fixes .fl,.fixes .fn,.feed .who,.rlegend')].filter(e => e.scrollWidth > e.clientWidth + 1 && getComputedStyle(e).textOverflow !== 'ellipsis').length;
                     const cut = [...document.querySelectorAll('tbody tr,.gname,.legend,.feed li')].filter(e => { const p = e.closest('.panel'); return p && e.getBoundingClientRect().bottom > p.getBoundingClientRect().bottom - 4; }).length;
-                    return {page_w: d.scrollWidth, page_h: d.scrollHeight, clipped_text_nodes: bad, rows_cut_by_panel: cut};
+                    // cells and names whose right edge passes their panel's inner right edge (the panel hides the overflow)
+                    const right = [...document.querySelectorAll('th,td,.gname,.feed li')].filter(e => { const p = e.closest('.panel'); if (!p) return false;
+                        const pr = p.getBoundingClientRect().right - parseFloat(getComputedStyle(p).paddingRight); return e.getBoundingClientRect().right > pr + 1; }).length;
+                    return {page_w: d.scrollWidth, page_h: d.scrollHeight, clipped_text_nodes: bad, rows_cut_by_panel: cut, cut_at_panel_right: right};
                 })()""")
                 out["min_font_px"] = page.evaluate("""Math.min(...[...document.querySelectorAll('body *')].filter(e => e.offsetParent && e.childNodes.length && [...e.childNodes].some(n => n.nodeType === 3 && n.textContent.trim())).map(e => parseFloat(getComputedStyle(e).fontSize)))""")
                 out["scatter"] = page.evaluate("""(() => { const SVG_ID = '""" + a.svg + """';

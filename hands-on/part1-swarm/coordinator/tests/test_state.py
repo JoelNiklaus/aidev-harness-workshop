@@ -80,3 +80,15 @@ def test_state_counts_results_per_provider(store, grid):
         store.submit(c["cell_id"], user, make_result(c["cell_id"], user=user, **extra))
     s = build_state(grid, store.snapshot(), [], META, mode="live")
     assert s["counts"]["by_provider"] == {"novita": 1, "zai-org": 1, "unknown": 1}
+
+
+def test_the_workshop_openclaw_is_labelled_as_shipped():
+    """The hands-on runs OpenClaw without its reasoning setting (the runner's hlb pin runs `openclaw`, not `openclaw-reasoning`) and its reference layer is the
+    v0.1.8 board, while the public board's OpenClaw has the setting since v0.1.9: the legend says which one this is."""
+    import json
+
+    from swarm_coordinator import paths
+
+    meta = json.loads(paths.harness_meta_path().read_text())
+    assert meta["openclaw"]["display"] == "OpenClaw (as shipped)"
+    assert {h: m["display"] for h, m in meta.items() if h != "openclaw" and "as shipped" in m["display"]} == {}
