@@ -444,7 +444,7 @@ def _claim_and_run(s: Session, url: str, limit: int | None, slot: int = 0) -> in
             if held:
                 s.release(held, "skipped after its setup failure")
             return rc
-        if s.parallel > 1 and slot > s.share and held is None:  # beyond the share: the slot at the share asks for both
+        if s.parallel > 1 and slot > s.share and held is None:  # beyond the share: only the slot at the share asks the coordinator
             s.deps.sleep(SHARE_WAIT_S)
             continue
         s.resend_unsent()

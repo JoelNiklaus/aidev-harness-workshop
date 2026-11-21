@@ -410,3 +410,15 @@ def test_restore_keeps_results_of_cells_outside_the_grid_out_of_the_queue(grid, 
 
 def test_cell_id_format():
     assert cell_id("mini-swe-agent", "kv-store-grpc", 2) == "mini-swe-agent__kv-store-grpc__2"
+
+
+def test_runner_slot_constants_match_the_lease_limit_and_slow_start():
+    """Drift guard: the runner's --parallel maximum leaves one spare lease under MAX_LEASES, its devtools fake uses the
+    same MAX_LEASES, and a runner's first assumed share is the slow start's first step."""
+    from swarm_coordinator.store import MAX_LEASES, RAMP_S
+
+    cli = RUNNER_CLI.read_text()
+    fake = (RUNNER_CLI.parents[2] / "devtools" / "fake_coordinator.py").read_text()
+    assert int(re.search(r"^MAX_PARALLEL = (\d+)", cli, re.M).group(1)) + 1 == MAX_LEASES
+    assert int(re.search(r"^MAX_LEASES = (\d+)", fake, re.M).group(1)) == MAX_LEASES
+    assert int(re.search(r"^    share: int = (\d+)", cli, re.M).group(1)) == 2 and RAMP_S > 0
