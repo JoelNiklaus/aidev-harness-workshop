@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import sqlite3
 import threading
 import time
@@ -23,7 +24,17 @@ from .grid import Grid
 log = logging.getLogger("swarm.store")
 
 LEASE_S = 90  # > 2 heartbeats of the runner (cli.HEARTBEAT_S = 30): one lost beat never costs a live trial its cell
-MAX_N = 2
+# Leases one attendee may hold: a Job runs up to this many trials at once (aidev-swarm --parallel), each slot with its own
+# heartbeats and one cell per claim. A runner asks for its slot count (`limit`, one more while it skips a failed cell, so
+# the cell it gives back is not handed straight back to it); the share below caps it further.
+MAX_LEASES = 9
+# An attendee counts as active for the share while they hold a lease or claimed / heartbeated within this window.
+ACTIVE_S = 3 * LEASE_S
+# Slow start: an attendee's share starts at 2 (a runner's spare lease for skipping a failed cell, or a second Job) and
+# grows by one lease every RAMP_S from their first claim, so the first arrivals of a room that launches within a few
+# minutes do not take every cell before the others are seen (8 slots after 120 s; the fill-time cost with 40 attendees
+# is about a minute, runner/PROGRESS.md).
+RAMP_S = 20
 
 RESULT_FIELDS = {
     "cell_id": str, "harness": str, "harness_version": str, "task": str, "trial": int, "model": str,
@@ -41,9 +52,9 @@ class Conflict(Exception):
 class AtLimit(Conflict):
     """409: the user already holds as many active leases as allowed."""
 
-    def __init__(self, held: list[str]):
+    def __init__(self, held: list[str], share: int | None = None):
         super().__init__(f"you already hold {len(held)} active lease(s): {', '.join(held)}; release or finish them first")
-        self.held = held
+        self.held, self.share = held, share
 
 
 class Invalid(ValueError):
@@ -100,6 +111,8 @@ class Store:
         self._db.executemany("INSERT INTO cells(cell_id, ord, harness, task, trial) VALUES (?,?,?,?,?)",
                              [(c.cell_id, i, c.harness, c.task, c.trial) for i, c in enumerate(grid.cells)])
         self.version = 0  # bumps on every change; the state cache keys on it
+        self._seen: dict[str, float] = {}  # user -> last claim or heartbeat (in memory: a restart forgets it for ACTIVE_S)
+        self._first: dict[str, float] = {}  # user -> first claim (slow start; a restart starts it again)
 
     # ------------------------------------------------------------ helpers (call under the lock)
 
@@ -123,32 +136,46 @@ class Store:
         if self.sink is not None:
             self.sink.put_leases(self._leases(now))
 
-    def _claim_doc(self, cid: str, h: str, t: str, k: int, expires: float) -> dict[str, Any]:
+    def _claim_doc(self, cid: str, h: str, t: str, k: int, expires: float, share: int) -> dict[str, Any]:
         return {"cell_id": cid, "harness": h, "task": t, "trial": k, "model": self.grid.model,
-                "lease_expires_at": iso(expires), "run_config": dict(self.grid.run_config)}
+                "lease_expires_at": iso(expires), "run_config": dict(self.grid.run_config), "share": share}
+
+    def _share(self, user: str, now: float) -> int:
+        """Leases `user` may hold now: the cells without a result spread over the active attendees, and at most one more
+        per RAMP_S since their first claim, so early attendees with parallel runners do not take every cell while
+        later ones arrive (at least 1)."""
+        active = {u for u, t in self._seen.items() if t > now - ACTIVE_S}
+        active.update(le["user"] for le in self._leases(now))
+        open_cells = self._db.execute("SELECT COUNT(*) FROM cells WHERE done=0").fetchone()[0]
+        ramp = 2 + int((now - self._first.get(user, now)) / RAMP_S)
+        return max(1, min(ramp, math.ceil(open_cells / max(1, len(active)))))
 
     # ------------------------------------------------------------ protocol operations
 
-    def claim(self, user: str, n: int = 1) -> list[dict[str, Any]]:
-        if n not in range(1, MAX_N + 1):
-            raise Invalid(f"n must be 1 or {MAX_N}")
+    def claim(self, user: str, limit: int = 1) -> list[dict[str, Any]]:
+        """The next free cell (a list of one, empty when none is free) while `user` holds fewer than min(`limit`, share)
+        live leases, else AtLimit."""
+        if limit not in range(1, MAX_LEASES + 1):
+            raise Invalid(f"limit must be from 1 to {MAX_LEASES}")
         with self._lock:
             now = self.clock()
+            self._seen[user] = now
+            self._first.setdefault(user, now)
+            share = self._share(user, now)
             held = [r[0] for r in self._db.execute(
                 "SELECT cell_id FROM cells WHERE done=0 AND lease_user=? AND lease_expires>? ORDER BY ord", (user, now))]
-            want = n - len(held)
-            if want <= 0:
-                raise AtLimit(held)
+            if len(held) >= min(limit, share):
+                raise AtLimit(held, share)
             rows = self._db.execute(
-                "SELECT cell_id, harness, task, trial FROM cells WHERE done=0 AND (lease_user IS NULL OR lease_expires<=?) ORDER BY ord LIMIT ?",
-                (now, want)).fetchall()
+                "SELECT cell_id, harness, task, trial FROM cells WHERE done=0 AND (lease_user IS NULL OR lease_expires<=?) ORDER BY ord LIMIT 1",
+                (now,)).fetchall()
             if not rows:
                 return []
             expires = now + self.lease_s
             self._db.executemany("UPDATE cells SET lease_user=?, lease_expires=?, n_claims=n_claims+1 WHERE cell_id=?",
                                  [(user, expires, r[0]) for r in rows])
             self._changed(now)
-            return [self._claim_doc(*r, expires) for r in rows]
+            return [self._claim_doc(*r, expires, share) for r in rows]
 
     def lease(self, cid: str, user: str) -> dict[str, Any]:
         """Claim one named cell (the replay's virtual runners use this to follow a fixed schedule)."""
@@ -161,7 +188,7 @@ class Store:
             expires = now + self.lease_s
             self._db.execute("UPDATE cells SET lease_user=?, lease_expires=?, n_claims=n_claims+1 WHERE cell_id=?", (user, expires, cid))
             self._changed(now)
-            return self._claim_doc(row[0], row[1], row[2], row[3], expires)
+            return self._claim_doc(row[0], row[1], row[2], row[3], expires, self._share(user, now))
 
     def heartbeat(self, cid: str, user: str) -> dict[str, Any]:
         with self._lock:
@@ -174,6 +201,7 @@ class Store:
             if holder != user and (holder is not None or row[4] != user):
                 raise Conflict(f"the lease on {cid} belongs to someone else")
             expires = now + self.lease_s
+            self._seen[user] = now
             self._db.execute("UPDATE cells SET lease_user=?, lease_expires=? WHERE cell_id=?", (user, expires, cid))
             self._changed(now)
             return {"cell_id": cid, "lease_expires_at": iso(expires)}

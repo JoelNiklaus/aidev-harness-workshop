@@ -71,13 +71,10 @@ def test_second_claim_is_409_with_held_cells(client):
     assert r.status_code == 409 and r.json()["held"] == ["opencode__t1__0"]
 
 
-def test_claim_n2_returns_a_list(client):
-    r = client.post("/api/claim?n=2", headers=H("alice"))
-    assert r.status_code == 200 and [c["cell_id"] for c in r.json()] == ["opencode__t1__0", "opencode__t2__0"]
+def test_claim_limit_above_the_maximum_is_422(client):
+    from swarm_coordinator.store import MAX_LEASES
 
-
-def test_claim_n3_is_422(client):
-    assert client.post("/api/claim?n=3", headers=H("alice")).status_code == 422
+    assert client.post(f"/api/claim?limit={MAX_LEASES + 1}", headers=H("alice")).status_code == 422
 
 
 def test_claim_204_when_nothing_is_left(client):
@@ -120,6 +117,15 @@ def test_a_claim_from_a_runner_whose_agents_work_on_after_their_timeout_is_426(c
 @pytest.mark.parametrize("ua", ["aidev-swarm/0.4.3", "aidev-swarm/0.4.12", "aidev-swarm/1.0.0 (job)"])
 def test_current_runners_may_claim(client, ua):
     assert client.post("/api/claim", headers=H("alice", ua=ua)).status_code == 200
+
+
+def test_a_parallel_runner_claims_one_cell_per_slot_up_to_its_share(client):
+    """limit=3 asks for three slots; the slow start lets a new attendee hold 2 for now, and the 409 says so."""
+    got = [client.post("/api/claim", params={"limit": 3}, headers=H("alice")) for _ in range(3)]
+    assert [r.status_code for r in got] == [200, 200, 409]
+    assert all(isinstance(r.json(), dict) and r.json()["share"] == 2 for r in got[:2])
+    body = got[2].json()
+    assert len(body["held"]) == 2 and body["share"] == 2
 
 
 def test_full_cycle_heartbeat_submit(client):

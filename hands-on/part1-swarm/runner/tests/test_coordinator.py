@@ -27,9 +27,8 @@ class FakeServer:
         if request.method == "POST" and path == "/api/claim":
             if not self.cells:
                 return httpx.Response(204)
-            n = int(request.url.params.get("n", 1))
-            out, self.cells = self.cells[:n], self.cells[n:]
-            return httpx.Response(200, json=out[0] if n == 1 else out)
+            out, self.cells = self.cells[0], self.cells[1:]
+            return httpx.Response(200, json=out)
         for verb in ("heartbeat", "submit", "release"):
             prefix = f"/api/{verb}/"
             if request.method == "POST" and path.startswith(prefix):
@@ -57,11 +56,10 @@ def test_claim_returns_none_when_the_grid_is_full():
     assert client(FakeServer(cells=[])).claim() is None
 
 
-def test_claim_two_sends_n_and_returns_a_list():
-    s = FakeServer(cells=[{"cell_id": "a"}, {"cell_id": "b"}, {"cell_id": "c"}])
-    cells = client(s).claim(n=2)
-    assert [c["cell_id"] for c in cells] == ["a", "b"]
-    assert s.calls[-1] == ("POST", "/api/claim", {"n": "2"})
+def test_claim_with_a_limit_sends_it_and_returns_one_cell():
+    s = FakeServer(cells=[{"cell_id": "a"}, {"cell_id": "b"}])
+    assert client(s).claim(limit=3)["cell_id"] == "a"
+    assert s.calls[-1] == ("POST", "/api/claim", {"limit": "3"})
 
 
 def test_cell_ids_with_pipes_are_url_quoted_and_reach_the_server_intact():

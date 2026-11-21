@@ -68,13 +68,15 @@ def _doomed(n: int, kill_frac: float) -> set[int]:
 
 async def _drive(base_url: str, users: list[str], *, transport: httpx.AsyncBaseTransport | None = None, viewers: int = 0,
                  timeout_s: float = 60.0, trial_s: tuple[float, float] = (0.0, 0.0), heartbeat_s: float = 30.0,
-                 kill: set[int] | None = None, wait_s: float | None = None, seed: int = 0) -> dict[str, Any]:
+                 kill: set[int] | None = None, wait_s: float | None = None, seed: int = 0, parallel: int = 1) -> dict[str, Any]:
     """Run the given fake runners (and viewers) to the end of the grid; raw latencies, claims, submits, deaths and errors.
 
     A runner claims, "runs" its trial for a random time in `trial_s` while heartbeating every `heartbeat_s`, and
     submits. The runners whose index is in `kill` die once, partway through their first trial: no release, no more
     heartbeats (a SIGKILLed Job). A 204 with Retry-After (leased cells may come back) waits `wait_s` (default: the
-    header) and claims again; a plain 204 (grid full) ends the runner."""
+    header) and claims again; a plain 204 (grid full) ends the runner. With `parallel` > 1 each runner is an attendee
+    whose Job runs that many slots (aidev-swarm --parallel), each claiming with limit=parallel; a 409 at the attendee's
+    limit or share is a wait (`wait_s`, default 30 s), not an error."""
     import random
 
     rng = random.Random(seed)
@@ -83,9 +85,12 @@ async def _drive(base_url: str, users: list[str], *, transport: httpx.AsyncBaseT
     submits: dict[str, int] = defaultdict(int)  # cell -> accepted submits
     deaths: dict[str, list[Any]] = {}  # cell -> [user, unix time of death]
     errors: list[str] = []
+    held: dict[str, int] = defaultdict(int)  # user -> cells its slots hold now
+    max_held = [0]
     stop = asyncio.Event()
     kill = kill or set()
-    limits = httpx.Limits(max_connections=len(users) + viewers + 10, max_keepalive_connections=len(users) + viewers + 10)
+    conns = len(users) * parallel + viewers + 10
+    limits = httpx.Limits(max_connections=conns, max_keepalive_connections=conns)
     async with httpx.AsyncClient(base_url=base_url, transport=transport, timeout=timeout_s, limits=limits, headers=HEADERS) as client:
 
         async def call(kind: str, path: str, user: str, **kw: Any) -> httpx.Response | None:
@@ -96,25 +101,51 @@ async def _drive(base_url: str, users: list[str], *, transport: httpx.AsyncBaseT
                 errors.append(f"{kind}: {type(e).__name__}")
                 return None
             lat[kind].append((time.perf_counter() - t0) * 1000)
-            if r.status_code >= 400:
+            if r.status_code >= 400 and not (kind == "claim" and r.status_code == 409 and parallel > 1):
                 errors.append(f"{kind}: HTTP {r.status_code} {r.text[:100]}")
             return r
 
         async def runner(i: int, user: str) -> None:
-            await asyncio.sleep((i % 50) * 0.002)  # a small ramp, as attendees do not start in the same ms
-            doomed = i in kill
+            room = {"share": 2, "full": False}  # what the runner's slots share (aidev-swarm cli.Session.share / .full)
+            await asyncio.gather(*(slot(i, user, k, room) for k in range(parallel)))
+
+        async def slot(i: int, user: str, k: int, room: dict[str, Any]) -> None:
+            await asyncio.sleep((i % 50) * 0.002 + k * 0.001)  # a small ramp, as attendees do not start in the same ms
+            doomed = i in kill and k == 0
+            params = {"limit": parallel} if parallel > 1 else None
+            refusals = 0
+
+            def backoff(base: float) -> float:  # the runner's slot_wait: a refused slot asks less and less often
+                return wait_s if wait_s is not None else (min(300.0, base * 2 ** refusals) if parallel > 1 else base)
+
             for j in range(10_000):
-                r = await call("claim", "/api/claim", user)
+                if parallel > 1 and room["full"]:
+                    return
+                if parallel > 1 and k > room["share"]:  # the runner's passive slots: the slot at the share asks
+                    await asyncio.sleep(wait_s if wait_s is not None else 30.0)
+                    continue
+                r = await call("claim", "/api/claim", user, params=params)
+                if r is not None and r.status_code == 409 and parallel > 1:
+                    room["share"] = r.json().get("share") or room["share"]
+                    await asyncio.sleep(backoff(30.0))
+                    refusals += 1
+                    continue
                 if r is None or r.status_code >= 400:
                     return
                 if r.status_code == 204:
                     if "retry-after" not in r.headers:
+                        room["full"] = True
                         return
-                    await asyncio.sleep(wait_s if wait_s is not None else float(r.headers["retry-after"]))
+                    await asyncio.sleep(backoff(float(r.headers["retry-after"])))
+                    refusals += 1
                     continue
+                refusals = 0
+                room["share"] = r.json().get("share", room["share"])
                 cell = r.json()
                 cid = cell["cell_id"]
                 claims[cid].append([user, time.time()])
+                held[user] += 1
+                max_held[0] = max(max_held[0], held[user])
                 dur = rng.uniform(*trial_s)
                 die_after = dur * rng.uniform(0.2, 0.8) if doomed else None
                 ran, beats = 0.0, 0
@@ -131,6 +162,7 @@ async def _drive(base_url: str, users: list[str], *, transport: httpx.AsyncBaseT
                     deaths[cid] = [user, time.time()]
                     return
                 r = await call("submit", f"/api/submit/{cid}", user, json=fake_result(cell, user, j))
+                held[user] -= 1
                 if r is not None and r.status_code == 200:
                     submits[cid] += 1
 
@@ -152,7 +184,8 @@ async def _drive(base_url: str, users: list[str], *, transport: httpx.AsyncBaseT
         wall = time.perf_counter() - t0
         stop.set()
         await asyncio.gather(*views)
-    return {"lat": dict(lat), "claims": dict(claims), "submits": dict(submits), "deaths": deaths, "errors": errors, "wall": wall}
+    return {"lat": dict(lat), "claims": dict(claims), "submits": dict(submits), "deaths": deaths, "errors": errors, "wall": wall,
+            "max_held": max_held[0]}
 
 
 def _drive_in_process(base_url: str, users: list[str], viewers: int, kw: dict[str, Any]) -> dict[str, Any]:
@@ -177,7 +210,7 @@ def merge(raws: list[dict[str, Any]]) -> dict[str, Any]:
     for us in claims.values():
         us.sort(key=lambda u: u[1])
     return {"lat": dict(lat), "claims": dict(claims), "submits": dict(submits), "deaths": deaths, "errors": errors,
-            "wall": max((r["wall"] for r in raws), default=0.0)}
+            "wall": max((r["wall"] for r in raws), default=0.0), "max_held": max((r.get("max_held", 0) for r in raws), default=0)}
 
 
 def reclaims(claims: dict[str, list[list[Any]]], deaths: dict[str, list[Any]]) -> tuple[list[float], list[str]]:
@@ -196,14 +229,14 @@ def reclaims(claims: dict[str, list[list[Any]]], deaths: dict[str, list[Any]]) -
 
 async def run_loadtest(base_url: str, n_runners: int = 300, *, transport: httpx.AsyncBaseTransport | None = None, viewers: int = 0,
                        procs: int = 1, trial_s: tuple[float, float] = (0.0, 0.0), heartbeat_s: float = 30.0, kill_frac: float = 0.0,
-                       wait_s: float | None = None) -> dict[str, Any]:
+                       wait_s: float | None = None, parallel: int = 1) -> dict[str, Any]:
     """procs > 1 spreads the runners over processes, so the load generator is not the bottleneck
     (one Python process with hundreds of connections saturates its own core first)."""
     users = [f"loadtest-{i:04d}" for i in range(n_runners)]
     doomed = _doomed(n_runners, kill_frac)
     if procs <= 1:
         raw = await _drive(base_url, users, transport=transport, viewers=viewers, trial_s=trial_s, heartbeat_s=heartbeat_s,
-                           kill=doomed, wait_s=wait_s)
+                           kill=doomed, wait_s=wait_s, parallel=parallel)
     else:
         from concurrent.futures import ProcessPoolExecutor
         loop = asyncio.get_running_loop()
@@ -211,7 +244,7 @@ async def run_loadtest(base_url: str, n_runners: int = 300, *, transport: httpx.
             idx = [list(range(n_runners))[i::procs] for i in range(procs)]
             raws = await asyncio.gather(*(loop.run_in_executor(
                 ex, _drive_in_process, base_url, [users[k] for k in part], viewers // procs + (i < viewers % procs),
-                {"trial_s": trial_s, "heartbeat_s": heartbeat_s, "wait_s": wait_s, "seed": i,
+                {"trial_s": trial_s, "heartbeat_s": heartbeat_s, "wait_s": wait_s, "seed": i, "parallel": parallel,
                  "kill": {pos for pos, k in enumerate(part) if k in doomed}})
                 for i, part in enumerate(idx)))
         raw = merge(list(raws))
@@ -227,7 +260,7 @@ async def run_loadtest(base_url: str, n_runners: int = 300, *, transport: httpx.
             await asyncio.sleep(0.5)
     sent = sum(len(v) for k, v in lat.items() if k != "state")
     return {
-        "runners": n_runners, "viewers": viewers, "procs": procs, "trial_s": list(trial_s), "heartbeat_s": heartbeat_s,
+        "runners": n_runners, "parallel": parallel, "max_leases_per_user": raw["max_held"], "viewers": viewers, "procs": procs, "trial_s": list(trial_s), "heartbeat_s": heartbeat_s,
         "wall_s": round(wall, 2), "requests": sum(len(v) for v in lat.values()),
         "rps": round(sent / wall, 1) if wall else None,
         "heartbeat_rps": round(len(lat.get("heartbeat", [])) / wall, 1) if wall else None,
@@ -347,6 +380,7 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--viewers", type=int, default=20)
     ap.add_argument("--trial-s", type=float, nargs=2, default=(0.0, 0.0), metavar=("MIN", "MAX"), help="fake trial length range")
     ap.add_argument("--heartbeat-s", type=float, default=30.0, help="runner heartbeat interval (the runner's HEARTBEAT_S)")
+    ap.add_argument("--parallel", type=int, default=1, help="slots per runner (aidev-swarm --parallel), each claiming with limit=N")
     ap.add_argument("--kill-frac", type=float, default=0.0, help="share of runners that die mid-trial without releasing")
     ap.add_argument("--lease-s", type=float, help="lease of the locally started coordinator (default: the store's)")
     ap.add_argument("--procs", type=int, default=6, help="load-generator processes")
@@ -375,7 +409,7 @@ def main(argv: list[str] | None = None) -> None:
             report = asyncio.run(run_evolve_loadtest(url, a.attendees, interval_s=a.interval, iterations=a.iterations, viewers=a.viewers))
         else:
             report = asyncio.run(run_loadtest(url, a.runners, viewers=a.viewers, procs=a.procs, trial_s=tuple(a.trial_s),
-                                              heartbeat_s=a.heartbeat_s, kill_frac=a.kill_frac))
+                                              heartbeat_s=a.heartbeat_s, kill_frac=a.kill_frac, parallel=a.parallel))
     finally:
         if proc:
             proc.terminate()

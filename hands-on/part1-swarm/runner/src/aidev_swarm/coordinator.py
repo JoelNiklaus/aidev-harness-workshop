@@ -30,11 +30,12 @@ class LeaseLost(CoordinatorError):
 
 
 class AtLimit(CoordinatorError):
-    """409 on claim: this user already holds as many leases as allowed (`held` lists them)."""
+    """409 on claim: this user already holds as many leases as allowed (`held` lists them; `share`: the leases one
+    attendee may hold now, the open cells spread over the active attendees)."""
 
-    def __init__(self, msg: str, held: list[str]):
+    def __init__(self, msg: str, held: list[str], share: int | None = None):
         super().__init__(msg)
-        self.held = held
+        self.held, self.share = held, share
 
 
 class AllTaken(Exception):
@@ -94,7 +95,7 @@ class Coordinator:
                 if r.status_code == 409:
                     body = _json(r)
                     if verb == "claim" and "held" in body:
-                        raise AtLimit(f"{path}: {str(body.get('detail', ''))[:200]}", list(body["held"]))
+                        raise AtLimit(f"{path}: {str(body.get('detail', ''))[:200]}", list(body["held"]), body.get("share"))
                     raise LeaseLost(f"{path}: {r.text[:200]}")
                 if r.status_code not in RETRY_STATUS:
                     if r.status_code >= 400:
@@ -110,9 +111,10 @@ class Coordinator:
     def _cell(cell_id: str) -> str:
         return urllib.parse.quote(cell_id, safe="")
 
-    def claim(self, n: int = 1) -> dict[str, Any] | list[dict[str, Any]] | None:
-        """The claimed cell(s); None when the grid is full; raises AllTaken when every free cell is taken for now."""
-        r = self._post("claim", "/api/claim", params={"n": n} if n != 1 else None)
+    def claim(self, limit: int = 1) -> dict[str, Any] | None:
+        """The next cell while this user holds fewer than `limit` leases (AtLimit otherwise); None when the grid is full;
+        raises AllTaken when every free cell is taken for now."""
+        r = self._post("claim", "/api/claim", params={"limit": limit} if limit != 1 else None)
         if r.status_code == 204:
             wait = _retry_after(r)
             if wait is not None:

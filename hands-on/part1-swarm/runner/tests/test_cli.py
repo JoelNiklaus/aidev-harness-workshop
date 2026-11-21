@@ -2,6 +2,7 @@
 
 import shutil
 import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -19,19 +20,25 @@ class FakeCoordinator:
         self.submitted = {}
         self.heartbeat_seen = threading.Event()
         self.held = set()
+        self.lock = threading.Lock()
+        self.callers = []  # thread of each claim (slot-1, slot-2, ...)
+        self.share = None  # the room's cap on this attendee's leases (None: only the runner's limit)
 
-    def claim(self, n=1):
-        """Like the real coordinator: `n` caps the user's live leases; n=2 answers with a list."""
+    def claim(self, limit=1):
+        """Like the real coordinator: one cell while the user holds fewer than `limit` live leases."""
         from aidev_swarm.coordinator import AtLimit
 
-        self.log.append(("claim", n))
-        if len(self.held) >= n:
-            raise AtLimit("at limit", sorted(self.held))
-        if not self.cells:
-            return None if n == 1 else []
-        c = self.cells.pop(0)
-        self.held.add(c["cell_id"])
-        return c if n == 1 else [c]
+        with self.lock:
+            self.log.append(("claim", limit))
+            self.callers.append(threading.current_thread().name)
+            cap = min(limit, self.share or limit)
+            if len(self.held) >= cap:
+                raise AtLimit("at limit", sorted(self.held), share=self.share or limit)
+            if not self.cells:
+                return None
+            c = self.cells.pop(0)
+            self.held.add(c["cell_id"])
+            return {**c, "share": self.share} if self.share else c
 
     def heartbeat(self, cell_id):
         self.log.append(("heartbeat", cell_id))
@@ -437,22 +444,6 @@ def test_an_unsent_result_whose_lease_was_taken_over_is_dropped(capsys):
     assert not list((WORKDIR / "unsent").glob("*.json"))
 
 
-def test_an_extra_cell_from_claim_two_is_released_at_once():
-    h = Harness([cell(0), cell(1), cell(2)], trial=failing_for("opencode|nginx-request-logging|0"))
-    plain = h.coord.claim
-
-    def generous(n=1):  # a coordinator that hands out two new cells for ?n=2
-        if n == 2:
-            h.coord.log.append(("claim", 2))
-            return [h.coord.cells.pop(0), h.coord.cells.pop(0)]
-        return plain(n)
-
-    h.coord.claim = generous
-    assert main(h, "run", "--coordinator", "https://c", "--n", "2") == 0
-    assert ("release", "opencode|nginx-request-logging|2") in h.coord.log
-    assert list(h.coord.submitted) == ["opencode|nginx-request-logging|1"]
-
-
 def test_a_held_failed_cell_is_released_when_the_next_claim_fails():
     from aidev_swarm.coordinator import CoordinatorError
 
@@ -460,11 +451,11 @@ def test_a_held_failed_cell_is_released_when_the_next_claim_fails():
     plain = h.coord.claim
     calls = []
 
-    def flaky(n=1):
-        calls.append(n)
+    def flaky(limit=1):
+        calls.append(limit)
         if len(calls) > 1:
             raise CoordinatorError("/api/claim: gave up (HTTP 503)")
-        return plain(n)
+        return plain(limit)
 
     h.coord.claim = flaky
     assert main(h, "run", "--coordinator", "https://c", "--loop") == 1
@@ -654,3 +645,116 @@ def test_the_coordinator_can_still_force_a_provider_through_run_config():
     h = Harness([c])
     assert main(h, "run", "--coordinator", "https://c") == 0
     assert h.coord.submitted[c["cell_id"]]["provider"] == "zai-org"
+
+
+# ---------------------------------------------------------------- --parallel: several trials at once in one Job
+
+
+def test_parallel_runs_several_trials_at_once_each_with_its_own_lease():
+    cells = [cell(i) for i in range(6)]
+    h = Harness(cells)
+    running, peak, lock, both = [0], [0], threading.Lock(), threading.Barrier(3, timeout=10)
+
+    def trial(claim, workdir):
+        with lock:
+            running[0] += 1
+            peak[0] = max(peak[0], running[0])
+        if claim["trial"] < 3:
+            both.wait()  # the first three trials must run at the same time
+        with lock:
+            running[0] -= 1
+        return copy_trial(workdir)
+
+    h._trial = trial
+    assert main(h, "run", "--coordinator", "https://c", "--loop", "--parallel", "3") == 0
+    assert len(h.coord.submitted) == 6 and peak[0] == 3 and not h.coord.held
+    assert {e for e in h.coord.log if e[0] == "claim"} <= {("claim", 3), ("claim", 4)}
+
+
+def test_a_parallel_slot_at_its_share_waits_and_claims_again(capsys):
+    from aidev_swarm.coordinator import AtLimit
+
+    h = Harness([cell(0), cell(1)])
+    plain, refused = h.coord.claim, []
+
+    def crowded(limit=1):  # the room is full: the coordinator lets this attendee hold one cell for now
+        if len(h.coord.held) >= 1:
+            refused.append(limit)
+            raise AtLimit("at your share", sorted(h.coord.held), share=1)
+        return plain(limit)
+
+    h.coord.claim = crowded
+    deps = h.deps()
+    deps.sleep = lambda s: time.sleep(0.01)
+    rc = cli.main(["run", "--coordinator", "https://c", "--loop", "--parallel", "2"], deps=deps,
+                  environ={"HF_TOKEN": TOKEN, "AIDEV_SWARM_WORKDIR": str(WORKDIR)})
+    assert rc == 0
+    assert len(h.coord.submitted) == 2 and refused
+    assert "share" in capsys.readouterr().out
+
+
+def test_parallel_with_n_runs_k_trials_in_all():
+    h = Harness([cell(i) for i in range(5)])
+    assert main(h, "run", "--coordinator", "https://c", "--n", "3", "--parallel", "2") == 0
+    assert len(h.trials) == 3 and len(h.coord.submitted) == 3
+
+
+@pytest.mark.parametrize("bad", ["0", str(cli.MAX_PARALLEL + 1)])
+def test_parallel_outside_1_to_the_maximum_is_refused(bad):
+    with pytest.raises(SystemExit):
+        cli._parser().parse_args(["run", "--loop", "--parallel", bad])
+
+
+def test_a_slot_kept_waiting_backs_off_so_a_full_room_does_not_flood_the_coordinator():
+    """Hundreds of Jobs with 8 slots each come from a few HF egress IPs, which the HF edge rate-limits: a slot that
+    keeps being refused (at the share, or every free cell taken) asks less and less often, up to SLOT_WAIT_MAX_S."""
+    from aidev_swarm.coordinator import AtLimit
+
+    h = Harness([cell(0)])
+    plain, refused, sleeps, done = h.coord.claim, threading.Event(), [], threading.Event()
+
+    def crowded(limit=1):
+        if h.coord.held:
+            raise AtLimit("at your share", sorted(h.coord.held), share=1)
+        return plain(limit)
+
+    def sleep(s):
+        sleeps.append(s)
+        time.sleep(0.005)  # never a busy loop that starves the trial's thread
+        if len(sleeps) >= 5:
+            refused.set()
+
+    def trial(claim, workdir):
+        assert refused.wait(10), "the waiting slot never backed off"
+        return copy_trial(workdir)
+
+    h.coord.claim, h._trial = crowded, trial
+    deps = h.deps()
+    deps.sleep = sleep
+    rc = cli.main(["run", "--coordinator", "https://c", "--loop", "--parallel", "2"], deps=deps,
+                  environ={"HF_TOKEN": TOKEN, "AIDEV_SWARM_WORKDIR": str(WORKDIR)})
+    assert rc == 0 and h.coord.submitted
+    assert sleeps[:5] == [30, 60, 120, 240, cli.SLOT_WAIT_MAX_S]
+
+
+def test_slots_beyond_the_share_do_not_claim_while_the_room_is_full():
+    h = Harness([cell(i) for i in range(5)])
+    h.coord.share = 2
+    running, peak, lock = [0], [0], threading.Lock()
+
+    def trial(claim, workdir):
+        with lock:
+            running[0] += 1
+            peak[0] = max(peak[0], running[0])
+        time.sleep(0.05)
+        with lock:
+            running[0] -= 1
+        return copy_trial(workdir)
+
+    h._trial = trial
+    deps = h.deps()
+    deps.sleep = lambda s: time.sleep(0.005)
+    rc = cli.main(["run", "--coordinator", "https://c", "--loop", "--parallel", "4"], deps=deps,
+                  environ={"HF_TOKEN": TOKEN, "AIDEV_SWARM_WORKDIR": str(WORKDIR)})
+    assert rc == 0 and len(h.coord.submitted) == 5 and peak[0] == 2
+    assert "slot-4" not in h.coord.callers  # slot 3 probes for the share; slot 4 waits without asking

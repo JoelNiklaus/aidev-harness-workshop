@@ -60,6 +60,21 @@ def test_spec_with_n_runs_k_trials_and_its_timeout_grows_with_k():
     assert four["timeout"] > two["timeout"] >= 2 * 40 * 60
 
 
+def test_spec_runs_the_default_number_of_trials_at_once():
+    assert f"--parallel {launch.DEFAULT_PARALLEL}" in flat(launch.job_spec(TOKEN, "alice", "u", n=None))
+    assert "--parallel 3" in flat(launch.job_spec(TOKEN, "alice", "u", n=None, parallel=3))
+
+
+def test_spec_with_n_runs_at_most_n_trials_at_once():
+    assert "--n 2 --parallel 2" in flat(launch.job_spec(TOKEN, "alice", "u", n=2))
+
+
+def test_launch_passes_parallel_to_the_job(capsys):
+    jobs = FakeJobs()
+    assert run(jobs, "--parallel", "5") == 0
+    assert "--parallel 5" in flat(jobs.calls[-1][1])
+
+
 def test_spec_without_n_loops_until_the_grid_is_full():
     spec = launch.job_spec(TOKEN, "alice", "u", n=None)
     assert "aidev-swarm run --loop" in flat(spec)

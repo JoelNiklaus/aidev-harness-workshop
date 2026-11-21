@@ -19,6 +19,9 @@ from hlb import config as hlb_config
 from hlb.worker import hand_out_sandbox_key, harbor_job_config
 
 CELL_LABEL = "aidev-swarm-cell"
+# One run per process, as a leaderboard worker: hlb hands the harnesses their dummy key through os.environ, which the
+# parallel slots (threads) of one Job share, so every trial of the process must use the same run id and key.
+RUN_ID = f"swarm-{uuid.uuid4().hex[:8]}"
 
 
 class TrialError(RuntimeError):
@@ -33,7 +36,7 @@ def build_run(model: str, effort: str, provider: str) -> dict[str, Any]:
     ref = m["default_provider"]
     if provider not in hlb_config.pool_providers(model) and provider != ref:
         raise ValueError(f"provider {provider!r} is not admitted for {model} (admitted: {hlb_config.pool_providers(model)})")
-    run = {"run_id": f"swarm-{uuid.uuid4().hex[:8]}", "model": model, "provider": ref, "reasoning_effort": effort,
+    run = {"run_id": RUN_ID, "model": model, "provider": ref, "reasoning_effort": effort,
            "benchmark_setups": {b: hlb_config.benchmark_setup(b) for b in hlb_config.benchmarks()},
            "route": hlb_config.route(model, ref), "model_limits": hlb_config.model_limits(model, ref),
            "meter_settings": hlb_config.meter_settings(model, ref), "npm_before": {}}
@@ -75,7 +78,7 @@ def run_trial(claim: dict[str, Any], grid: dict[str, Any], token: str, hf_user: 
     rc = {**{k: grid[k] for k in ("reasoning_effort", "provider", "benchmark") if k in grid}, **(claim.get("run_config") or {})}
     run = build_run(claim["model"], rc.get("reasoning_effort", "low"), rc["provider"])  # the attendee's (cli.Session) or the coordinator's
     prepare_env(os.environ if environ is None else environ, token, hf_user, run["run_id"])
-    job_name = f"{run['run_id']}-{claim['harness']}"
+    job_name = f"{run['run_id']}-{claim['harness']}-{uuid.uuid4().hex[:6]}"  # its own folder: slots may run one harness at once
     cfg = job_config(run, claim["harness"], claim["task"], claim["cell_id"], Path(workdir), job_name, rc.get("provider"), rc.get("benchmark", "terminal-bench-2.1"))
     harbor(cfg)
     trials = sorted(d for d in (Path(workdir) / job_name).glob("*") if d.is_dir())

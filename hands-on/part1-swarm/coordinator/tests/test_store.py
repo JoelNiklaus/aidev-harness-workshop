@@ -64,21 +64,81 @@ def test_one_active_lease_per_user(store):
     assert e.value.held == ids(first)
 
 
-def test_n2_allows_two_active_leases(store):
-    got = store.claim("alice", n=2)
-    assert ids(got) == ["opencode__t1__0", "opencode__t2__0"]
+def test_limit_2_allows_a_second_lease_one_cell_per_claim(store):
+    assert ids(store.claim("alice", limit=2)) == ["opencode__t1__0"]
+    assert ids(store.claim("alice", limit=2)) == ["opencode__t2__0"]
     with pytest.raises(AtLimit):
-        store.claim("alice", n=2)
+        store.claim("alice", limit=2)
 
 
-def test_n2_tops_up_to_two(store):
-    store.claim("alice")
-    assert ids(store.claim("alice", n=2)) == ["opencode__t2__0"]
+def test_limit_outside_1_to_max_leases_is_invalid(store):
+    from swarm_coordinator.store import MAX_LEASES
+
+    for bad in (0, MAX_LEASES + 1):
+        with pytest.raises(Invalid):
+            store.claim("alice", limit=bad)
 
 
-def test_n_above_two_is_invalid(store):
-    with pytest.raises(Invalid):
-        store.claim("alice", n=3)
+# ---------------------------------------------------------------- parallel runners (aidev-swarm --parallel)
+
+
+def test_limit_lets_one_runner_hold_several_leases_one_claim_at_a_time(store, clock):
+    """A Job running P trials at once claims one cell per free slot with limit=P (each slot its own heartbeats)."""
+    from swarm_coordinator.store import RAMP_S
+
+    store.claim("alice", limit=4)
+    clock.t += 3 * RAMP_S  # past the slow start
+    got = [store.claim("alice", limit=4) for _ in range(3)]
+    assert [len(g) for g in got] == [1, 1, 1]
+    with pytest.raises(AtLimit) as e:
+        store.claim("alice", limit=4)
+    assert len(e.value.held) == 4
+
+
+def test_slow_start_adds_one_lease_per_ramp_step_from_the_first_claim(store, clock):
+    """The first arrivals of a room must not take every cell before the others are seen."""
+    from swarm_coordinator.store import RAMP_S
+
+    assert store.claim("alice", limit=8)[0]["share"] == 2
+    store.claim("alice", limit=8)
+    with pytest.raises(AtLimit) as e:
+        store.claim("alice", limit=8)
+    assert e.value.share == 2
+    clock.t += RAMP_S
+    assert store.claim("alice", limit=8)[0]["share"] == 3
+
+
+def test_share_caps_a_users_leases_so_a_full_room_does_not_overclaim(store, clock):
+    """12 cells, 3 active attendees: nobody may hold more than ceil(12 / 3) = 4, whatever limit their runner asks."""
+    from swarm_coordinator.store import RAMP_S
+
+    store.claim("alice", limit=8)
+    store.claim("bob")
+    store.claim("carol")
+    clock.t += 10 * RAMP_S
+    store.heartbeat("opencode__t1__0", "alice")
+    store.heartbeat("opencode__t2__0", "bob")
+    store.heartbeat("opencode__t1__1", "carol")
+    got = 1
+    with pytest.raises(AtLimit) as e:
+        for _ in range(8):
+            got += len(store.claim("alice", limit=8))
+    assert got == 4 and e.value.share == 4
+
+
+def test_an_attendee_who_went_quiet_stops_counting_for_the_share(store, clock):
+    from swarm_coordinator.store import ACTIVE_S
+
+    c = store.claim("bob")[0]
+    store.release(c["cell_id"], "bob")
+    first = store.claim("alice", limit=8)[0]
+    clock.t += 1000  # alice is past her slow start: only the room limits her share
+    store.heartbeat(first["cell_id"], "alice")
+    store.claim("bob")  # bob is back: 2 active
+    assert store.claim("alice", limit=8)[0]["share"] == 6
+    clock.t += ACTIVE_S + 1  # bob neither claims nor heartbeats, and his lease has run out
+    store.heartbeat(first["cell_id"], "alice")
+    assert store.claim("alice", limit=8)[0]["share"] == 12
 
 
 def test_nothing_left_returns_empty(store):

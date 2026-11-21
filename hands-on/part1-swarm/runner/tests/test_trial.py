@@ -124,3 +124,22 @@ def test_sandbox_id_lookup_failure_is_none():
             raise RuntimeError("503")
 
     assert T.sandbox_id(Broken(), "c", "alice") is None
+
+
+def test_parallel_slots_share_one_run_and_sandbox_key_but_never_a_job_folder(tmp_path):
+    """Slots of one Job run trials in threads of one process: hlb reads the harnesses' dummy key from os.environ, so
+    every trial of the process uses the same run id (and key, as in a leaderboard worker); folders stay apart."""
+    seen = []
+
+    def harbor(cfg):
+        d = Path(cfg["jobs_dir"]) / cfg["job_name"] / "trial"
+        d.mkdir(parents=True)
+        seen.append((cfg["job_name"], dict(env)))
+
+    env = {}
+    claim = {"cell_id": "pi|t|0", "harness": "pi", "task": "nginx-request-logging", "trial": 0, "model": MODEL, "run_config": {}}
+    grid = {"reasoning_effort": "low", "provider": "zai-org"}
+    a = T.run_trial(claim, grid, TOKEN, "alice", tmp_path, harbor=harbor, environ=env)
+    b = T.run_trial(claim, grid, TOKEN, "alice", tmp_path, harbor=harbor, environ=env)
+    assert a != b and seen[0][0] != seen[1][0]
+    assert seen[0][1][hlb_config.SANDBOX_KEY_ENV] == seen[1][1][hlb_config.SANDBOX_KEY_ENV]

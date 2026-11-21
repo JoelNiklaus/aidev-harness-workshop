@@ -103,6 +103,22 @@ def test_loadtest_fills_the_grid_without_double_claims(files):
     assert report["latency_ms"]["submit"]["p95"] >= 0
 
 
+def test_parallel_runners_fill_the_grid_each_within_its_limit_and_share(files):
+    """Each fake attendee runs 4 slots (aidev-swarm --parallel 4) claiming with limit=4: the grid fills, no cell is
+    handed out twice, and nobody holds more than 4 leases at once; at-share 409s are waits, not errors."""
+    big = {**GRID, "tasks": [f"t{i}" for i in range(10)], "trials_per_cell": 3}
+    with open(files[1], "w") as f:
+        json.dump(big, f)
+    c = build(parse(["--fake-auth", *files]), env={})
+    transport = httpx.ASGITransport(app=c.app)
+    report = asyncio.run(run_loadtest("http://test", n_runners=6, transport=transport, parallel=4, trial_s=(0.05, 0.1),
+                                      heartbeat_s=0.05, wait_s=0.02))
+    assert report["cells_total"] == report["cells_done"] == 90
+    assert report["unexpected_reclaims"] == [] and report["double_counted"] == [] and report["server_max_claims_per_cell"] == 1
+    assert report["errors"] == 0 and report["parallel"] == 4
+    assert 1 < report["max_leases_per_user"] <= 4
+
+
 def test_loadtest_with_killed_runners_reclaims_their_cells_within_a_lease_and_counts_no_result_twice(files):
     """10% of the runners die mid-trial (no release, no more heartbeats, like a SIGKILLed Job); the others
     heartbeat through trials longer than the lease. Every dead cell is claimed again about one lease after its

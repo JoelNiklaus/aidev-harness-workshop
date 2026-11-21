@@ -21,8 +21,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-
-resumable_exec = pytest.importorskip("hlb.harbor_ext.resumable_exec")
+from hlb.harbor_ext import resumable_exec
 
 RUN_CAP_S = 8  # the stand-in ends any command after this, so a red test cannot hang the suite
 

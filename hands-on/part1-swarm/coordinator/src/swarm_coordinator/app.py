@@ -107,7 +107,7 @@ def create_app(store: Store, auth: Any, *, reference: list[dict[str, Any]], meta
     async def _409(_: Request, e: Conflict) -> JSONResponse:
         body: dict[str, Any] = {"detail": str(e)}
         if isinstance(e, AtLimit):
-            body["held"] = e.held
+            body["held"], body["share"] = e.held, e.share
         return JSONResponse(body, status_code=409)
 
     @app.exception_handler(Invalid)
@@ -127,19 +127,19 @@ def create_app(store: Store, auth: Any, *, reference: list[dict[str, Any]], meta
         return who or await run_in_threadpool(auth.user, header)
 
     @app.post("/api/claim")
-    async def claim(request: Request, n: int = 1) -> Response:
+    async def claim(request: Request, limit: int = 1) -> Response:
         who = await user(request)
         if not runner_ok(request.headers.get("user-agent")):
             need = ".".join(map(str, MIN_RUNNER))
             return JSONResponse({"detail": f"this runner is too old for the workshop coordinator (needs aidev-swarm >= {need}); "
                                            "launch again with the current command from the board's /join page"}, status_code=426)
-        got = store.claim(who, n)
+        got = store.claim(who, limit)
         if not got:
             # nothing free: ask again later while leased cells may still come back, stop when the grid is full
             headers = {"Retry-After": str(CLAIM_AGAIN_S)} if store.leased_open() else None
             return Response(status_code=204, headers=headers)
         log.info("claim %s -> %s", who, ",".join(c["cell_id"] for c in got))
-        return JSONResponse(got if n > 1 else got[0])
+        return JSONResponse(got[0])
 
     @app.post("/api/heartbeat/{cell_id}")
     async def heartbeat(cell_id: str, request: Request) -> dict[str, Any]:

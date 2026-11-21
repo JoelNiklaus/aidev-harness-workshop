@@ -106,9 +106,10 @@ def test_lease_limit_per_user_matches_the_real_coordinator(server):
     with pytest.raises(AtLimit) as e:
         c.claim()
     assert e.value.held == [first["cell_id"]]
-    assert len(c.claim(2)) == 1  # ?n=2 allows a second lease, one new cell
-    with pytest.raises(AtLimit):
-        c.claim(2)
+    assert c.claim(limit=2)["cell_id"] != first["cell_id"]  # limit=2 allows a second lease
+    with pytest.raises(AtLimit) as e:
+        c.claim(limit=2)
+    assert e.value.share >= 2
 
 
 def test_a_raised_lease_limit_lets_one_account_run_many_jobs():

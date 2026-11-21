@@ -21,7 +21,7 @@ uvx --from "https://github.com/JoelNiklaus/aidev-harness-workshop/releases/downl
 uvx --from "https://github.com/JoelNiklaus/aidev-harness-workshop/releases/download/swarm-v0.4.3/aidev_swarm-0.4.3-py3-none-any.whl" aidev-swarm launch
 ```
 
-`launch` submits one cpu-basic HF Job in your own namespace and returns in about a second. The Job claims a cell (harness, task, trial), runs it with [Harbor](https://github.com/laude-institute/harbor) in an HF Sandbox, submits the result to the board and claims the next one. Your laptop can close. Or paste [`AGENT_PROMPT.md`](hands-on/part1-swarm/runner/AGENT_PROMPT.md) into your coding agent and let it run and watch the Job.
+`launch` submits one cpu-basic HF Job in your own namespace and returns in about a second. The Job runs up to 8 trials at once (`--parallel N` to change it; a full room gets fewer): each slot claims a cell (harness, task, trial), runs it with [Harbor](https://github.com/laude-institute/harbor) in its own HF Sandbox, submits the result to the board and claims the next one. Your laptop can close. Or paste [`AGENT_PROMPT.md`](hands-on/part1-swarm/runner/AGENT_PROMPT.md) into your coding agent and let it run and watch the Job.
 
 ## After Part 1: one trial on your own account
 

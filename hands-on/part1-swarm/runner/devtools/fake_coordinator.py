@@ -5,7 +5,8 @@
 
 Hands out cells (ids `<harness>__<task>__<trial>`, as the real coordinator) one harness after the next, breadth-first over trials within a harness, 90-second
 leases (renewed by heartbeats, as the real coordinator), and keeps results in memory (GET /api/state shows them, with the number of distinct client IPs).
-Lease limit per user as in the real coordinator (`?n=` caps the user's live leases, at most 2); `--max-leases`
+Lease limit per user as in the real coordinator (`?limit=` caps the user's live leases, at most 9; one cell per claim;
+no share of the room); `--max-leases`
 raises it, so one account can run a many-Job dry run (the real coordinator has no such switch). Tokens are checked for presence only
 (no whoami call) and never stored: the username is "user-<n>" per distinct token.
 """
@@ -23,6 +24,7 @@ from pathlib import Path
 from typing import Any
 
 LEASE_S = 90  # the real coordinator's store.LEASE_S
+MAX_LEASES = 9  # the real coordinator's store.MAX_LEASES
 
 
 def cells(grid: dict[str, Any]) -> list[dict[str, Any]]:
@@ -57,16 +59,16 @@ class State:
                 del self.leases[cid]
                 self.queue.insert(0, cell)
 
-    def claim(self, user: str, n: int) -> list[dict[str, Any]] | None:
-        """Up to `n` new cells; None when the user is at the lease limit (the real coordinator's 409 with `held`)."""
+    def claim(self, user: str, limit: int) -> list[dict[str, Any]] | None:
+        """The next cell (a list of one, empty when none is left); None when the user is at the lease limit (the real
+        coordinator's 409 with `held`)."""
         with self.lock:
             self._expire()
             held = sum(1 for u, _, _ in self.leases.values() if u == user)
-            want = min(n, (self.max_leases or n) - held) if self.max_leases else n - held
-            if want <= 0:
+            if held >= (self.max_leases or limit):
                 return None
             out = []
-            while self.queue and len(out) < want:
+            while self.queue and not out:
                 cell = self.queue.pop(0)
                 until = time.time() + self.lease_s
                 self.leases[cell["cell_id"]] = (user, until, cell)
@@ -141,14 +143,15 @@ def make_handler(state: State):
             url = urllib.parse.urlparse(self.path)
             body = self.rfile.read(int(self.headers.get("Content-Length") or 0))
             if url.path == "/api/claim":
-                n = int(urllib.parse.parse_qs(url.query).get("n", ["1"])[0])
-                got = state.claim(user, min(n, 2))
+                limit = min(int(urllib.parse.parse_qs(url.query).get("limit", ["1"])[0]), MAX_LEASES)
+                got = state.claim(user, limit)
                 if got is None:
                     held = sorted(c for c, (u, _, _) in state.leases.items() if u == user)
-                    return self._send(409, {"detail": f"you already hold {len(held)} active lease(s)", "held": held})
+                    return self._send(409, {"detail": f"you already hold {len(held)} active lease(s)", "held": held,
+                                            "share": state.max_leases or limit})
                 if not got:
                     return self._send(204)
-                return self._send(200, got[0] if n == 1 else got)
+                return self._send(200, got[0])
             for verb in ("heartbeat", "submit", "release"):
                 prefix = f"/api/{verb}/"
                 if url.path.startswith(prefix):

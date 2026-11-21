@@ -20,6 +20,10 @@ FLAVOR = "cpu-basic"
 TRIAL_S = 45 * 60  # a subset trial takes <= ~20 min plus up to 18 min harness install
 SETUP_S = 15 * 60  # Job start, package install, slack
 LOOP_TIMEOUT_S = 3 * 3600
+# Trials one Job runs at once (each in its own HF Sandbox; the Job only orchestrates: ~70 MB and little CPU per slot on
+# cpu-basic's 2 vCPU / 16 GB). 8 lets 40 attendees claim the 600-cell grid in ~11 min (runner/PROGRESS.md fill table);
+# in a fuller room the coordinator's share caps each attendee lower.
+DEFAULT_PARALLEL = 8
 JOB_LABEL = {"aidev-swarm": "runner"}
 
 
@@ -35,18 +39,19 @@ def timeout_s(n: int | None) -> int:
     return LOOP_TIMEOUT_S if n is None else n * TRIAL_S + SETUP_S
 
 
-def job_script(url: str, n: int | None) -> str:
+def job_script(url: str, n: int | None, parallel: int = DEFAULT_PARALLEL) -> str:
     wheel = "/tmp/" + url.rsplit("/", 1)[-1]  # uv needs the wheel's own file name to read its version
-    mode = f"--n {n}" if n is not None else "--loop"
+    mode = (f"--n {n}" if n is not None else "--loop") + f" --parallel {parallel if n is None else min(parallel, n)}"
     return (f"set -e; curl -fsSL -o {shlex.quote(wheel)} {shlex.quote(url)}; "
             f'exec uvx --python 3.12 --from "aidev-swarm[run] @ file://{wheel}" aidev-swarm run {mode}')
 
 
-def job_spec(token: str, user: str, coordinator: str, *, n: int | None, package_url: str | None = None) -> dict[str, Any]:
+def job_spec(token: str, user: str, coordinator: str, *, n: int | None, package_url: str | None = None,
+             parallel: int | None = None) -> dict[str, Any]:
     """Keyword arguments for `HfApi.run_job`: the token appears only under `secrets`."""
     return {
         "image": JOB_IMAGE,
-        "command": ["bash", "-c", job_script(package_url or default_package_url(), n)],
+        "command": ["bash", "-c", job_script(package_url or default_package_url(), n, parallel or DEFAULT_PARALLEL)],
         "env": {"AIDEV_SWARM_URL": coordinator, "PYTHONUNBUFFERED": "1", "UV_NO_PROGRESS": "1", "HF_HUB_DISABLE_PROGRESS_BARS": "1"},
         "secrets": {"HF_TOKEN": token},
         "flavor": FLAVOR,

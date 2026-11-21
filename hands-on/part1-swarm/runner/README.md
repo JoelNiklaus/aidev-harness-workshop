@@ -32,7 +32,7 @@ Other commands:
 
 - `aidev-swarm check`: the prep email's self-test (token, credits, GLM-5.3-Flash call, tiny Job, sandbox), claims nothing.
 - `aidev-swarm run --dry`: check token and credits only, claim nothing (works with the light install).
-- `aidev-swarm run [--loop | --n K]`: what the Job runs (needs `aidev-swarm[run]`).
+- `aidev-swarm run [--loop | --n K] [--parallel N]`: what the Job runs (needs `aidev-swarm[run]`).
 - `aidev-swarm run --local --harness pi --task nginx-request-logging`: one trial, no coordinator (take-home).
 
 The coordinator defaults to `https://agent-harness-workshop-aidev-swarm.hf.space` (the board). Override it with `--board`
@@ -43,7 +43,7 @@ or `export AIDEV_BOARD=<url>`, the same setting `aidev-evolve` reads (a dry run 
 - `launch.py` builds the Job: image `ghcr.io/astral-sh/uv:python3.12-bookworm`, cpu-basic, the token only as
   the Job secret `HF_TOKEN`; the command downloads this version's wheel from the GitHub release (no
   credentials sent) and runs
-  `uvx --from "aidev-swarm[run] @ file://<wheel>" aidev-swarm run --loop | --n K`.
+  `uvx --from "aidev-swarm[run] @ file://<wheel>" aidev-swarm run --loop | --n K --parallel N`.
 - `trial.py` reuses the Harness Leaderboard's wiring (`hlb` 0.1.11, pinned to the deployed Space revision; it stops
   an agent whose time is up before the tests start):
   per-harness Harbor configs, the HF Sandbox environment and the in-sandbox meter. Harnesses get a dummy
@@ -61,10 +61,16 @@ or `export AIDEV_BOARD=<url>`, the same setting `aidev-evolve` reads (a dry run 
   as it heartbeats, however long it runs. When every free cell is taken (204 with Retry-After), a looping
   runner waits and asks again, so it picks up cells that come back; a plain 204 means the grid is full.
 - In a multi-trial run, a trial that fails before any model call (setup, sandbox start) keeps its lease,
-  the next cell is claimed (`?n=2`) and only then the failed cell is released, so the queue does not hand
+  the next cell is claimed (one lease over the run's limit) and only then the failed cell is released, so the queue does not hand
   it straight back. Three failed trials in a row stop the run. Every way out the runner can catch gives
   its cells back at once: a cancelled or timed-out Job (SIGTERM), Ctrl-C, crashes, and an exit hook.
-- A user can hold two leases: a second runner of the same attendee claims with `?n=2` after a 409.
+- `--parallel N` (`launch` default 8, at most 8): the Job runs N slots, each a thread with its own lease and
+  heartbeats; every trial runs in its own HF Sandbox, so the Job only orchestrates (~70 MB per slot on cpu-basic's
+  2 vCPU / 16 GB). Each slot claims with `?limit=N`; the coordinator caps it at the attendee's `share` (the open cells
+  over the active attendees, with a slow start), slots beyond the share wait without asking and the slot at it asks
+  with a backoff (30 s doubling to 300 s). All slots share one hlb run id, so the harnesses' dummy key in
+  `os.environ` is the same for every trial of the Job; each trial gets its own Harbor job folder.
+- One lease more than the run's limit is allowed: a second runner of the same attendee claims with it after a 409.
 - `providers.py` spreads the room over GLM-5.3-Flash providers: each attendee gets one provider from
   `data/providers.json` (novita 3 : zai-org 1, the providers the Harness Leaderboard admits for the model),
   picked by a weighted hash of the HF username, so the same attendee always gets the same one. Inside a trial
