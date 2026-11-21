@@ -35,9 +35,10 @@ from typing import Any
 
 import httpx
 
-from .app import MIN_RUNNER
+from .app import MIN_EVOLVE, MIN_RUNNER
 
 HEADERS = {"User-Agent": f"aidev-swarm/{'.'.join(map(str, MIN_RUNNER))} (loadtest)"}  # the coordinator takes claims only from current runners
+EVOLVE_HEADERS = {"User-Agent": f"aidev-evolve/{'.'.join(map(str, MIN_EVOLVE))} (loadtest)"}  # and Part 2 events only from the current client
 
 
 def percentile(xs: list[float], p: float) -> float:
@@ -321,7 +322,7 @@ async def run_evolve_loadtest(base_url: str, attendees: int = 500, *, interval_s
                 t0 = time.perf_counter()
                 event = fake_evolve_event(user, i, k=k, heldout=i == iterations + 1)
                 try:
-                    r = await client.post("/api/evolve/submit", json=event, headers={"Authorization": f"Bearer {user}"})
+                    r = await client.post("/api/evolve/submit", json=event, headers={"Authorization": f"Bearer {user}", **EVOLVE_HEADERS})
                     lat["submit"].append((time.perf_counter() - t0) * 1000)
                     if r.status_code == 429:
                         limited += 1

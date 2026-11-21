@@ -10,6 +10,10 @@ org token in `space-token.txt` (`SPACE_HF_TOKEN=`, gitignored; read here, never 
 variable, requests the hardware, and uploads. Rerun after grid.json changes. The upload rebuilds a running Space; a PAUSED
 Space stays paused (and does not bill) until `--wake` or `restart_space`. `--target staging` deploys the same code to
 agent-harness-workshop/aidev-swarm-staging (bucket ...-staging-results) and wakes it; prod is the default.
+`--loadtest-users joelniklaus` (staging only) lets that account act under load-test names (app.LOADTEST_HEADER), so
+one account can stand in for a room of attendees; every deploy without it removes the setting again.
+Room settings (Space variables, kept across deploys until changed): `--coupon-part1 <link>` / `--coupon-part2 <link>` put
+each session's shared coupon link on its start page, `--trials-per-cell N` enlarges the grid (3 to 10 trials per cell).
 """
 
 from __future__ import annotations
@@ -30,6 +34,7 @@ TARGETS = {"prod": (DEFAULT_SPACE, DEFAULT_BUCKET),
            "staging": ("agent-harness-workshop/aidev-swarm-staging", "agent-harness-workshop/aidev-swarm-staging-results")}
 TOKEN_FILE = COORD / "space-token.txt"
 TOKEN_KEY = "SPACE_HF_TOKEN"
+LOADTEST_VAR = "SWARM_LOADTEST_USERS"  # read by cli.loadtest_users
 
 
 def space_url(space_id: str) -> str:
@@ -104,6 +109,8 @@ def stage(out: Path, *, staging: bool = False) -> Path:
     (out / "runner").mkdir()
     for name in ("README.md", "AGENT_PROMPT.md"):  # the /join page's command and prompt
         shutil.copy2(paths.runner_dir() / name, out / "runner" / name)
+    (out / "evolve").mkdir()  # the /evolve/join page's wheel URL
+    shutil.copy2(paths.evolve_dir() / "README.md", out / "evolve" / "README.md")
     (out / "Dockerfile").write_text(DOCKERFILE)
     (out / "README.md").write_text(README.replace("title: AI Dev NYC workshop boards", "title: AI Dev NYC workshop boards (staging)")
                                    + STAGING_NOTE if staging else README)
@@ -111,8 +118,10 @@ def stage(out: Path, *, staging: bool = False) -> Path:
 
 
 def deploy(space: str, bucket: str, *, hardware: str = "cpu-basic", api: Any = None, token_file: Path = TOKEN_FILE,
-           staging: bool = False, wake: bool = False) -> str:
+           staging: bool = False, wake: bool = False, loadtest_users: str = "", settings: dict[str, str] | None = None) -> str:
     """Upload the app. A paused Space stays paused after the upload (it does not rebuild); `wake` restarts it."""
+    if loadtest_users and (not staging or space == DEFAULT_SPACE):
+        raise SystemExit("--loadtest-users is for --target staging only: the workshop board never takes load-test names")
     token = space_token(token_file)  # fail before any Hub call
     if api is None:
         from huggingface_hub import HfApi
@@ -126,6 +135,15 @@ def deploy(space: str, bucket: str, *, hardware: str = "cpu-basic", api: Any = N
         api.request_space_hardware(space, hardware)
     api.add_space_secret(space, "HF_TOKEN", token)
     api.add_space_variable(space, "SWARM_BUCKET", bucket)
+    if loadtest_users:
+        api.add_space_variable(space, LOADTEST_VAR, loadtest_users)
+    elif LOADTEST_VAR in api.get_space_variables(space):
+        api.delete_space_variable(space, LOADTEST_VAR)
+    for key, value in (settings or {}).items():  # the room's settings (cli.room_settings): named ones are set, or removed when empty
+        if value:
+            api.add_space_variable(space, key, value)
+        elif key in api.get_space_variables(space):
+            api.delete_space_variable(space, key)
     with tempfile.TemporaryDirectory() as tmp:
         staged = stage(Path(tmp) / "space", staging=staging)
         commit = api.upload_folder(repo_id=space, repo_type="space", folder_path=str(staged), commit_message="Deploy coordinator",
@@ -152,9 +170,16 @@ def main(argv: list[str] | None = None) -> None:
     add_target_args(ap)
     ap.add_argument("--hardware", default="cpu-basic")
     ap.add_argument("--wake", action="store_true", help="restart the Space when it is paused (staging always is woken)")
+    ap.add_argument("--loadtest-users", default="", help="staging only: accounts (comma-separated) that may act under load-test names")
+    ap.add_argument("--coupon-part1", help="the Part 1 session's shared coupon link, shown on /join ('' removes it; not given: unchanged)")
+    ap.add_argument("--coupon-part2", help="the Part 2 session's shared coupon link, shown on /evolve/join")
+    ap.add_argument("--trials-per-cell", help="more trials per (harness, task) than grid.json's 3, up to 10: a larger grid for a larger room")
     a = resolve_target(ap.parse_args(argv))
     staging = a.target == "staging"
-    print("deployed commit", deploy(a.space, a.bucket, hardware=a.hardware, staging=staging, wake=a.wake or staging), "->", space_url(a.space))
+    named = {"SWARM_COUPON_PART1": a.coupon_part1, "SWARM_COUPON_PART2": a.coupon_part2, "SWARM_TRIALS_PER_CELL": a.trials_per_cell}
+    print("deployed commit", deploy(a.space, a.bucket, hardware=a.hardware, staging=staging, wake=a.wake or staging,
+                                    loadtest_users=a.loadtest_users, settings={k: v for k, v in named.items() if v is not None}),
+          "->", space_url(a.space))
 
 
 if __name__ == "__main__":

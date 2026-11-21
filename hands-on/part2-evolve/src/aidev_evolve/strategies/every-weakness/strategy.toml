@@ -2,12 +2,12 @@
 # Fixed for everyone and refused here: model, time budget, splits, held-out set, seed, session length, credit cap.
 name = "every-weakness"
 based_on = "every-weakness"
-description = "Only failed transcripts; tally every failure mechanism, then fix each one seen twice or more in one patch."
+description = "Only failed trajectories; tally every failure mechanism, then fix each one seen twice or more in one patch."
 iterations = 4        # most iterations; the 22-min session time box decides how many start (1..6)
 
 [evidence]
-traces = "failed"        # "failed": failed search transcripts only; "all": failed first, then passed
-max_traces = 8         # how many transcripts the proposer gets (1..8)
+traces = "failed"        # "failed": failed search trajectories only; "all": failed first, then passed
+max_traces = 8         # how many trajectories the proposer gets (1..8)
 history = "full"         # earlier attempts in HISTORY.md: "none", "titles" (title + verdict), "full" (+ patch notes, fixed/broke)
 diffs = false         # include each earlier attempt's diff in HISTORY.md
 

@@ -76,15 +76,16 @@ class ProposerResult:
     log: str = ""
 
 
-def build_prompt(*, iteration: int, budget_s: float, approach: str | None = None, hint: str = "") -> str:
-    """The fixed header, the strategy's approach (its proposer_prompt.md; default: the default preset), an optional
-    hint for a second candidate, then the fixed rules."""
+def build_prompt(*, iteration: int, budget_s: float, approach: str | None = None, hint: str = "", header: str | None = None) -> str:
+    """The header (the workshop's setting; another eval passes its own, with the same `{budget_s}` and `{iteration}`
+    fields), the strategy's approach (its proposer_prompt.md; default: the default preset), an optional hint for a
+    second candidate, then the fixed rules."""
     if approach is None:
         from aidev_evolve import strategy
 
         approach = strategy.load(strategy.DEFAULT).prompt
     extra = f"\n{hint.strip()}\n" if hint.strip() else ""
-    return HEADER.format(iteration=iteration, budget_s=budget_s) + "\n" + approach.strip() + "\n" + extra + RULES
+    return (header or HEADER).format(iteration=iteration, budget_s=budget_s) + "\n" + approach.strip() + "\n" + extra + RULES
 
 
 def _claude_json(out: str) -> dict[str, Any] | None:

@@ -1,7 +1,8 @@
 """Where the coordinator finds the grid, the prices and the replay data.
 
 Layout (repo and Docker image alike): <root>/config/{grid,prices}.json, <root>/replay/{reference,evolve-recorded}.json,
-<root>/runner/{README,AGENT_PROMPT}.md (the /join page).
+<root>/runner/{README,AGENT_PROMPT}.md (the /join page), <root>/evolve/README.md (the /evolve/join page; in the repo
+the Part 2 package next door, hands-on/part2-evolve/).
 <root> is $SWARM_ROOT, else hands-on/part1-swarm/ of this checkout.
 """
 
@@ -37,3 +38,8 @@ def harness_meta_path() -> Path:
 
 def runner_dir() -> Path:
     return root() / "runner"
+
+
+def evolve_dir() -> Path:
+    staged = root() / "evolve"
+    return staged if staged.is_dir() else root().parent / "part2-evolve"

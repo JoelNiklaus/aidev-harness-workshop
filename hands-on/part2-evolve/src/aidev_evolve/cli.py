@@ -1,6 +1,7 @@
 """aidev-evolve command line.
 
-- `aidev-evolve run --strategy <preset|folder>`: the evolve loop (seed -> propose -> evaluate -> keep or drop), see loop.py.
+- `aidev-evolve run --strategy <preset|folder>` (or `--block left|middle|right`): the evolve loop (seed -> propose -> evaluate -> keep or drop), see loop.py.
+- `aidev-evolve show [run folder] [--diff]`: the final agent.py of a run (default: the newest under runs/).
 - `aidev-evolve strategies` / `strategy-init <preset> <dir>`: the optimization strategies (strategy.py).
 - `aidev-evolve rank <run folders>`: rank strategies by held-out gain with CIs and ties (ranking.py).
 - `aidev-evolve replay`: play a recorded loop offline (no network).
@@ -79,6 +80,10 @@ def cmd_check(args: argparse.Namespace) -> int:
         r = _http().get(f"{args.board.rstrip('/')}/api/evolve/state")
         line(True if r.status_code == 200 else None,
              f"workshop board {board.page_url(args.board)}: " + ("reachable" if r.status_code == 200 else f"HTTP {r.status_code} (not live yet; your loop runs without it)"))
+        problem = board.version_problem(args.board, http=_http())
+        if problem:
+            line(False, problem)
+            failed = True
     except Exception as e:  # noqa: BLE001 - the board is a display, never a blocker
         line(None, f"workshop board {board.page_url(args.board)}: {type(e).__name__} (your loop runs without it and sends its updates later)")
     if args.job and session:
@@ -177,6 +182,9 @@ def cmd_run(args: argparse.Namespace) -> int:
     evo = make_evolver(args, _run_dir(args.run_dir))
     if args.board:
         print(f"Workshop board: {board.page_url(args.board)}  (your progress appears there; --no-board keeps it private)", flush=True)
+        problem = board.version_problem(args.board, http=_http())
+        if problem:
+            print(f"WARNING: {problem}", flush=True)
     try:
         evo.run(heldout_trials=strategy.HELDOUT_TRIALS)
     except launch.EvalJobError as e:  # the seed calibration or held-out Job failed: nothing to continue on
@@ -187,7 +195,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     left = room.flush(retries=4) if isinstance(room, board.QueuedBoard) else 0
     if left:
         print(f"\nThe workshop board did not take {left} updates; `aidev-evolve run --resume --run-dir {evo.run_dir}` sends them later.")
-    print(f"\nRun folder: {evo.run_dir}")
+    print(f"Run folder: {evo.run_dir}")
     return 0
 
 
@@ -212,7 +220,10 @@ def cmd_strategies(args: argparse.Namespace) -> int:
           f"the seed, {strategy.HELDOUT_TRIALS} held-out trials, a {strategy.SESSION_MINUTES:.0f}-min session, at most ${strategy.USD_CAP:.0f}):\n")
     for name in strategy.presets():
         print(strategy.describe(strategy.load(name)) + "\n")
-    print("Edit one: `aidev-evolve strategy-init <preset> my-strategy`, change strategy.toml and proposer_prompt.md, "
+    print("In the room, run your seating block's strategy:")
+    for block, letter in zip(strategy.BLOCKS, strategy.BLOCK_LETTERS):
+        print(f"  aidev-evolve run --block {block:<7} (or {letter.upper()}): {strategy.BLOCKS[block]}")
+    print("\nEdit one: `aidev-evolve strategy-init <preset> my-strategy`, change strategy.toml and proposer_prompt.md, "
           "then `aidev-evolve run --strategy my-strategy`.")
     return 0
 
@@ -246,6 +257,18 @@ def cmd_rank(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_show(args: argparse.Namespace) -> int:
+    from aidev_evolve import show
+
+    run_dir = Path(args.run_dir) if args.run_dir else show.newest_run()
+    if run_dir is None or not (run_dir / "state.json").is_file():
+        print(f"No run {'in ' + str(run_dir) if run_dir else 'under runs/ in this folder'}: start one with `aidev-evolve run`, "
+              f"or name its folder (`aidev-evolve show runs/<time>`).")
+        return 1
+    print(show.final_agent(run_dir, diff=args.diff, color=sys.stdout.isatty()), end="")
+    return 0
+
+
 def cmd_replay(args: argparse.Namespace) -> int:
     from aidev_evolve import replay
 
@@ -254,12 +277,22 @@ def cmd_replay(args: argparse.Namespace) -> int:
     return 0
 
 
+def _block(value: str) -> str:
+    try:
+        return strategy.block_strategy(value)
+    except ValueError as e:
+        raise argparse.ArgumentTypeError(str(e)) from None
+
+
 def _loop_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--proposer", choices=["claude", "codex", "manual"], default="claude")
     p.add_argument("--model", default=None, help="proposer model (claude: sonnet, opus; codex: its model names)")
     p.add_argument("--proposer-timeout-s", type=float, default=300)
-    p.add_argument("--strategy", default=strategy.DEFAULT,
-                   help=f"optimization strategy: a preset ({', '.join(strategy.presets())}) or a folder from `strategy-init`")
+    pick = p.add_mutually_exclusive_group()
+    pick.add_argument("--strategy", default=strategy.DEFAULT,
+                      help=f"optimization strategy: a preset ({', '.join(strategy.presets())}) or a folder from `strategy-init`")
+    pick.add_argument("--block", dest="strategy", type=_block, metavar="{" + ",".join(strategy.BLOCKS) + "}",
+                      help="your seating block in the room: " + ", ".join(f"{b} = {s}" for b, s in strategy.BLOCKS.items()) + " (or A, B, C)")
     p.add_argument("--budget-s", type=float, default=None, help="agent time per task (default: the budget the splits were selected for)")
     p.add_argument("--seed", default=None, help="starting agent.py (default: the bundled seed)")
     p.add_argument("--splits", default=None, help="splits JSON (default: the bundled splits)")
@@ -327,6 +360,10 @@ def build_parser() -> argparse.ArgumentParser:
     rk.add_argument("--min-runs", type=int, default=ranking.MIN_RUNS)
     rk.add_argument("--json", default=None, help="also write the full ranking as JSON")
     rk.set_defaults(fn=cmd_rank)
+    sh = sub.add_parser("show", help="print the final agent.py of a run (default: your newest run under runs/)")
+    sh.add_argument("run_dir", nargs="?", default=None)
+    sh.add_argument("--diff", action="store_true", help="only what changed against the seed agent")
+    sh.set_defaults(fn=cmd_show)
     rp = sub.add_parser("replay", help="play a recorded run (offline, no credits)")
     rp.add_argument("run_dir", nargs="?", default=None)
     rp.add_argument("--speed", type=float, default=20.0)

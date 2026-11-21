@@ -10,16 +10,18 @@ The same process serves Part 2's evolve board (/evolve); --replay also replays t
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import json
 import logging
 import os
+import re
 import sys
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from . import evolve, paths
+from . import deploy, evolve, paths
 from .app import create_app
 from .auth import FakeAuth, NoAuth, WhoamiAuth
 from .evolve_replay import EvolveReplayer, load_recorded, reference_curves
@@ -59,11 +61,45 @@ class Components:
     mode: str
     evolve_store: evolve.EvolveStore
     evolve_replayer: EvolveReplayer | None
+    loadtest_users: frozenset[str] = frozenset()
+
+
+def loadtest_users(env: dict[str, str]) -> frozenset[str]:
+    """Accounts that may act under load-test names ($SWARM_LOADTEST_USERS, comma-separated; `deploy --target staging
+    --loadtest-users`). The workshop Space never allows any, whatever its variables say."""
+    users = frozenset(u.strip().lower() for u in env.get("SWARM_LOADTEST_USERS", "").split(",") if u.strip())
+    if users and env.get("SPACE_ID") == deploy.DEFAULT_SPACE:
+        log.warning("SWARM_LOADTEST_USERS is set on the workshop Space: ignored (load-test names are for staging only)")
+        return frozenset()
+    return users
+
+
+COUPON_URL = re.compile(r"^https://(huggingface\.co|hf\.co)/[A-Za-z0-9._~/?=&%+-]+$")
+MAX_TRIALS_PER_CELL = 10
+
+
+def room_settings(env: dict[str, str], grid: Grid) -> tuple[dict[str, str], Grid]:
+    """What Joel sizes for the room with Space variables (`deploy --coupon-part1 ... --trials-per-cell N`): each session's
+    shared coupon link for its start page, and more trials per cell than grid.json's (a larger grid for a larger room;
+    the first trials stay the reference layer's). A bad value stops the start: it must fail on staging, not in the room."""
+    coupons = {}
+    for part in ("part1", "part2"):
+        key = f"SWARM_COUPON_{part.upper()}"
+        if env.get(key):
+            if not COUPON_URL.match(env[key]):
+                raise SystemExit(f"{key} must be a plain https://huggingface.co/... link")
+            coupons[part] = env[key]
+    raw = env.get("SWARM_TRIALS_PER_CELL")
+    if raw:
+        if not raw.isdigit() or not grid.trials_per_cell <= int(raw) <= MAX_TRIALS_PER_CELL:
+            raise SystemExit(f"SWARM_TRIALS_PER_CELL must be a whole number from {grid.trials_per_cell} (grid.json) to {MAX_TRIALS_PER_CELL}")
+        grid = dataclasses.replace(grid, trials_per_cell=int(raw), run_config={**grid.run_config, "trials_per_cell": int(raw)})
+    return coupons, grid
 
 
 def build(args: argparse.Namespace, *, env: dict[str, str] | None = None, hub_api: Any = None) -> Components:
     env = dict(os.environ) if env is None else env
-    grid = Grid.load(args.grid)
+    coupons, grid = room_settings(env, Grid.load(args.grid))
     prices = json.loads(Path(args.prices).read_text())
     reference = load_results(args.reference) if Path(args.reference).exists() else []
     meta = json.loads(paths.harness_meta_path().read_text())
@@ -113,8 +149,8 @@ def build(args: argparse.Namespace, *, env: dict[str, str] | None = None, hub_ap
         sink.close()
 
     app = create_app(store, auth, reference=reference, meta=meta, mode=mode, lifespan=lifespan, evolve_store=evolve_store,
-                     evolve_reference=reference_curves(recorded))
-    return Components(app, store, auth, sink, replayer, mode, evolve_store, evolve_replayer)
+                     evolve_reference=reference_curves(recorded), loadtest_users=loadtest_users(env), coupons=coupons)
+    return Components(app, store, auth, sink, replayer, mode, evolve_store, evolve_replayer, loadtest_users(env))
 
 
 def main(argv: list[str] | None = None) -> None:

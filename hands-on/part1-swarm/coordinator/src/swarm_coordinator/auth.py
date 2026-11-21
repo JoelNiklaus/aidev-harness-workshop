@@ -21,6 +21,10 @@ class Unauthorized(Exception):
     """401: no usable bearer token, or the Hub does not know it."""
 
 
+class Forbidden(Exception):
+    """403: the token is fine, but this user may not do that."""
+
+
 class AuthUnavailable(Exception):
     """503: the Hub could not be asked."""
 

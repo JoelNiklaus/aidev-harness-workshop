@@ -35,6 +35,19 @@ DEFAULT = "code-audit"  # the preset `run` uses: the Phase 4 winner (19 Nov, 20 
 SESSION_MINUTES = 22.0  # the room's time box per run: seed calibration + iterations + held-out check
 USD_CAP = 2.0  # worst-case HF credits per run (every iteration re-measured)
 HELDOUT_TRIALS = 2  # fixed: trials per held-out task for the seed and the final agent
+# In the room each seating block runs one preset (`run --block left|middle|right`, or A|B|C), so every preset gets
+# enough runs to be ranked (the board ranks a strategy from 5 runs); with one default nearly everyone would run it.
+BLOCKS = {"left": "baseline", "middle": "every-weakness", "right": "code-audit"}
+BLOCK_LETTERS = dict(zip("abc", BLOCKS))
+
+
+def block_strategy(block: str) -> str:
+    """The preset of a seating block: left|middle|right or A|B|C, any case."""
+    key = block.strip().lower()
+    key = BLOCK_LETTERS.get(key, key)
+    if key not in BLOCKS:
+        raise ValueError(f"no block {block!r}: choose from {', '.join(BLOCKS)} (or A, B, C)")
+    return BLOCKS[key]
 
 # Measured on config B (PROGRESS.md, Phase 2): minutes of wall time and HF credits per trial and per Job.
 CALIB_MIN, ITER_MIN, ITER_MIN_TWO, REMEASURE_MIN, HELDOUT_MIN = 3.0, 4.2, 4.6, 2.5, 5.5
@@ -233,7 +246,7 @@ def describe(s: Strategy) -> str:
     est = estimate(s)
     k = s.knobs()
     return (f"{s.name}{' (edited ' + s.preset + ')' if s.modified else ''} [{s.hash}]: {s.description}\n"
-            f"  evidence: {k['traces']} transcripts (max {k['max_traces']}), history {k['history']}{', with diffs' if k['diffs'] else ''}; "
+            f"  evidence: {k['traces']} trajectories (max {k['max_traces']}), history {k['history']}{', with diffs' if k['diffs'] else ''}; "
             f"{k['candidates']} candidate(s) per iteration; keep: {k['val_trials']} validation trials, z = {k['z']:g}, "
             f"re-measure {'on' if s.remeasure else 'off'}; up to {k['iterations']} iterations\n"
             f"  about {est['minutes']:.0f} min ({est['iterations_fit']} iterations fit the {SESSION_MINUTES:.0f}-min session), "

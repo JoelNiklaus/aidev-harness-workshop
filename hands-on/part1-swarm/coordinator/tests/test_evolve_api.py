@@ -12,7 +12,8 @@ from swarm_coordinator import evolve
 from swarm_coordinator.app import create_app
 
 from conftest import Clock
-from test_api import H, Mono, TokenAuth
+from test_api import Mono, TokenAuth
+from test_api import H as _H
 from test_evolve import heldout, it, seed
 
 
@@ -42,6 +43,10 @@ def client(store, ev_store, limiter, mono):
     app = create_app(store, TokenAuth(), reference=[], meta={}, mode="live", mono=mono,
                      evolve_store=ev_store, evolve_reference=ref, evolve_limiter=limiter)
     return TestClient(app)
+
+
+def H(user):
+    return _H(user, "aidev-evolve/0.5.3")  # the board takes events only from the frozen client (test_room_hardening.py)
 
 
 def post(client, event, user="alice", **kw):

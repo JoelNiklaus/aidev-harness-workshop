@@ -75,3 +75,13 @@ def test_prompt_names_the_files_and_the_rules():
     p = proposer.build_prompt(iteration=3, budget_s=150)
     for word in ("agent.py", "traces/INDEX.md", "HISTORY.md", "PATCH.md", "one", "task names", "150"):
         assert word in p
+
+
+def test_another_eval_passes_its_own_header_and_keeps_the_fixed_rules():
+    """APPLY-TO-YOUR-AGENT.md: the proposer is told about your setting, not about Terminal-Bench."""
+    from aidev_evolve import proposer
+
+    p = proposer.build_prompt(iteration=2, budget_s=60, approach="Read agent.py first.", header="My support bot, {budget_s:.0f} s per ticket. Iteration {iteration}.\n")
+    assert p.startswith("My support bot, 60 s per ticket. Iteration 2.") and "Terminal-Bench" not in p
+    assert "Read agent.py first." in p and "PATCH.md" in p  # the strategy's approach and the fixed rules follow
+    assert "Terminal-Bench" in proposer.build_prompt(iteration=1, budget_s=180)  # the workshop's default is unchanged

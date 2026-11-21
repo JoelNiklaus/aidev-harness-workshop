@@ -3,7 +3,8 @@
 The board is a display: nothing in the loop waits for it. `QueuedBoard` writes every event to an outbox file
 in the run folder first and then tries to deliver the whole outbox in order, so events survive a Wi-Fi drop,
 a sleeping laptop and a restart (`run --resume`). The server is idempotent on (user, run_id, kind, iteration),
-so a retried event replaces, never duplicates.
+so a retried event replaces, never duplicates. Every event names the client version in its User-Agent: the board takes
+events only from the frozen workshop version or newer (HTTP 426 otherwise).
 """
 
 from __future__ import annotations
@@ -16,6 +17,8 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+
+from aidev_evolve import __version__
 
 SCHEMA = "aidev-evolve/1"
 ROOM_URL = "https://agent-harness-workshop-aidev-swarm.hf.space"  # the Part 1 coordinator Space (runner cli.DEFAULT_COORDINATOR)
@@ -31,6 +34,27 @@ def page_url(url: str = ROOM_URL) -> str:
     return url.rstrip("/") + "/evolve"
 
 
+def older(version: str, minimum: str) -> bool:
+    """`version` < `minimum`, compared as numbers (0.5.10 is newer than 0.5.2)."""
+    def parse(v: str) -> tuple[int, ...]:
+        return tuple(int(x) for x in v.split("."))
+    return parse(version) < parse(minimum)
+
+
+def version_problem(url: str, *, http: httpx.Client | None = None, timeout_s: float = 5.0) -> str | None:
+    """One line when the board accepts only a newer aidev-evolve than this one (it answers this version's events with
+    HTTP 426); None when all is well, and also when the board cannot be asked: it is a display, never a blocker."""
+    try:
+        r = (http or httpx.Client()).get(f"{url.rstrip('/')}/api/versions", timeout=timeout_s)
+        need = r.json().get("aidev-evolve") if r.status_code == 200 else None
+        if isinstance(need, str) and older(__version__, need):
+            return (f"this aidev-evolve ({__version__}) is older than the workshop board accepts ({need}): your run would not "
+                    f"appear on the board. Copy the command again from {url.rstrip('/')}/evolve/join")
+    except (httpx.HTTPError, ValueError, AttributeError):
+        pass
+    return None
+
+
 class Board:
     def __init__(self, url: str, token: str, *, client: httpx.Client | None = None, timeout_s: float = 10.0):
         self._url, self._token, self._timeout = url.rstrip("/"), token, timeout_s
@@ -38,7 +62,7 @@ class Board:
 
     def submit(self, event: dict[str, Any]) -> None:
         r = self._client.post(f"{self._url}/api/evolve/submit", json={"schema": SCHEMA, **event},
-                              headers={"Authorization": f"Bearer {self._token}"}, timeout=self._timeout)
+                              headers={"Authorization": f"Bearer {self._token}", "User-Agent": f"aidev-evolve/{__version__}"}, timeout=self._timeout)
         r.raise_for_status()
 
 

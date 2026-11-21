@@ -85,6 +85,13 @@ class FakeHub:
     def add_space_variable(self, space, key, value):
         self.variables[key] = value
 
+    def get_space_variables(self, space):
+        return dict(self.variables)
+
+    def delete_space_variable(self, space, key):
+        self.calls.append(("delete_variable", key))
+        del self.variables[key]  # KeyError when missing, as the Hub answers 404
+
     def upload_folder(self, **kw):
         self.calls.append(("upload", kw["repo_id"]))
         return type("C", (), {"oid": "abc123"})()

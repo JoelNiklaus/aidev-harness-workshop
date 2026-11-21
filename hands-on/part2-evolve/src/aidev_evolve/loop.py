@@ -65,13 +65,14 @@ class Evolver:
                  board: Any = None, write: Callable[[str], None] = print, budget_s: float | None = None, seed_source: str = SEED_SOURCE,
                  color: bool = False, run_id: str | None = None, proposer_name: str = "claude", clock: Callable[[], float] = time.monotonic,
                  resume: bool = False, strategy: strategies.Strategy | None = None, session_s: float | None = None,
-                 parallel_proposals: bool = False, providers: list[str] | None = None):
+                 parallel_proposals: bool = False, providers: list[str] | None = None, proposer_header: str | None = None):
         self.run_dir = Path(run_dir)
         self.splits = splits or default_splits()
         self.evaluate, self.propose, self.board = evaluate, propose, board or NullBoard()
         self._write, self.color, self.clock = write, color, clock
         self.budget_s = budget_s or self.splits.get("budget_s")  # the budget the splits were selected for (a resumed run: its config)
         self.session_s, self.parallel_proposals = session_s, parallel_proposals
+        self.proposer_header = proposer_header  # what the proposer is told about the setting (default: the workshop's, proposer.HEADER)
         self.providers = list(providers or [REFERENCE])  # the attendee's GLM provider first, then the fallback (providers.order)
         self._use(strategy or strategies.load(strategies.DEFAULT))
         self.run_id = run_id or self.run_dir.name
@@ -219,7 +220,7 @@ class Evolver:
                      include=self.strategy.traces, max_traces=self.strategy.max_traces)
         (work / "HISTORY.md").write_text(self._history_md())
         (work / "CONTRACT.md").write_text(proposer.CONTRACT)
-        prompt = proposer.build_prompt(iteration=iteration, budget_s=self.budget_s, approach=self.strategy.prompt, hint=hint)
+        prompt = proposer.build_prompt(iteration=iteration, budget_s=self.budget_s, approach=self.strategy.prompt, hint=hint, header=self.proposer_header)
         (work / "PROMPT.md").write_text(prompt)
         return work
 
@@ -387,4 +388,14 @@ class Evolver:
             self.iterate()
         if heldout_trials:
             self.heldout(heldout_trials)
+        self._write_final()
         return self.state
+
+    def _write_final(self) -> None:
+        """The run's result as one file to open: the best agent, next to the run's other files."""
+        best = self.state["incumbent"]
+        final = self.run_dir / "final_agent.py"
+        final.write_text(self.source(best))
+        what = "the seed: no patch was kept" if best == "c000" else f"{best}, with every kept patch"
+        self.write(show.paint(f"\nYour final agent ({what}): {final}\n", show.BOLD, self.color)
+                   + f"  `aidev-evolve show` prints it; `aidev-evolve show --diff` what changed against the seed\n")

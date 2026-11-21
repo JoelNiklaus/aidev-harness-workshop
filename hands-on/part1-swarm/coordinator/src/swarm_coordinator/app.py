@@ -1,5 +1,5 @@
 """The coordinator's HTTP surface (PROTOCOL.md): claim, heartbeat, submit, release, state, board, join page;
-Part 2's evolve board: /api/evolve/submit, /api/evolve/state, /api/evolve/diff/..., /evolve."""
+Part 2's evolve board: /api/evolve/submit, /api/evolve/state, /api/evolve/diff/..., /evolve, /evolve/join (start page)."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Res
 from starlette.concurrency import run_in_threadpool
 
 from . import evolve, join, paths
-from .auth import AuthUnavailable, Unauthorized
+from .auth import AuthUnavailable, Forbidden, Unauthorized
 from .state import build_state
 from .store import AtLimit, Conflict, Invalid, NotFound, Store
 
@@ -35,14 +35,31 @@ CLAIM_AGAIN_S = 30  # every free cell is taken, but a leased one returns if its 
 # work (fixed in hlb 0.1.9, 2026-11-19; 0.4.3 pins hlb 0.1.11). None of them may claim.
 MIN_RUNNER = (0, 4, 3)
 RUNNER_UA = re.compile(r"^aidev-swarm/(\d+)\.(\d+)\.(\d+)")
+# Part 2: up to 0.5.1 the evaluation pinned the same hlb 0.1.7 (and the client sent no version); 0.5.3 pins hlb 0.1.11
+# and names itself on every event. Both minimums are the frozen workshop versions (a test compares them with the packages).
+MIN_EVOLVE = (0, 5, 3)
+EVOLVE_UA = re.compile(r"^aidev-evolve/(\d+)\.(\d+)\.(\d+)")
+# Staging only (SWARM_LOADTEST_USERS, cli.build): an allowed account may act under load-test names, one per simulated
+# attendee, so one account can stand in for a room (each name has its own share, slow start and rate limit).
+LOADTEST_HEADER = "x-aidev-loadtest-as"
+LOADTEST_NAME = re.compile(r"^lt-[a-z0-9][a-z0-9-]{0,29}$")
 BOOT_OPEN = b'<script id="boot" type="application/json">'
 BOOT_SLOT = BOOT_OPEN + b"null</script>"
 
 
+def _at_least(pattern: re.Pattern[str], minimum: tuple[int, int, int], user_agent: str | None) -> bool:
+    m = pattern.match(user_agent or "")
+    return bool(m) and tuple(int(g) for g in m.groups()) >= minimum
+
+
 def runner_ok(user_agent: str | None) -> bool:
     """A claim must come from a runner (User-Agent aidev-swarm/X.Y.Z) that speaks the short-lease protocol."""
-    m = RUNNER_UA.match(user_agent or "")
-    return bool(m) and tuple(int(g) for g in m.groups()) >= MIN_RUNNER
+    return _at_least(RUNNER_UA, MIN_RUNNER, user_agent)
+
+
+def evolve_ok(user_agent: str | None) -> bool:
+    """A Part 2 event must come from the frozen aidev-evolve or newer (User-Agent aidev-evolve/X.Y.Z)."""
+    return _at_least(EVOLVE_UA, MIN_EVOLVE, user_agent)
 
 
 class CachedJson:
@@ -84,11 +101,15 @@ def _static(name: str) -> bytes:
 def create_app(store: Store, auth: Any, *, reference: list[dict[str, Any]], meta: dict[str, dict[str, str]], mode: str = "live",
                mono: Callable[[], float] = time.monotonic, state_ttl_s: float = STATE_TTL_S, lifespan: Any = None,
                runner_dir: Path | None = None, evolve_store: evolve.EvolveStore | None = None,
-               evolve_reference: list[dict[str, Any]] | None = None, evolve_limiter: evolve.RateLimiter | None = None) -> FastAPI:
+               evolve_reference: list[dict[str, Any]] | None = None, evolve_limiter: evolve.RateLimiter | None = None,
+               evolve_readme: Path | None = None, loadtest_users: frozenset[str] = frozenset(),
+               coupons: dict[str, str] | None = None) -> FastAPI:
     app = FastAPI(title="aidev swarm coordinator", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     app.add_middleware(GZipMiddleware, minimum_size=500)  # the pages fit the first round trip through the HF edge
     board, evolve_page = _static("board.html"), _static("evolve.html")
-    join_page = join.page(runner_dir or paths.runner_dir())  # rendered once: a README without the wheel URL fails at start
+    coupons = coupons or {}  # each session's shared coupon link, shown on its start page (cli.room_settings)
+    join_page = join.page(runner_dir or paths.runner_dir(), coupons.get("part1"))  # rendered once: a README without the wheel URL fails at start
+    evolve_join_page = join.evolve_page(evolve_readme or paths.evolve_dir() / "README.md", coupons.get("part2"))
     evolve_store = evolve_store or evolve.EvolveStore()
     evolve_limiter = evolve_limiter or evolve.RateLimiter(per_minute=EVOLVE_PER_MINUTE, burst=EVOLVE_BURST)
     swarm_state = CachedJson(lambda: build_state(store.grid, store.snapshot(), reference, meta, mode=mode), mono, state_ttl_s)
@@ -98,6 +119,10 @@ def create_app(store: Store, auth: Any, *, reference: list[dict[str, Any]], meta
     @app.exception_handler(Unauthorized)
     async def _401(_: Request, e: Unauthorized) -> JSONResponse:
         return JSONResponse({"detail": str(e)}, status_code=401)
+
+    @app.exception_handler(Forbidden)
+    async def _403(_: Request, e: Forbidden) -> JSONResponse:
+        return JSONResponse({"detail": str(e)}, status_code=403)
 
     @app.exception_handler(AuthUnavailable)
     async def _503(_: Request, e: AuthUnavailable) -> JSONResponse:
@@ -124,7 +149,15 @@ def create_app(store: Store, auth: Any, *, reference: list[dict[str, Any]], meta
         header = request.headers.get("authorization")
         peek = getattr(auth, "peek", None)
         who = peek(header) if peek else None
-        return who or await run_in_threadpool(auth.user, header)
+        who = who or await run_in_threadpool(auth.user, header)
+        name = request.headers.get(LOADTEST_HEADER)
+        if name is None:
+            return who
+        if who.lower() not in loadtest_users:
+            raise Forbidden("load-test names are off on this board")
+        if not LOADTEST_NAME.match(name):
+            raise Invalid("a load-test name looks like lt-<lowercase letters, digits, dashes> (at most 33 characters)")
+        return name
 
     @app.post("/api/claim")
     async def claim(request: Request, limit: int = 1) -> Response:
@@ -176,6 +209,10 @@ def create_app(store: Store, auth: Any, *, reference: list[dict[str, Any]], meta
         if int(request.headers.get("content-length") or 0) > evolve.MAX_BODY_BYTES:
             return JSONResponse({"detail": f"event larger than {evolve.MAX_BODY_BYTES} bytes"}, status_code=413)
         who = await user(request)
+        if not evolve_ok(request.headers.get("user-agent")):
+            need = ".".join(map(str, MIN_EVOLVE))
+            return JSONResponse({"detail": f"this aidev-evolve is too old for the workshop board (needs aidev-evolve >= {need}); "
+                                           f"start your run with the current command from the board's {join.EVOLVE_PATH} page"}, status_code=426)
         wait = evolve_limiter.allow(who)
         if wait:
             return JSONResponse({"detail": "too many events; retry later"}, status_code=429, headers={"Retry-After": str(math.ceil(wait))})
@@ -208,6 +245,15 @@ def create_app(store: Store, auth: Any, *, reference: list[dict[str, Any]], meta
     @app.get(join.PATH)
     async def join_() -> HTMLResponse:
         return HTMLResponse(join_page, headers={"Cache-Control": "public, max-age=60"})
+
+    @app.get(join.EVOLVE_PATH)
+    async def evolve_join() -> HTMLResponse:
+        return HTMLResponse(evolve_join_page, headers={"Cache-Control": "public, max-age=60"})
+
+    @app.get("/api/versions")
+    async def versions() -> dict[str, str]:
+        """The oldest clients the board takes (aidev-evolve asks at the start of a run and says so when it is older)."""
+        return {"aidev-swarm": ".".join(map(str, MIN_RUNNER)), "aidev-evolve": ".".join(map(str, MIN_EVOLVE))}
 
     @app.get("/healthz")
     async def healthz() -> dict[str, Any]:

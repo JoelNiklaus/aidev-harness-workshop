@@ -12,7 +12,7 @@ Your HF credits pay for your Job (cpu-basic, $0.01/h), the sandboxes and the GLM
 # once, before the workshop: uv installed, HF account with credits, and a fine-grained token with the
 # permissions "Make calls to Inference Providers" and "Start and manage Jobs" saved with
 uvx hf auth login
-uvx --from "<WHEEL_URL>" aidev-swarm check           # one model call, one tiny Job, one sandbox command (~15 s, < $0.01)
+uvx --from "<WHEEL_URL>" aidev-swarm check           # one model call, one tiny Job, one sandbox command (15-35 s, < $0.01)
 
 # in the room
 uvx --from "<WHEEL_URL>" aidev-swarm launch          # trials until the grid is full (Job timeout 3 h)

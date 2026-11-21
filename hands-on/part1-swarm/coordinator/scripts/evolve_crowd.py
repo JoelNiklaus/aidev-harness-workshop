@@ -20,6 +20,7 @@ import httpx
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from swarm_coordinator.evolve import SCHEMA  # noqa: E402
+from swarm_coordinator.loadtest import EVOLVE_HEADERS  # noqa: E402
 
 TITLES = [("Run until the time budget, not 10 steps", "the loop stops at the 10-step cap with most of the 180 s left."),
           ("Show stderr to the model", "stderr goes to /dev/null, so failing commands show no error message."),
@@ -63,7 +64,7 @@ def main(argv: list[str] | None = None) -> None:
         for k in range(a.attendees):
             user = f"{names[k % len(names)]}{k}"
             for e in events(user, rng.randint(1, a.iterations), rng):
-                c.post("/api/evolve/submit", json=e, headers={"Authorization": f"Bearer {user}"}).raise_for_status()
+                c.post("/api/evolve/submit", json=e, headers={"Authorization": f"Bearer {user}", **EVOLVE_HEADERS}).raise_for_status()
     print(f"posted {a.attendees} synthetic attendees to {a.url}")
 
 

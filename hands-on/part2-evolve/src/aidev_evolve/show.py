@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import difflib
+import json
+import re
+from pathlib import Path
 from typing import Any
 
 RESET, BOLD, DIM, RED, GREEN, YELLOW, CYAN = "\033[0m", "\033[1m", "\033[2m", "\033[31m", "\033[32m", "\033[33m", "\033[36m"
@@ -39,9 +43,10 @@ def seed_summary(search: float, val: float, flip: float, margin: float, n_val: i
             f"at least {100 * margin:.0f} points ({margin * n_val:.1f} of {n_val} tasks)\n")
 
 
-def diff_block(diff: str, color: bool = False) -> str:
+def diff_block(diff: str, color: bool = False, max_lines: int | None = MAX_DIFF_LINES) -> str:
+    """The diff, coloured; cut after `max_lines` (None: all of it)."""
     lines = diff.splitlines()
-    shown = lines[:MAX_DIFF_LINES]
+    shown = lines if max_lines is None else lines[:max_lines]
     out = []
     for line in shown:
         if line.startswith("+") and not line.startswith("+++"):
@@ -52,8 +57,8 @@ def diff_block(diff: str, color: bool = False) -> str:
             out.append(paint(line, CYAN, color))
         else:
             out.append(line)
-    if len(lines) > MAX_DIFF_LINES:
-        out.append(paint(f"... {len(lines) - MAX_DIFF_LINES} more diff lines in the run folder", DIM, color))
+    if len(lines) > len(shown):
+        out.append(paint(f"... {len(lines) - len(shown)} more diff lines in the run folder", DIM, color))
     return "\n".join("    " + line for line in out) + "\n"
 
 
@@ -96,3 +101,52 @@ def heldout_summary(res: dict[str, Any], color: bool = False) -> str:
             f"  seed {pct(res['seed'])} -> best ({res['best_candidate']}) {pct(res['best'])}  ({100 * (res['best'] - res['seed']):+.0f} points)\n"
             + (f"  paired gain {100 * res['diff']:+.0f} points, 95% CI [{100 * res['ci_low']:+.0f}, {100 * res['ci_high']:+.0f}] (tasks resampled)\n"
                if "diff" in res else ""))
+
+
+# -- the final agent of a run (`aidev-evolve show`) ------------------------------------------------------
+
+def seed_lines_left(source: str) -> dict[str, bool]:
+    """Which of the seed's three measured weaknesses are still in `source` (a text check of the seed's own lines:
+    the 10-step limit, the task text cut, the cleanup appended to every command)."""
+    return {"step limit": bool(re.search(r"MAX_STEPS\s*=\s*10\b", source)),
+            "task text cut": "task[:" in source,
+            "stray-process cleanup": "kill -9" in source and source.count("CLEANUP") >= 2}  # defined and still appended
+
+
+def newest_run(base: Path = Path("runs")) -> Path | None:
+    """The run folder `run` wrote last (folders are named by start time)."""
+    runs = sorted(d for d in Path(base).glob("*") if (d / "state.json").is_file())
+    return runs[-1] if runs else None
+
+
+def final_agent_path(run_dir: Path) -> Path:
+    """final_agent.py (written when a run ends), else the current best candidate's agent.py (a run still going,
+    or one made before 0.5.2)."""
+    run_dir = Path(run_dir)
+    final = run_dir / "final_agent.py"
+    if final.is_file():
+        return final
+    state = json.loads((run_dir / "state.json").read_text())
+    return run_dir / "candidates" / state["incumbent"] / "agent.py"
+
+
+def final_agent(run_dir: Path, *, diff: bool = False, color: bool = False) -> str:
+    """What `aidev-evolve show` prints: where the final agent is, which patches it holds, the file (or its diff
+    against the seed) and which seed weaknesses are still in it."""
+    run_dir = Path(run_dir)
+    state = json.loads((run_dir / "state.json").read_text())
+    path = final_agent_path(run_dir)
+    source = path.read_text()
+    kept = [h.get("title") or "(untitled)" for h in state.get("history", []) if h.get("verdict") == "kept"]
+    out = (f"{paint('Final agent', BOLD, color)} of run {state.get('run_id') or run_dir.name}: {path}\n"
+           f"  kept patches: {'; '.join(kept) if kept else 'none (this is the seed)'}\n\n")
+    if diff:
+        seed = (run_dir / "candidates" / "c000" / "agent.py").read_text()
+        d = "".join(difflib.unified_diff(seed.splitlines(True), source.splitlines(True), "agent.py (seed)", "agent.py (final)"))
+        out += diff_block(d, color, max_lines=None) if d else "    (no change against the seed)\n"
+    else:
+        out += source if source.endswith("\n") else source + "\n"
+    out += "\nSeed weaknesses still in this file (a text check of the seed's own lines):\n"
+    for name, left in seed_lines_left(source).items():
+        out += f"  {name}: {paint('still there', RED, color) if left else paint('removed', GREEN, color)}\n"
+    return out
