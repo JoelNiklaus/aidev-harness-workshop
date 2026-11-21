@@ -102,3 +102,5 @@ uv run python devtools/publish.py   # build the wheel, attach it to GitHub relea
 uv run aidev-evolve eval --agent src/aidev_evolve/seed/agent.py --tasks fix-git,regex-log --trials 1
 python devtools/fake_board.py       # the /evolve board stand-in on :8766
 ```
+
+On staging, 40 loops with one scripted proposal took 29 minutes at the median and 34 minutes at the slowest. The 22-minute budget is not a finish deadline. Use `aidev-evolve replay` for the debrief if your live result is not ready.

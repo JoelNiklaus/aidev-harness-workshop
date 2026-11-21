@@ -77,3 +77,5 @@ cd hands-on/part2-evolve && uv run python -m pytest -q
 ## License
 
 Apache-2.0, see [LICENSE](LICENSE).
+
+On staging, 40 loops with one scripted proposal took 29 minutes at the median and 34 minutes at the slowest. The 22-minute budget is not a finish deadline. Use `aidev-evolve replay` for the debrief if your live result is not ready.
