@@ -45,9 +45,9 @@ def test_run_takes_a_seed_file_a_splits_file_and_a_strategy_folder(tmp_path, mon
     assert evo.strategy.modified and evo.strategy.preset == "baseline"
 
 
-def test_run_defaults_to_the_winning_strategy_fixed_heldout_and_the_session_time_box(tmp_path, monkeypatch):
+def test_run_defaults_to_the_winning_strategy_and_has_no_flag_for_the_fixed_settings(tmp_path, monkeypatch):
     """One source of truth: the splits file carries the budget, the strategy the keep rule; the held-out trials and the
-    session length are fixed for everyone and `run` has no flag for them."""
+    shape of the run (the workshop run, or --full with its time box) are fixed for everyone and `run` has no flag for them."""
     from aidev_evolve import loop, strategy
 
     monkeypatch.setattr(cli, "_session", lambda: (object(), "hf_dummy", "alice"))
@@ -56,7 +56,9 @@ def test_run_defaults_to_the_winning_strategy_fixed_heldout_and_the_session_time
     assert evo.budget_s == loop.default_splits()["budget_s"]
     assert strategy.DEFAULT == "code-audit" and evo.strategy.name == "code-audit"  # the Phase 4 winner (PROGRESS.md)
     assert (evo.val_trials, evo.z, evo.confirm) == (2, 1.5, True)
-    assert evo.session_s == strategy.SESSION_MINUTES * 60 and evo.parallel_proposals is True
+    assert evo.session_s is None and evo.parallel_proposals is True  # one iteration needs no time box
+    full = cli.make_evolver(cli.build_parser().parse_args(["run", "--full"]), tmp_path / "full")
+    assert full.session_s == strategy.SESSION_MINUTES * 60
     for flag in ("--z", "--val-trials", "--no-confirm", "--heldout-trials", "--iterations"):
         with pytest.raises(SystemExit):
             cli.build_parser().parse_args(["run", flag, "1"])

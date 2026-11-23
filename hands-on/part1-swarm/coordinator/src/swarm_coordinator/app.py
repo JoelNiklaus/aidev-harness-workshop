@@ -36,8 +36,9 @@ CLAIM_AGAIN_S = 30  # every free cell is taken, but a leased one returns if its 
 MIN_RUNNER = (0, 4, 3)
 RUNNER_UA = re.compile(r"^aidev-swarm/(\d+)\.(\d+)\.(\d+)")
 # Part 2: up to 0.5.1 the evaluation pinned the same hlb 0.1.7 (and the client sent no version); 0.5.3 pins hlb 0.1.11
-# and names itself on every event. Both minimums are the frozen workshop versions (a test compares them with the packages).
-MIN_EVOLVE = (0, 5, 3)
+# and names itself on every event; 0.6.0 is the workshop run that fits the session (one Job; a 0.5.3 run takes 30 min in a
+# full room and ends after the ranking is read). Both minimums are the frozen workshop versions (a test compares them with the packages).
+MIN_EVOLVE = (0, 6, 0)
 EVOLVE_UA = re.compile(r"^aidev-evolve/(\d+)\.(\d+)\.(\d+)")
 # Staging only (SWARM_LOADTEST_USERS, cli.build): an allowed account may act under load-test names, one per simulated
 # attendee, so one account can stand in for a room (each name has its own share, slow start and rate limit).

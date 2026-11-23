@@ -1,5 +1,13 @@
 """The evolve loop: seed -> (propose -> check -> evaluate -> keep or drop) x N -> held-out check.
 
+Two shapes of the same loop (DESIGN.md, Phase 5):
+
+- the workshop run (`fast`, with a shipped seed `calibration`): no seed Job, and every iteration is one Job in which the
+  re-measure runs alongside the first measurement; the last iteration's Job also measures seed, parent and child on the
+  held-out tasks, so the run's result is there when the Job ends. The verdict still reads validation only.
+- the full run (`aidev-evolve run --full`): the seed measured live, a kept child measured again in a second Job, the
+  held-out check in a Job of its own.
+
 Adapters are injected so the loop runs the same with fakes (tests), the real HF Job evaluator, a recorded
 run (replay) or a different proposer:
 
@@ -27,7 +35,7 @@ from importlib import resources
 from pathlib import Path
 from typing import Any
 
-from aidev_evolve import __version__, audit, digest, proposer, runtime, show, stats
+from aidev_evolve import __version__, audit, calibration as calibrations, digest, proposer, runtime, show, stats
 from aidev_evolve import strategy as strategies
 from aidev_evolve.launch import EvalJobError
 from aidev_evolve.providers import REFERENCE
@@ -65,13 +73,18 @@ class Evolver:
                  board: Any = None, write: Callable[[str], None] = print, budget_s: float | None = None, seed_source: str = SEED_SOURCE,
                  color: bool = False, run_id: str | None = None, proposer_name: str = "claude", clock: Callable[[], float] = time.monotonic,
                  resume: bool = False, strategy: strategies.Strategy | None = None, session_s: float | None = None,
-                 parallel_proposals: bool = False, providers: list[str] | None = None, proposer_header: str | None = None):
+                 parallel_proposals: bool = False, providers: list[str] | None = None, proposer_header: str | None = None,
+                 calibration: dict[str, Any] | None = None, fast: bool = False):
         self.run_dir = Path(run_dir)
         self.splits = splits or default_splits()
         self.evaluate, self.propose, self.board = evaluate, propose, board or NullBoard()
         self._write, self.color, self.clock = write, color, clock
         self.budget_s = budget_s or self.splits.get("budget_s")  # the budget the splits were selected for (a resumed run: its config)
         self.session_s, self.parallel_proposals = session_s, parallel_proposals
+        self.fast = fast  # one Job per iteration, the last one with the held-out trials (module docstring)
+        self.calibration = calibration  # the seed's shipped scores; None: this run measures the seed
+        if calibration is not None:
+            calibrations.check(calibration, seed_source, self.budget_s)
         self.proposer_header = proposer_header  # what the proposer is told about the setting (default: the workshop's, proposer.HEADER)
         self.providers = list(providers or [REFERENCE])  # the attendee's GLM provider first, then the fallback (providers.order)
         self._use(strategy or strategies.load(strategies.DEFAULT))
@@ -85,7 +98,7 @@ class Evolver:
             return
         (self.run_dir / "config.json").write_text(json.dumps({"run_id": self.run_id, "version": __version__, "splits": self.splits, "budget_s": self.budget_s,
                                                               "model": "zai-org/GLM-5.3-Flash", "effort": "low", "proposer": proposer_name,
-                                                              "providers": self.providers, "session_s": session_s, "strategy": {**asdict(self.strategy), **self.strategy.event()}}, indent=2))
+                                                              "providers": self.providers, "session_s": session_s, "fast": fast, "strategy": {**asdict(self.strategy), **self.strategy.event()}}, indent=2))
         self.state: dict[str, Any] = {"run_id": self.run_id, "incumbent": "c000", "iteration": 0, "margin": None, "flip_rate": None,
                                       "history": [], "spend_usd": 0.0, "proposer_usd": 0.0, "heldout": None, "curve": [], "search_eval": {}}
         self._save_candidate("c000", seed_source, None, "", "")
@@ -99,7 +112,7 @@ class Evolver:
         self.state = json.loads((self.run_dir / "state.json").read_text())
         config = json.loads((self.run_dir / "config.json").read_text())
         self.splits, self.budget_s, self.session_s = config["splits"], config["budget_s"], config.get("session_s")
-        self.providers = config["providers"]
+        self.providers, self.fast = config["providers"], config["fast"]
         self._use(strategies.Strategy(**{f.name: config["strategy"][f.name] for f in fields(strategies.Strategy)}))
         rec_path = self.run_dir / "records.jsonl"
         self.records = [json.loads(l) for l in rec_path.read_text().splitlines() if l.strip()] if rec_path.exists() else []
@@ -158,15 +171,18 @@ class Evolver:
         res = self.evaluate(spec, on_record)
         cost = sum(r.get("cost_usd") or 0.0 for r in res.records) + res.job_usd
         self.state["spend_usd"] += cost
-        with open(self.run_dir / "records.jsonl", "a") as f:
-            for r in res.records:
-                r = {**r, "eval": eval_id, "split": self._split(r["task"])}
-                self.records.append(r)
-                f.write(json.dumps(r) + "\n")
+        self._record(eval_id, res.records)
         self.write(f"  Job {res.job_id}: {res.seconds:.0f} s, ${cost:.3f}\n")
         if getattr(res, "missing", 0):
             self.write(show.paint(f"  warning: {res.missing} planned trials sent no result (see the Job log); they do not count\n", show.YELLOW, self.color))
         return [r for r in self.records if r["eval"] == eval_id]
+
+    def _record(self, eval_id: str, records: list[dict[str, Any]]) -> None:
+        with open(self.run_dir / "records.jsonl", "a") as f:
+            for r in records:
+                r = {**r, "eval": eval_id, "split": self._split(r["task"])}
+                self.records.append(r)
+                f.write(json.dumps(r) + "\n")
 
     def val_score(self, cand: str) -> float:
         return stats.score(stats.per_task(self.records, cand, self.splits["validation"]))
@@ -176,15 +192,21 @@ class Evolver:
 
     # -- phases -------------------------------------------------------------------------------------
     def calibrate_seed(self) -> None:
-        self.write(show.paint(f"\nEvolve run {self.run_id}: seed agent on {len(self.splits['search'])} search + {len(self.splits['validation'])} validation tasks\n", show.BOLD, self.color))
-        self._eval("e000", [{"candidate": "c000", "tasks": self.splits["search"], "trials": 1},
-                            {"candidate": "c000", "tasks": self.splits["validation"], "trials": 2}])
-        flip = stats.flip_rate(stats.per_task(self.records, "c000", self.splits["validation"]))
-        n = len(self.splits["validation"])
+        n_s, n = len(self.splits["search"]), len(self.splits["validation"])
+        self.write(show.paint(f"\nEvolve run {self.run_id}: seed agent on {n_s} search + {n} validation tasks\n", show.BOLD, self.color))
+        if self.calibration is None:
+            self._eval("e000", [{"candidate": "c000", "tasks": self.splits["search"], "trials": 1},
+                                {"candidate": "c000", "tasks": self.splits["validation"], "trials": 2}])
+        else:  # measured before the workshop with this seed and budget: nothing to run, nothing to pay
+            self._record("e000", calibrations.records(self.calibration, self.run_id))
+        pt = stats.per_task(self.records, "c000", self.splits["validation"])
+        flip = stats.flip_rate(pt)
         self.state.update(flip_rate=flip, margin=stats.margin(flip, n, self.z, self.val_trials))
         self.state["search_eval"]["c000"] = "e000"
         self.state["curve"] = [self.val_score("c000")]
-        self.write(show.seed_summary(self.search_score("c000"), self.val_score("c000"), flip, self.state["margin"], n, self.color))
+        trials = min(len(v) for v in pt.values()) if pt else 0
+        self.write(show.seed_summary(self.search_score("c000"), self.val_score("c000"), flip, self.state["margin"], n, self.color,
+                                     trials=trials, shipped=self.calibration is not None))
         self.write(show.spend_line(self.state["spend_usd"], None, self.color))
         self._submit({"kind": "seed", "val_score": self.val_score("c000"), "search_score": self.search_score("c000"), "spend_usd": self.state["spend_usd"]})
         self._save()
@@ -260,7 +282,9 @@ class Evolver:
             results = [one(w) for w in works]
         return [self._child(w, parent, name, r) for w, name, r in zip(works, names, results)]
 
-    def iterate(self) -> dict[str, Any]:
+    def iterate(self, heldout_trials: int = 0) -> dict[str, Any]:
+        """One iteration. `heldout_trials` (the workshop run's last iteration): measure seed, parent and child on the
+        held-out tasks in the same Job and end the run with its held-out result."""
         self.state["iteration"] += 1
         i, parent = self.state["iteration"], self.state["incumbent"]
         self._iter_start, self._iter_spend = self.clock(), self.state["spend_usd"]
@@ -284,12 +308,24 @@ class Evolver:
             self._save_candidate(c["candidate"], c["source"], parent, c["patch"], c["diff"])
         ev = f"e{i:03d}"
         vt, val, search = self.val_trials, self.splits["validation"], self.splits["search"]
+        # One candidate in a workshop run: its re-measure runs alongside (twice the trials, one verdict on all of them: no
+        # selection happened, so no second look is needed). The better of two candidates is a selection: measured again.
+        together = self.fast and len(valid) == 1
+        speculative = heldout_trials if together else 0
+        child_trials = vt * (2 if together and self.confirm else 1)
         runs: list[dict[str, Any]] = []
         for c in valid:
-            runs += ([{"candidate": c["candidate"], "tasks": search + val, "trials": 1}] if vt == 1 else
-                     [{"candidate": c["candidate"], "tasks": search, "trials": 1}, {"candidate": c["candidate"], "tasks": val, "trials": vt}])
+            if speculative:  # the child's search trajectories feed the next proposal: the last iteration needs none
+                runs.append({"candidate": c["candidate"], "tasks": val, "trials": child_trials})
+            elif child_trials == 1:
+                runs.append({"candidate": c["candidate"], "tasks": search + val, "trials": 1})
+            else:
+                runs += [{"candidate": c["candidate"], "tasks": search, "trials": 1}, {"candidate": c["candidate"], "tasks": val, "trials": child_trials}]
+        runs.append({"candidate": parent, "tasks": val, "trials": vt})
+        if speculative:
+            runs += [{"candidate": c, "tasks": self.splits["heldout"], "trials": speculative} for c in dict.fromkeys(["c000", parent, valid[0]["candidate"]])]
         try:
-            self._eval(ev, runs + [{"candidate": parent, "tasks": val, "trials": vt}])
+            self._eval(ev, runs)
         except EvalJobError as e:
             h = entry(valid[0], verdict="skipped: evaluation failed", detail=str(e)[:500])
             self._finish(h)
@@ -300,7 +336,7 @@ class Evolver:
         losers = [sibling(c, decisions[c["candidate"]].child_score, "dropped: lost the screen") for c in valid if c is not best]
         verdict = "kept" if d.keep else "dropped"
         h = entry(best, siblings=losers)
-        if d.keep and (self.confirm or len(valid) > 1):
+        if d.keep and not together and (self.confirm or len(valid) > 1):
             # one lucky measurement (or the luckier of two) must not become the bar: measure child and parent again, decide on everything pooled
             h.update(val_child_first=d.child_score, val_parent_first=d.parent_score)
             self.write(f"  validation {100 * d.parent_score:.0f}% -> {100 * d.child_score:.0f}%: re-measuring before it counts...\n")
@@ -313,23 +349,27 @@ class Evolver:
             d = stats.decide(self.records, cand, parent, self.state["margin"], val)
             verdict = "kept" if d.keep else "dropped: did not hold on re-measure"
         h.update(verdict=verdict, val_child=d.child_score, val_parent=d.parent_score, margin=d.margin,
-                 fixed=d.fixed, broke=d.broke, search_child=self.search_score(cand))
+                 fixed=d.fixed, broke=d.broke, search_child=None if speculative else self.search_score(cand))
         if d.keep:
             self.state["incumbent"] = cand
             self.state["search_eval"][cand] = ev
         self._finish(h)
+        if speculative:
+            best_now = self.state["incumbent"]
+            self.write(show.paint(f"\n--- held-out check: seed vs {best_now} on {len(self.splits['heldout'])} unseen tasks (measured in the same Job) ---\n", show.BOLD, self.color))
+            self._heldout_result([r for r in self.records if r["eval"] == ev], speculative)
         return h
 
-    def _provider_calls(self, evals: set[str]) -> dict[str, int]:
-        """Who answered the model calls of these evaluations (the attendee's provider and any fallback)."""
+    def _provider_calls(self, records: list[dict[str, Any]]) -> dict[str, int]:
+        """Who answered the model calls of these trials (the attendee's provider and any fallback)."""
         calls: Counter[str] = Counter()
-        for r in self.records:
-            if r["eval"] in evals:
-                calls.update(r.get("provider_calls") or {})
+        for r in records:
+            calls.update(r.get("provider_calls") or {})
         return dict(sorted(calls.items()))
 
     def _finish(self, h: dict[str, Any]) -> None:
-        h["provider_calls"] = self._provider_calls({f"e{h['iteration']:03d}", f"e{h['iteration']:03d}r"})
+        evals = {f"e{h['iteration']:03d}", f"e{h['iteration']:03d}r"}  # held-out trials of the same Job are counted on the held-out event
+        h["provider_calls"] = self._provider_calls([r for r in self.records if r["eval"] in evals and r["split"] != "heldout"])
         self.state["curve"].append(self.val_score(self.state["incumbent"]))
         h["best_val"] = self.state["curve"][-1]
         h["spend_usd"] = round(self.state["spend_usd"], 6)
@@ -355,14 +395,19 @@ class Evolver:
         runs = [{"candidate": "c000", "tasks": tasks, "trials": trials}]
         if best != "c000":
             runs.append({"candidate": best, "tasks": tasks, "trials": trials})
-        recs = self._eval("heldout", runs)
+        return self._heldout_result(self._eval("heldout", runs), trials)
+
+    def _heldout_result(self, recs: list[dict[str, Any]], trials: int) -> dict[str, Any]:
+        """The run's result from the held-out trials among `recs`: seed vs the best agent, paired by task."""
+        best, tasks = self.state["incumbent"], self.splits["heldout"]
         pd = stats.paired_diff(recs, best, "c000", tasks)
         seed_pt, best_pt = stats.per_task(recs, "c000", tasks), stats.per_task(recs, best, tasks)
         counts = {t: [sum(seed_pt[t]), len(seed_pt[t]), sum(best_pt[t]), len(best_pt[t])] for t in tasks if t in seed_pt and t in best_pt}
         kept = [h["title"] for h in self.state["history"] if h["verdict"] == "kept"]
+        held = [r for r in recs if r["split"] == "heldout" and r["candidate"] in ("c000", best)]
         res = {"seed": stats.score(seed_pt), "best": stats.score(best_pt), "best_candidate": best, "n_tasks": len(tasks), "trials": trials,
                "diff": pd.diff, "ci_low": pd.ci_low, "ci_high": pd.ci_high, "per_task": counts, "kept": kept,
-               "provider_calls": self._provider_calls({"heldout"})}
+               "provider_calls": self._provider_calls(held)}
         self.state["heldout"] = res
         self.write(show.heldout_summary(res, self.color))
         self.write(show.spend_line(self.state["spend_usd"], self.state["proposer_usd"], self.color))
@@ -385,8 +430,9 @@ class Evolver:
                 self.write(show.paint(f"\nsession time box ({self.session_s / 60:.0f} min): no time for another iteration and the held-out check; "
                                       f"stopping after {self.state['iteration']} iterations\n", show.DIM, self.color))
                 break
-            self.iterate()
-        if heldout_trials:
+            last = self.state["iteration"] + 1 == iterations
+            self.iterate(heldout_trials if self.fast and last else 0)
+        if heldout_trials and self.state["heldout"] is None:
             self.heldout(heldout_trials)
         self._write_final()
         return self.state

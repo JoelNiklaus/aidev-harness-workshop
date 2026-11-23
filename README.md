@@ -43,7 +43,7 @@ Change `--harness` (for example `pi`, `openclaw`, `codex`) or `--task` (any task
 Start page with Copy buttons (live on the day): https://niklaus.ai/aidev-harness-workshop/2
 
 ```bash
-W="https://github.com/JoelNiklaus/aidev-harness-workshop/releases/download/evolve-v0.5.3/aidev_evolve-0.5.3-py3-none-any.whl"
+W="https://github.com/JoelNiklaus/aidev-harness-workshop/releases/download/evolve-v0.6.0/aidev_evolve-0.6.0-py3-none-any.whl"
 uvx --from "$W" aidev-evolve check                                     # HF login, your coding agent, the workshop board
 uvx --from "$W" aidev-evolve run --block left                          # your seating block: left, middle or right; add --proposer codex for Codex
 uvx --from "$W" aidev-evolve show                                      # afterwards: your final agent.py (--diff: what changed)

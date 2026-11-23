@@ -1,9 +1,9 @@
 # Optimization strategy (edit the knobs below; `aidev-evolve strategy-init baseline my-strategy` makes a copy).
-# Fixed for everyone and refused here: model, time budget, splits, held-out set, seed, session length, credit cap.
+# Fixed for everyone and refused here: model, time budget, splits, held-out set, seed, the shape of the run, credit cap.
 name = "baseline"
 based_on = "baseline"
 description = "Today's loop: all search trajectories, full history, one patch per iteration, the Phase 2 keep rule."
-iterations = 4        # most iterations; the 22-min session time box decides how many start (1..6)
+iterations = 4        # most iterations of `run --full` (1..6); the workshop run does one
 
 [evidence]
 traces = "all"        # "failed": failed search trajectories only; "all": failed first, then passed

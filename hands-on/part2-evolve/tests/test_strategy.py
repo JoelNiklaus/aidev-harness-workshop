@@ -16,9 +16,9 @@ def test_four_presets_load_and_differ():
         assert s.description
 
 
-def test_every_preset_fits_the_fixed_session_envelope():
+def test_every_preset_fits_the_time_box_and_the_credit_cap_of_the_full_run():
     for n in strategy.presets():
-        est = strategy.estimate(strategy.load(n))
+        est = strategy.estimate(strategy.load(n), full=True)
         assert est["usd"] <= strategy.USD_CAP, (n, est)
         assert est["iterations_fit"] >= 2, (n, est)
         assert est["minutes"] <= strategy.SESSION_MINUTES + 1e-9, (n, est)

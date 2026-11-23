@@ -16,7 +16,7 @@ from test_api import H, TokenAuth
 from test_deploy import FakeHub, token_file
 from test_evolve import seed
 
-EVOLVE_UA = "aidev-evolve/0.5.3"
+EVOLVE_UA = "aidev-evolve/0.6.0"
 AS = "X-Aidev-Loadtest-As"
 
 
@@ -28,16 +28,17 @@ def client(store):
 # ---- minimum aidev-evolve --------------------------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("ua", [None, "python-httpx/0.28", "aidev-evolve/0.5.1", "aidev-swarm/0.4.3"])
+@pytest.mark.parametrize("ua", [None, "python-httpx/0.28", "aidev-evolve/0.5.1", "aidev-evolve/0.5.3", "aidev-swarm/0.4.3"])
 def test_an_event_from_an_evolve_client_older_than_the_frozen_one_is_426(client, ua):
-    """Up to 0.5.1 the evaluation pinned leaderboard code that did not stop an agent at its timeout (and sent no version)."""
+    """Up to 0.5.1 the evaluation pinned leaderboard code that did not stop an agent at its timeout (and sent no version);
+    a 0.5.3 run is the four-Job loop that ends after the session's ranking (30 min in a full room)."""
     headers = {k: v for k, v in H("alice", ua).items() if v is not None}
     r = client.post("/api/evolve/submit", json=seed(), headers=headers)
-    assert r.status_code == 426 and "aidev-evolve >= 0.5.3" in r.json()["detail"] and "/evolve/join" in r.json()["detail"]
+    assert r.status_code == 426 and "aidev-evolve >= 0.6.0" in r.json()["detail"] and "/evolve/join" in r.json()["detail"]
     assert client.get("/api/evolve/state").json()["totals"]["runs"] == 0
 
 
-@pytest.mark.parametrize("ua", [EVOLVE_UA, "aidev-evolve/0.5.3", "aidev-evolve/0.6.0 (space-check)"])
+@pytest.mark.parametrize("ua", [EVOLVE_UA, "aidev-evolve/0.6.1", "aidev-evolve/0.6.0 (space-check)"])
 def test_an_event_from_the_frozen_evolve_client_or_newer_is_taken(client, ua):
     assert client.post("/api/evolve/submit", json=seed(), headers=H("alice", ua)).status_code == 200
 

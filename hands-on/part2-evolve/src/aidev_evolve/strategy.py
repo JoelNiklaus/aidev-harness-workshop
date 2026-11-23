@@ -11,11 +11,11 @@ Editable (they change what the loop finds, none can break the evaluation):
   better one goes through the keep rule; `second_hint` steers the second proposal);
 - keep rule: validation trials per task (`val_trials`), the margin in paired standard errors (`z`) and the
   re-measure of a winner (`confirm`; always on with 2 candidates, since picking the better of two is a selection);
-- `iterations`: the most iterations to run; the session time box decides how many actually start.
+- `iterations`: the most iterations of `run --full` (its time box decides how many start); the workshop run does one.
 
 Fixed for every attendee, so strategies compete fairly (refused if a strategy file names them): the model and
 its settings, the per-task time budget, the task splits and the held-out set, the seed agent, the held-out
-trials, the session length and the credit cap. The fixed rules of the proposer prompt (contract, allowed imports,
+trials, the shape of the run (workshop or --full) and the credit cap. The fixed rules of the proposer prompt (contract, allowed imports,
 PATCH.md format) are appended by the loop and cannot be edited either.
 """
 
@@ -34,7 +34,11 @@ from typing import Any
 DEFAULT = "code-audit"  # the preset `run` uses: the Phase 4 winner (19 Nov, 20 real runs: PROGRESS.md)
 SESSION_MINUTES = 22.0  # the room's time box per run: seed calibration + iterations + held-out check
 USD_CAP = 2.0  # worst-case HF credits per run (every iteration re-measured)
-HELDOUT_TRIALS = 2  # fixed: trials per held-out task for the seed and the final agent
+HELDOUT_TRIALS = 2  # `run --full`: trials per held-out task for the seed and the final agent
+# The workshop run (the default of `run`; DESIGN.md, Phase 5): the seed's scores ship in the wheel, one iteration, and one
+# Job measures validation and held-out together. One trial per held-out task: the board pools the runs of a block.
+WORKSHOP_ITERATIONS = 1
+WORKSHOP_HELDOUT_TRIALS = 1
 # In the room each seating block runs one preset (`run --block left|middle|right`, or A|B|C), so every preset gets
 # enough runs to be ranked (the board ranks a strategy from 5 runs); with one default nearly everyone would run it.
 BLOCKS = {"left": "baseline", "middle": "every-weakness", "right": "code-audit"}
@@ -52,6 +56,8 @@ def block_strategy(block: str) -> str:
 # Measured on config B (PROGRESS.md, Phase 2): minutes of wall time and HF credits per trial and per Job.
 CALIB_MIN, ITER_MIN, ITER_MIN_TWO, REMEASURE_MIN, HELDOUT_MIN = 3.0, 4.2, 4.6, 2.5, 5.5
 USD_PER_TRIAL, USD_PER_JOB = 0.005, 0.01
+# The workshop run: the coding agent's proposal, then one Job (alone: about 5 min; with 40 loops at once: see PROGRESS.md, 23 Nov).
+WORKSHOP_PROPOSE_MIN, WORKSHOP_JOB_MIN = 1.5, 5.0
 
 FIXED = ("model", "effort", "provider", "budget_s", "splits", "search", "validation", "heldout", "seed", "heldout_trials",
          "session_minutes", "usd_cap", "benchmark")
@@ -170,7 +176,7 @@ def _parse(text: str, read: Any, default_preset: str) -> Strategy:
         raise StrategyError(f"the proposer prompt has {len(prompt):,} characters; at most {PROMPT_MAX:,}")
     preset = data.get("based_on", default_preset)
     s = Strategy(name=str(data.get("name", preset)), preset=preset, description=str(data.get("description", "")), prompt=prompt, **knobs)
-    est = estimate(s)
+    est = estimate(s, full=True)
     if est["usd"] > USD_CAP:
         raise StrategyError(f"worst case ${est['usd']:.2f} of HF credits is over the ${USD_CAP:.0f} cap per run: lower iterations, "
                             f"val_trials or candidates")
@@ -210,14 +216,25 @@ def iteration_minutes(s: Strategy) -> float:
     return ITER_MIN_TWO if s.candidates > 1 else ITER_MIN
 
 
-def estimate(s: Strategy, splits: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Wall time with one re-measure and how many iterations fit the session; worst-case credits (all iterations,
-    each re-measured). Constants measured on config B."""
+def estimate(s: Strategy, splits: dict[str, Any] | None = None, *, full: bool = False) -> dict[str, Any]:
+    """Wall time, HF Jobs and credits of a run. The workshop run: one proposal and one Job (a strategy with two
+    candidates: three Jobs, its winner is measured again). `full`: the long run, with one re-measure and as many
+    iterations as fit the session; credits are its worst case (all iterations, each re-measured)."""
     if splits is None:
         from aidev_evolve import loop
 
         splits = loop.default_splits()
     n_s, n_v, n_h = len(splits["search"]), len(splits["validation"]), len(splits["heldout"])
+    if not full:
+        ho = 2 * n_h * WORKSHOP_HELDOUT_TRIALS
+        if s.candidates == 1:
+            trials, jobs = n_v * s.val_trials * (2 if s.confirm else 1) + n_v * s.val_trials + ho, 1
+            minutes = WORKSHOP_PROPOSE_MIN + WORKSHOP_JOB_MIN
+        else:
+            trials, jobs = s.candidates * (n_s + n_v * s.val_trials) + n_v * s.val_trials + 2 * n_v * s.val_trials + ho, 3
+            minutes = WORKSHOP_PROPOSE_MIN + ITER_MIN_TWO + REMEASURE_MIN + HELDOUT_MIN
+        return {"usd": round(trials * USD_PER_TRIAL + jobs * USD_PER_JOB, 2), "trials": trials, "jobs": jobs, "minutes": round(minutes, 1),
+                "iterations_fit": WORKSHOP_ITERATIONS}
     per_iter = s.candidates * (n_s + n_v * s.val_trials) + n_v * s.val_trials + (2 * n_v * s.val_trials if s.remeasure else 0)
     trials = (n_s + 2 * n_v) + s.iterations * per_iter + 2 * n_h * HELDOUT_TRIALS
     jobs = 2 + s.iterations * (2 if s.remeasure else 1)
@@ -225,7 +242,7 @@ def estimate(s: Strategy, splits: dict[str, Any] | None = None) -> dict[str, Any
     room = SESSION_MINUTES - CALIB_MIN - HELDOUT_MIN - (REMEASURE_MIN if s.remeasure else 0.0)
     fit = min(s.iterations, max(0, math.floor(room / iteration_minutes(s))))
     minutes = CALIB_MIN + fit * iteration_minutes(s) + (REMEASURE_MIN if s.remeasure else 0.0) + HELDOUT_MIN
-    return {"usd": round(usd, 2), "trials": trials, "minutes": round(minutes, 1), "iterations_fit": fit}
+    return {"usd": round(usd, 2), "trials": trials, "jobs": jobs, "minutes": round(minutes, 1), "iterations_fit": fit}
 
 
 def next_fits(s: Strategy, *, elapsed_s: float, iteration_s: list[float], session_s: float) -> bool:
@@ -243,12 +260,12 @@ def with_knobs(s: Strategy, **kw: Any) -> Strategy:
 
 
 def describe(s: Strategy) -> str:
-    est = estimate(s)
+    est, full = estimate(s), estimate(s, full=True)
     k = s.knobs()
     return (f"{s.name}{' (edited ' + s.preset + ')' if s.modified else ''} [{s.hash}]: {s.description}\n"
             f"  evidence: {k['traces']} trajectories (max {k['max_traces']}), history {k['history']}{', with diffs' if k['diffs'] else ''}; "
             f"{k['candidates']} candidate(s) per iteration; keep: {k['val_trials']} validation trials, z = {k['z']:g}, "
-            f"re-measure {'on' if s.remeasure else 'off'}; up to {k['iterations']} iterations\n"
-            f"  about {est['minutes']:.0f} min ({est['iterations_fit']} iterations fit the {SESSION_MINUTES:.0f}-min session), "
-            f"at most ${est['usd']:.2f} of HF credits")
-
+            f"re-measure {'on' if s.remeasure else 'off'}; up to {k['iterations']} iterations with --full\n"
+            f"  workshop run: 1 iteration, {est['jobs']} HF Job{'s' if est['jobs'] > 1 else ''}, about {est['minutes']:.0f} min when run alone, about ${est['usd']:.2f} of HF credits\n"
+            f"  --full: about {full['minutes']:.0f} min ({full['iterations_fit']} iterations fit the {SESSION_MINUTES:.0f}-min time box), "
+            f"at most ${full['usd']:.2f}")

@@ -1,6 +1,7 @@
 """aidev-evolve command line.
 
 - `aidev-evolve run --strategy <preset|folder>` (or `--block left|middle|right`): the evolve loop (seed -> propose -> evaluate -> keep or drop), see loop.py.
+  The workshop run by default (one iteration, one HF Job); `--full` is the long run for home.
 - `aidev-evolve show [run folder] [--diff]`: the final agent.py of a run (default: the newest under runs/).
 - `aidev-evolve strategies` / `strategy-init <preset> <dir>`: the optimization strategies (strategy.py).
 - `aidev-evolve rank <run folders>`: rank strategies by held-out gain with CIs and ties (ranking.py).
@@ -18,7 +19,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from aidev_evolve import __version__, board, launch, loop, ranking, strategy
+from aidev_evolve import __version__, board, calibration, launch, loop, ranking, strategy
 
 
 def _bundled_budget() -> float:
@@ -148,11 +149,21 @@ def make_evolver(args: argparse.Namespace, run_dir: Path, write: Any = None) -> 
         extra["seed_source"] = Path(args.seed).read_text()
     splits = json.loads(Path(args.splits).read_text()) if args.splits else loop.default_splits()
     budget_s = args.budget_s or splits["budget_s"]  # the budget the splits' tasks were selected for
-    session_s = None if getattr(args, "no_time_box", False) else strategy.SESSION_MINUTES * 60
+    session_s = strategy.SESSION_MINUTES * 60 if args.full and not getattr(args, "no_time_box", False) else None  # one iteration needs no time box
+    own = args.seed or args.splits or args.budget_s  # the shipped seed scores are those of the bundled seed, splits and budget
+    shipped = None if (args.full or args.measure_seed or own) else calibration.bundled()
     return loop.Evolver(run_dir, splits=splits, evaluate=evaluate, propose=propose, board=room, budget_s=budget_s, color=sys.stdout.isatty(),
                         proposer_name=args.proposer, run_id=f"{user}-{run_dir.name}", write=write or (lambda s: print(s, end="", flush=True)),
                         resume=getattr(args, "resume", False), strategy=strategy.load(args.strategy), session_s=session_s,
-                        parallel_proposals=args.proposer != "manual", providers=providers.for_user(user), **extra)
+                        parallel_proposals=args.proposer != "manual", providers=providers.for_user(user), calibration=shipped, fast=not args.full, **extra)
+
+
+def run_plan(args: argparse.Namespace) -> dict[str, Any]:
+    """Iterations and held-out trials of a run: the workshop run's (one iteration, one trial), or with --full the
+    strategy's iterations inside the time box and two trials."""
+    if args.full:
+        return {"iterations": None, "heldout_trials": strategy.HELDOUT_TRIALS}
+    return {"iterations": strategy.WORKSHOP_ITERATIONS, "heldout_trials": strategy.WORKSHOP_HELDOUT_TRIALS}
 
 
 def _run_dir(base: str | None) -> Path:
@@ -174,7 +185,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     if s is None:
         return 2
     print("Strategy " + strategy.describe(s), flush=True)
-    if args.proposer != "manual":  # the seed calibration costs credits: a logged-out proposer must stop us before it
+    if args.proposer != "manual":  # a logged-out proposer must stop the run before anything is measured or posted
         ok, msg = proposer.probe(args.proposer)
         if not ok:
             print(f"Your coding agent does not answer: {msg}\nFix it (`aidev-evolve check` shows every step), or use --proposer manual.")
@@ -186,8 +197,8 @@ def cmd_run(args: argparse.Namespace) -> int:
         if problem:
             print(f"WARNING: {problem}", flush=True)
     try:
-        evo.run(heldout_trials=strategy.HELDOUT_TRIALS)
-    except launch.EvalJobError as e:  # the seed calibration or held-out Job failed: nothing to continue on
+        evo.run(**run_plan(args))
+    except launch.EvalJobError as e:  # a Job the run cannot go on without (the seed's, the held-out check's) failed
         print(f"\nAn evaluation Job failed: {e}\nFix the cause, then `aidev-evolve run --resume --run-dir {evo.run_dir}` "
               f"continues without repeating paid work.")
         return 1
@@ -207,7 +218,9 @@ def cmd_experiment(args: argparse.Namespace) -> int:
     summary = []
     for k in range(args.runs):
         evo = make_evolver(args, base / f"run{k + 1}")
-        st = evo.run(iterations=args.iterations, heldout_trials=args.heldout_trials)
+        plan = run_plan(args)
+        st = evo.run(iterations=plan["iterations"] if args.iterations is None else args.iterations,
+                     heldout_trials=plan["heldout_trials"] if args.heldout_trials is None else args.heldout_trials)
         summary.append({"run": k + 1, "incumbent": st["incumbent"], "kept": sum(h["verdict"] == "kept" for h in st["history"]),
                         "val_curve": st["curve"], "heldout": st["heldout"], "spend_usd": st["spend_usd"], "proposer_usd": st["proposer_usd"]})
         (base / "summary.json").write_text(json.dumps(summary, indent=2))
@@ -216,8 +229,11 @@ def cmd_experiment(args: argparse.Namespace) -> int:
 
 
 def cmd_strategies(args: argparse.Namespace) -> int:
-    print(f"Optimization strategies (fixed for everyone: model, {loop.default_splits()['budget_s']:.0f} s per task, the splits and held-out set, "
-          f"the seed, {strategy.HELDOUT_TRIALS} held-out trials, a {strategy.SESSION_MINUTES:.0f}-min session, at most ${strategy.USD_CAP:.0f}):\n")
+    print(f"Optimization strategies (fixed for everyone: model, {loop.default_splits()['budget_s']:.0f} s per task, the splits and held-out set, the seed).\n"
+          f"`run` is the workshop run: {strategy.WORKSHOP_ITERATIONS} iteration, the seed's scores measured before the workshop, "
+          f"{strategy.WORKSHOP_HELDOUT_TRIALS} held-out trial per task, one HF Job.\n"
+          f"`run --full` is the long run for home: the seed measured again, the strategy's iterations inside {strategy.SESSION_MINUTES:.0f} min, "
+          f"{strategy.HELDOUT_TRIALS} held-out trials, at most ${strategy.USD_CAP:.0f}.\n")
     for name in strategy.presets():
         print(strategy.describe(strategy.load(name)) + "\n")
     print("In the room, run your seating block's strategy:")
@@ -293,6 +309,11 @@ def _loop_args(p: argparse.ArgumentParser) -> None:
                       help=f"optimization strategy: a preset ({', '.join(strategy.presets())}) or a folder from `strategy-init`")
     pick.add_argument("--block", dest="strategy", type=_block, metavar="{" + ",".join(strategy.BLOCKS) + "}",
                       help="your seating block in the room: " + ", ".join(f"{b} = {s}" for b, s in strategy.BLOCKS.items()) + " (or A, B, C)")
+    p.add_argument("--full", action="store_true",
+                   help=f"the long run (for home, about 20 min): measure the seed again, the strategy's iterations inside a {strategy.SESSION_MINUTES:.0f}-min time box, "
+                        f"the re-measure in its own Job, {strategy.HELDOUT_TRIALS} held-out trials. Default: the workshop run (one iteration, one Job)")
+    p.add_argument("--measure-seed", action="store_true",
+                   help="measure the seed agent in a Job of its own instead of using the scores shipped with this version (always with --full, --seed, --splits or --budget-s)")
     p.add_argument("--budget-s", type=float, default=None, help="agent time per task (default: the budget the splits were selected for)")
     p.add_argument("--seed", default=None, help="starting agent.py (default: the bundled seed)")
     p.add_argument("--splits", default=None, help="splits JSON (default: the bundled splits)")
@@ -331,8 +352,8 @@ def build_parser() -> argparse.ArgumentParser:
     _loop_args(x)
     x.add_argument("--runs", type=int, default=3)
     x.add_argument("--iterations", type=int, default=None, help="(dev) iterations per run (default: the strategy's, inside the time box)")
-    x.add_argument("--heldout-trials", type=int, default=strategy.HELDOUT_TRIALS, help="(dev) 0 skips the held-out check")
-    x.add_argument("--no-time-box", action="store_true", help="(dev) no session time box")
+    x.add_argument("--heldout-trials", type=int, default=None, help="(dev) held-out trials per task (default: the run's; 0 skips the held-out check)")
+    x.add_argument("--no-time-box", action="store_true", help="(dev) with --full: no time box")
     x.set_defaults(fn=cmd_experiment)
     room = sub.add_parser("room-init", help="create an offline shared-seed proposal kit")
     room.add_argument("directory")

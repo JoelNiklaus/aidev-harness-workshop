@@ -46,7 +46,7 @@ def client(store, ev_store, limiter, mono):
 
 
 def H(user):
-    return _H(user, "aidev-evolve/0.5.3")  # the board takes events only from the frozen client (test_room_hardening.py)
+    return _H(user, "aidev-evolve/0.6.0")  # the board takes events only from the frozen client (test_room_hardening.py)
 
 
 def post(client, event, user="alice", **kw):

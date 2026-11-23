@@ -12,7 +12,7 @@ proposer never sees. Same model and benchmark as Part 1.
 
 ```bash
 # at home: uv installed, HF account with credits (coupon), `uvx hf auth login`, and Claude Code or Codex logged in
-W="https://github.com/JoelNiklaus/aidev-harness-workshop/releases/download/evolve-v0.5.3/aidev_evolve-0.5.3-py3-none-any.whl"
+W="https://github.com/JoelNiklaus/aidev-harness-workshop/releases/download/evolve-v0.6.0/aidev_evolve-0.6.0-py3-none-any.whl"
 uvx --from "$W" aidev-evolve check                       # HF login, your coding agent, the workshop board (free, seconds)
 uvx --from "$W" aidev-evolve strategies                  # the six presets: knobs, time, credits
 uvx --from "$W" aidev-evolve run --block left            # your seating block: left, middle or right (or --strategy <preset>); --proposer codex|manual
@@ -25,7 +25,7 @@ In the room each seating block runs one strategy, so the board has enough runs o
 Without `--block` or `--strategy`, `run` uses `code-audit`. The Part 2 start page of the board (`/evolve/join`)
 shows the three commands with Copy buttons.
 
-`<WHEEL_URL>` is today `https://github.com/JoelNiklaus/aidev-harness-workshop/releases/download/evolve-v0.5.3/aidev_evolve-0.5.3-py3-none-any.whl`
+`<WHEEL_URL>` is today `https://github.com/JoelNiklaus/aidev-harness-workshop/releases/download/evolve-v0.6.0/aidev_evolve-0.6.0-py3-none-any.whl`
 (a release asset of this public repo: no login needed; each evaluation Job downloads the same file).
 
 `run` prints the workshop board URL (`https://agent-harness-workshop-aidev-swarm.hf.space/evolve`) and then, per

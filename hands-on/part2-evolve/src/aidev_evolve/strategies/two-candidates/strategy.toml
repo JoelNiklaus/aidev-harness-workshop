@@ -1,9 +1,9 @@
 # Optimization strategy (edit the knobs below; `aidev-evolve strategy-init two-candidates my-strategy` makes a copy).
-# Fixed for everyone and refused here: model, time budget, splits, held-out set, seed, session length, credit cap.
+# Fixed for everyone and refused here: model, time budget, splits, held-out set, seed, the shape of the run, credit cap.
 name = "two-candidates"
 based_on = "two-candidates"
 description = "Two proposals per iteration, both measured, the better one goes through the keep rule; fewer iterations."
-iterations = 3        # most iterations; the 22-min session time box decides how many start (1..6)
+iterations = 3        # most iterations of `run --full` (1..6); the workshop run does one
 
 [evidence]
 traces = "all"        # "failed": failed search trajectories only; "all": failed first, then passed

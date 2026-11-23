@@ -37,9 +37,10 @@ def chart(points: list[float]) -> str:
     return "".join(BARS[min(len(BARS) - 1, round(p * (len(BARS) - 1)))] for p in points)
 
 
-def seed_summary(search: float, val: float, flip: float, margin: float, n_val: int, color: bool = False) -> str:
-    return (f"\n{paint('Seed agent', BOLD, color)}: search {pct(search)}, validation {pct(val)} (two trials per validation task)\n"
-            f"  noise: {100 * flip:.0f}% of validation tasks flip between two runs of the same agent -> keep a patch only if it gains "
+def seed_summary(search: float, val: float, flip: float, margin: float, n_val: int, color: bool = False, *, trials: int = 2, shipped: bool = False) -> str:
+    how = f"measured before the workshop, {trials} trials per validation task; nothing to pay" if shipped else f"{trials} trials per validation task"
+    return (f"\n{paint('Seed agent', BOLD, color)}: search {pct(search)}, validation {pct(val)} ({how})\n"
+            f"  noise: two runs of the same agent disagree on {100 * flip:.0f}% of validation tasks -> keep a patch only if it gains "
             f"at least {100 * margin:.0f} points ({margin * n_val:.1f} of {n_val} tasks)\n")
 
 

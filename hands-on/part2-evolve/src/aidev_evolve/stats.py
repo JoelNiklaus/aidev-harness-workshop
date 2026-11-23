@@ -29,9 +29,10 @@ def score(pt: dict[str, list[int]]) -> float:
 
 
 def flip_rate(pt: dict[str, list[int]]) -> float:
-    """Share of tasks whose first two trials disagree (the seed's run-to-run noise)."""
-    pairs = [v[:2] for v in pt.values() if len(v) >= 2]
-    return sum(a != b for a, b in pairs) / len(pairs) if pairs else 0.0
+    """The seed's run-to-run noise: the chance that two trials of the same task disagree, averaged over the tasks with
+    two or more trials (with exactly two trials: the share of tasks whose trials differ)."""
+    rates = [2 * sum(v) * (len(v) - sum(v)) / (len(v) * (len(v) - 1)) for v in pt.values() if len(v) >= 2]
+    return sum(rates) / len(rates) if rates else 0.0
 
 
 def margin(d: float, n: int, z: float = 1.0, k: int = 1) -> float:
