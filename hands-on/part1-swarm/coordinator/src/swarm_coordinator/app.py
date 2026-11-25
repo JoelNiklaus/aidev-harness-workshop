@@ -103,14 +103,12 @@ def create_app(store: Store, auth: Any, *, reference: list[dict[str, Any]], meta
                mono: Callable[[], float] = time.monotonic, state_ttl_s: float = STATE_TTL_S, lifespan: Any = None,
                runner_dir: Path | None = None, evolve_store: evolve.EvolveStore | None = None,
                evolve_reference: list[dict[str, Any]] | None = None, evolve_limiter: evolve.RateLimiter | None = None,
-               evolve_readme: Path | None = None, loadtest_users: frozenset[str] = frozenset(),
-               coupons: dict[str, str] | None = None) -> FastAPI:
+               evolve_readme: Path | None = None, loadtest_users: frozenset[str] = frozenset()) -> FastAPI:
     app = FastAPI(title="aidev swarm coordinator", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     app.add_middleware(GZipMiddleware, minimum_size=500)  # the pages fit the first round trip through the HF edge
     board, evolve_page = _static("board.html"), _static("evolve.html")
-    coupons = coupons or {}  # each session's shared coupon link, shown on its start page (cli.room_settings)
-    join_page = join.page(runner_dir or paths.runner_dir(), coupons.get("part1"))  # rendered once: a README without the wheel URL fails at start
-    evolve_join_page = join.evolve_page(evolve_readme or paths.evolve_dir() / "README.md", coupons.get("part2"))
+    join_page = join.page(runner_dir or paths.runner_dir())  # rendered once: a README without the wheel URL fails at start
+    evolve_join_page = join.evolve_page(evolve_readme or paths.evolve_dir() / "README.md")
     evolve_store = evolve_store or evolve.EvolveStore()
     evolve_limiter = evolve_limiter or evolve.RateLimiter(per_minute=EVOLVE_PER_MINUTE, burst=EVOLVE_BURST)
     swarm_state = CachedJson(lambda: build_state(store.grid, store.snapshot(), reference, meta, mode=mode), mono, state_ttl_s)

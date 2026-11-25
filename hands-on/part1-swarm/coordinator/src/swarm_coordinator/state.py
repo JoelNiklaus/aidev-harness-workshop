@@ -57,7 +57,7 @@ def by_provider(results: list[dict[str, Any]]) -> dict[str, int]:
 
 def build_state(grid: Grid, snap: dict[str, Any], reference: list[dict[str, Any]], meta: dict[str, dict[str, str]], *, mode: str) -> dict[str, Any]:
     in_grid = {c.cell_id for c in grid.cells}
-    results = [r for r in snap["results"] if r["cell_id"] in in_grid]
+    results = [r for r in snap["results"] if r["cell_id"] in in_grid or (r["harness"] in grid.harnesses and r["task"] in grid.tasks and r["trial"] >= grid.trials_per_cell)]
     status = {r["cell_id"]: ("p" if r["passed"] else "f") for r in results}
     running = {le["cell_id"] for le in snap["leases"]}
     rows = {}
@@ -74,7 +74,8 @@ def build_state(grid: Grid, snap: dict[str, Any], reference: list[dict[str, Any]
     contributors = {r["hf_user"] for r in results} | {le["user"] for le in snap["leases"]}
     return {
         "mode": mode, "model": grid.model, "generated_at": snap["now"], "version": snap["version"],
-        "counts": {"cells_total": len(in_grid), "done": len(results), "passed": sum(1 for r in results if r["passed"]),
+        "counts": {"cells_total": len(in_grid), "done": len(results), "base_done": sum(r["cell_id"] in in_grid for r in results),
+                   "extra_done": sum(r["cell_id"] not in in_grid for r in results), "passed": sum(1 for r in results if r["passed"]),
                    "running": len(running), "contributors": len(contributors), "max_claims_per_cell": snap["max_claims"],
                    "by_provider": by_provider(results)},
         "harnesses": harnesses,

@@ -14,7 +14,6 @@ import dataclasses
 import json
 import logging
 import os
-import re
 import sys
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -46,6 +45,7 @@ def parse(argv: list[str] | None = None) -> argparse.Namespace:
     ap.add_argument("--replay-minutes", type=float, default=20.0, help="replay length (swarm results and evolve runs alike)")
     ap.add_argument("--evolve-recorded", default=str(paths.evolve_replay_path()), help="recorded evolve runs (replay and live backdrop)")
     ap.add_argument("--replay-concurrency", type=int, default=150, help="virtual runners in the replay")
+    ap.add_argument("--claim-window-s", type=int, default=1080, help="live claim window in seconds (0: base grid only)")
     ap.add_argument("--fake-auth", action="store_true", help="load tests only: the bearer token is the username")
     ap.add_argument("--lease-s", type=float, default=LEASE_S, help="lease length; load tests shorten it")
     return ap.parse_args(argv)
@@ -74,32 +74,22 @@ def loadtest_users(env: dict[str, str]) -> frozenset[str]:
     return users
 
 
-COUPON_URL = re.compile(r"^https://(huggingface\.co|hf\.co)/[A-Za-z0-9._~/?=&%+-]+$")
 MAX_TRIALS_PER_CELL = 10
 
 
-def room_settings(env: dict[str, str], grid: Grid) -> tuple[dict[str, str], Grid]:
-    """What Joel sizes for the room with Space variables (`deploy --coupon-part1 ... --trials-per-cell N`): each session's
-    shared coupon link for its start page, and more trials per cell than grid.json's (a larger grid for a larger room;
-    the first trials stay the reference layer's). A bad value stops the start: it must fail on staging, not in the room."""
-    coupons = {}
-    for part in ("part1", "part2"):
-        key = f"SWARM_COUPON_{part.upper()}"
-        if env.get(key):
-            if not COUPON_URL.match(env[key]):
-                raise SystemExit(f"{key} must be a plain https://huggingface.co/... link")
-            coupons[part] = env[key]
+def room_settings(env: dict[str, str], grid: Grid) -> Grid:
+    """Size the base grid. Private credits never enter the app."""
     raw = env.get("SWARM_TRIALS_PER_CELL")
     if raw:
         if not raw.isdigit() or not grid.trials_per_cell <= int(raw) <= MAX_TRIALS_PER_CELL:
             raise SystemExit(f"SWARM_TRIALS_PER_CELL must be a whole number from {grid.trials_per_cell} (grid.json) to {MAX_TRIALS_PER_CELL}")
         grid = dataclasses.replace(grid, trials_per_cell=int(raw), run_config={**grid.run_config, "trials_per_cell": int(raw)})
-    return coupons, grid
+    return grid
 
 
 def build(args: argparse.Namespace, *, env: dict[str, str] | None = None, hub_api: Any = None) -> Components:
     env = dict(os.environ) if env is None else env
-    coupons, grid = room_settings(env, Grid.load(args.grid))
+    grid = room_settings(env, Grid.load(args.grid))
     prices = json.loads(Path(args.prices).read_text())
     reference = load_results(args.reference) if Path(args.reference).exists() else []
     meta = json.loads(paths.harness_meta_path().read_text())
@@ -121,7 +111,7 @@ def build(args: argparse.Namespace, *, env: dict[str, str] | None = None, hub_ap
             sink = NullSink()
             log.warning("SWARM_BUCKET is not set: results live only in this process")
 
-    store = Store(grid, prices, sink=sink, db_path=args.db, lease_s=args.lease_s)
+    store = Store(grid, prices, sink=sink, db_path=args.db, lease_s=args.lease_s, extra_seconds=0 if args.replay else args.claim_window_s)
     n = store.restore()
     if n:
         log.info("restored %d results from %s", n, env.get("SWARM_BUCKET"))
@@ -149,7 +139,7 @@ def build(args: argparse.Namespace, *, env: dict[str, str] | None = None, hub_ap
         sink.close()
 
     app = create_app(store, auth, reference=reference, meta=meta, mode=mode, lifespan=lifespan, evolve_store=evolve_store,
-                     evolve_reference=reference_curves(recorded), loadtest_users=loadtest_users(env), coupons=coupons)
+                     evolve_reference=reference_curves(recorded), loadtest_users=loadtest_users(env))
     return Components(app, store, auth, sink, replayer, mode, evolve_store, evolve_replayer, loadtest_users(env))
 
 

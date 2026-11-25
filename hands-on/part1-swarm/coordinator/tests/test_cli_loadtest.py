@@ -63,8 +63,8 @@ def test_live_mode_without_a_bucket_runs_unpersisted(files):
 
 def test_fake_auth_is_refused_on_a_space(files):
     with pytest.raises(SystemExit):
-        build(parse(["--fake-auth", *files]), env={"SPACE_ID": "agent-harness-workshop/aidev-swarm"})
-    assert isinstance(build(parse(["--fake-auth", *files]), env={}).auth, FakeAuth)
+        build(parse(["--claim-window-s", "0", "--fake-auth", *files]), env={"SPACE_ID": "agent-harness-workshop/aidev-swarm"})
+    assert isinstance(build(parse(["--claim-window-s", "0", "--fake-auth", *files]), env={}).auth, FakeAuth)
 
 
 def test_percentile():
@@ -93,7 +93,7 @@ def test_loadtest_fills_the_grid_without_double_claims(files):
     grid_file = files[1]
     with open(grid_file, "w") as f:
         json.dump(big, f)
-    c = build(parse(["--fake-auth", *files]), env={})
+    c = build(parse(["--claim-window-s", "0", "--fake-auth", *files]), env={})
     transport = httpx.ASGITransport(app=c.app)
     report = asyncio.run(run_loadtest("http://test", n_runners=25, transport=transport, viewers=3))
     assert report["cells_total"] == report["cells_done"] == 90
@@ -109,7 +109,7 @@ def test_parallel_runners_fill_the_grid_each_within_its_limit_and_share(files):
     big = {**GRID, "tasks": [f"t{i}" for i in range(10)], "trials_per_cell": 3}
     with open(files[1], "w") as f:
         json.dump(big, f)
-    c = build(parse(["--fake-auth", *files]), env={})
+    c = build(parse(["--claim-window-s", "0", "--fake-auth", *files]), env={})
     transport = httpx.ASGITransport(app=c.app)
     report = asyncio.run(run_loadtest("http://test", n_runners=6, transport=transport, parallel=4, trial_s=(0.05, 0.1),
                                       heartbeat_s=0.05, wait_s=0.02))
@@ -127,7 +127,7 @@ def test_loadtest_with_killed_runners_reclaims_their_cells_within_a_lease_and_co
     with open(files[1], "w") as f:
         json.dump(small, f)
     lease = 0.6  # 6 heartbeats: a loaded machine stalling the loop for a beat or two never costs a live runner its lease
-    c = build(parse(["--fake-auth", "--lease-s", str(lease), *files]), env={})
+    c = build(parse(["--claim-window-s", "0", "--fake-auth", "--lease-s", str(lease), *files]), env={})
     transport = httpx.ASGITransport(app=c.app)
     report = asyncio.run(run_loadtest("http://test", n_runners=20, transport=transport, kill_frac=0.1, trial_s=(0.5, 0.8),
                                       heartbeat_s=0.1, wait_s=0.05))
@@ -179,7 +179,7 @@ def test_replay_mode_streams_the_recorded_evolve_runs(files):
 def test_evolve_loadtest_posts_every_attendees_events_and_the_board_counts_them(files):
     from swarm_coordinator.loadtest import run_evolve_loadtest
 
-    c = build(parse(["--fake-auth", *files]), env={})
+    c = build(parse(["--claim-window-s", "0", "--fake-auth", *files]), env={})
     transport = httpx.ASGITransport(app=c.app)
     report = asyncio.run(run_evolve_loadtest("http://test", attendees=30, interval_s=0.05, iterations=3, viewers=2, transport=transport))
     assert report["errors"] == 0 and report["rate_limited"] == 0

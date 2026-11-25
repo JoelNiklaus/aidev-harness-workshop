@@ -1,12 +1,74 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Agent Harnesses workshop · AI Dev NYC</title></head>
-<body style="font:22px/1.5 system-ui,sans-serif;padding:24px;max-width:900px;margin:0 auto">
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent Harnesses workshop · AI Dev NYC</title>
+<style>
+:root{--bg:#0b0f17;--panel:#121826;--line:#243047;--fg:#f3f6fb;--mute:#a3b0c4;--acc:#ffd21e;--code:#05080e}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg);font:500 22px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+main{max-width:1040px;margin:0 auto;padding:20px 16px 48px}
+h1{font-size:36px;line-height:1.15;margin:8px 0 6px}
+.lead{color:var(--mute);margin:0 0 18px}
+a{color:var(--acc)}
+.board{display:inline-block;font-weight:700;text-decoration:none;border:2px solid var(--acc);border-radius:12px;padding:8px 16px;margin:4px 0 8px}
+section{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px 18px;margin:18px 0}
+h2{font-size:28px;margin:0 0 8px;display:flex;gap:12px;align-items:center}
+h2 b{flex:none;display:inline-grid;place-items:center;width:42px;height:42px;border-radius:50%;background:var(--acc);color:#111}
+p{margin:8px 0}
+.label{color:var(--mute);font-size:20px;margin:12px 0 4px}
+.box{position:relative;background:var(--code);border:1px solid var(--line);border-radius:12px;margin:6px 0}
+pre{margin:0;padding:14px 16px 58px;font:500 19px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
+button{position:absolute;right:10px;bottom:10px;font:700 20px system-ui,sans-serif;padding:8px 22px;border:0;border-radius:10px;background:var(--acc);color:#111;cursor:pointer;min-height:44px}
+button.ok{background:#22c55e}
+@media (min-width:700px){html,body{font-size:26px} h1{font-size:48px} h2{font-size:32px} .label{font-size:22px} pre{font-size:22px} button{font-size:22px}}
+html,body{font-size:18px;overflow-wrap:anywhere}
+h1{font-size:30px}
+h2{font-size:22px}
+h2 b{width:36px;height:36px}
+.label{font-size:17px}
+pre{font-size:15px}
+pre.out{padding-bottom:14px;border:1px solid var(--line);border-radius:12px;background:var(--code);color:var(--mute);margin:6px 0}
+code{font:500 .88em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:var(--code);border-radius:6px;padding:1px 5px}
+ul,ol{margin:8px 0;padding-left:24px}
+li{margin:8px 0}
+.nav{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}
+.nav a{display:inline-flex;align-items:center;min-height:48px;padding:6px 16px;border:2px solid var(--line);border-radius:12px;font-weight:700;text-decoration:none}
+.cards a{display:block;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px 18px;margin:14px 0;text-decoration:none;color:var(--fg)}
+.cards a b{display:block;color:var(--acc);font-size:22px}
+.doc h2{display:block;margin:28px 0 8px}
+table{border-collapse:collapse;width:100%;margin:12px 0}
+th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+@media (max-width:699px){thead{display:none} table,tbody,tr,td{display:block} tr{margin:12px 0} td{border-width:0 1px 1px} tr td:first-child{border-top-width:1px;background:var(--panel)}
+td:not(:first-child)::before{content:attr(data-label);display:block;color:var(--mute);font-size:15px}}
+@media (min-width:700px){html,body{font-size:20px} h1{font-size:40px} h2{font-size:26px} .label{font-size:18px} pre{font-size:17px} button{font-size:18px}}
+</style>
+</head>
+<body>
+<main>
 <h1>Agent Harnesses workshop, AI Dev NYC 2026</h1>
-<ul>
-<li>Part 1: join the swarm: <a href="https://niklaus.ai/aidev-harness-workshop/1">https://niklaus.ai/aidev-harness-workshop/1</a></li>
-<li>Part 2: evolve the harness: <a href="https://niklaus.ai/aidev-harness-workshop/2">https://niklaus.ai/aidev-harness-workshop/2</a></li>
-<li>Run the loop on your own agent: <a href="https://niklaus.ai/aidev-harness-workshop/guide">https://niklaus.ai/aidev-harness-workshop/guide</a></li>
-<li><a href="https://github.com/JoelNiklaus/aidev-harness-workshop">Code</a></li>
-</ul>
-</body></html>
+<p class="lead">Everything you need for the two hands-on sessions: what to install, the commands to copy, and what to do when a step fails.</p>
+<div class="cards">
+<a href="1/"><b>Part 1: join the swarm</b>Mon 30 Nov. Your laptop starts one Hugging Face Job that runs Terminal-Bench 2.1 tasks in different agent harnesses, and we fill one live leaderboard together.</a>
+<a href="2/"><b>Part 2: evolve the harness</b>Tue 1 Dec. Your coding agent proposes changes to a small agent's harness, and a loop keeps only the changes that score better.</a>
+<a href="guide/"><b>Guide: run the loop on your own agent</b>After the workshop. What you need to bring, and a toy example that runs in 3 minutes for under one cent.</a>
+</div>
+<nav class="nav"><a href="https://agent-harness-workshop-aidev-swarm.hf.space/">Live board</a><a href="https://github.com/JoelNiklaus/aidev-harness-workshop">Code on GitHub</a></nav>
+</main>
+<script>
+for (const b of document.querySelectorAll("button[data-copy]")) {
+  b.addEventListener("click", async () => {
+    const el = document.getElementById(b.dataset.copy);
+    try { await navigator.clipboard.writeText(el.textContent); }
+    catch {  // no clipboard API (plain http, old browser): select the text and copy it
+      const r = document.createRange(); r.selectNodeContents(el);
+      const s = getSelection(); s.removeAllRanges(); s.addRange(r); document.execCommand("copy");
+    }
+    b.textContent = "Copied"; b.classList.add("ok");
+    setTimeout(() => { b.textContent = "Copy"; b.classList.remove("ok"); }, 1500);
+  });
+}
+</script>
+</body>
+</html>

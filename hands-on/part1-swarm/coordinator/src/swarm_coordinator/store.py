@@ -95,8 +95,10 @@ def validate(result: Any) -> None:
 
 class Store:
     def __init__(self, grid: Grid, prices: dict[str, dict[str, Any]], *, clock: Callable[[], float] = time.time,
-                 sink: Sink | None = None, db_path: str = ":memory:", lease_s: float = LEASE_S):
+                 sink: Sink | None = None, db_path: str = ":memory:", lease_s: float = LEASE_S, extra_seconds: float = 0):
         self.grid, self.clock, self.sink, self.lease_s = grid, clock, sink, lease_s
+        self.extra_seconds = extra_seconds
+        self.start: float | None = None
         self.price = prices[grid.model]
         self._lock = threading.Lock()
         self._db = sqlite3.connect(db_path, check_same_thread=False, isolation_level=None)
@@ -128,7 +130,7 @@ class Store:
         return row[4] if row[4] is not None and row[5] is not None and row[5] > now else None
 
     def _leases(self, now: float) -> list[dict[str, Any]]:
-        return [{"cell_id": c, "user": u, "expires": e} for c, u, e in self._db.execute(
+        return [{"cell_id": c, "user": u, "expires": e, **({"room_start": self.start} if self.extra_seconds else {})} for c, u, e in self._db.execute(
             "SELECT cell_id, lease_user, lease_expires FROM cells WHERE done=0 AND lease_user IS NOT NULL AND lease_expires>? ORDER BY ord", (now,))]
 
     def _changed(self, now: float) -> None:
@@ -150,6 +152,16 @@ class Store:
         ramp = 2 + int((now - self._first.get(user, now)) / RAMP_S)
         return max(1, min(ramp, math.ceil(open_cells / max(1, len(active)))))
 
+    def _extra_cell(self, h: str, t: str, k: int) -> str:
+        cid = f"{h}__{t}__{k}"
+        self._db.execute("INSERT OR IGNORE INTO cells(cell_id,ord,harness,task,trial) SELECT ?,MAX(ord)+1,?,?,? FROM cells", (cid,h,t,k))
+        return cid
+
+    def _restore_extra(self, cid: str) -> None:
+        parts = cid.split("__")
+        if len(parts) == 3 and parts[0] in self.grid.harnesses and parts[1] in self.grid.tasks and parts[2].isdigit() and int(parts[2]) >= self.grid.trials_per_cell:
+            self._extra_cell(parts[0], parts[1], int(parts[2]))
+
     # ------------------------------------------------------------ protocol operations
 
     def claim(self, user: str, limit: int = 1) -> list[dict[str, Any]]:
@@ -159,6 +171,10 @@ class Store:
             raise Invalid(f"limit must be from 1 to {MAX_LEASES}")
         with self._lock:
             now = self.clock()
+            if self.start is None:
+                self.start = now
+            if self.extra_seconds and now >= self.start + self.extra_seconds:
+                return []
             self._seen[user] = now
             self._first.setdefault(user, now)
             share = self._share(user, now)
@@ -169,6 +185,13 @@ class Store:
             rows = self._db.execute(
                 "SELECT cell_id, harness, task, trial FROM cells WHERE done=0 AND (lease_user IS NULL OR lease_expires<=?) ORDER BY ord LIMIT 1",
                 (now,)).fetchall()
+            if not rows and self.extra_seconds:
+                # Spread repeats across pairs; within each wave, shorter observed tasks go first.
+                pair = self._db.execute("""SELECT harness,task,MAX(trial)+1 AS k FROM cells LEFT JOIN results USING(cell_id)
+                    GROUP BY harness,task ORDER BY k,COALESCE(AVG(json_extract(json,'$.wall_s')),1e9),MIN(ord) LIMIT 1""").fetchone()
+                if pair:
+                    h,t,k = pair
+                    rows = [(self._extra_cell(h,t,k),h,t,k)]
             if not rows:
                 return []
             expires = now + self.lease_s
@@ -235,7 +258,7 @@ class Store:
                 log.warning("late result for %s from %s rejected: %s holds the cell now", cid, user, holder)
                 raise Conflict(f"the lease on {cid} belongs to someone else")
             stored = {**result, "hf_user": user, "cost_usd_reported": result["cost_usd"],
-                      "cost_usd": round(cost_usd(result, self.price), 6), "received_at": iso(now)}
+                      "cost_usd": round(cost_usd(result, self.price), 6), "received_at": iso(now), **({"room_start": self.start} if self.extra_seconds else {})}
             self._db.execute("INSERT INTO results(cell_id, hf_user, received, json) VALUES (?,?,?,?)", (cid, user, now, json.dumps(stored)))
             self._db.execute("UPDATE cells SET done=1, lease_user=NULL, lease_expires=NULL WHERE cell_id=?", (cid,))
             if self.sink is not None:
@@ -271,13 +294,18 @@ class Store:
         results, leases = self.sink.load()
         with self._lock:
             now = self.clock()
+            if self.extra_seconds and (results or leases):
+                times = [r["room_start"] for r in results + leases if isinstance(r.get("room_start"), (int, float))]
+                self.start = min([now, *times])
             for r in results:
+                self._restore_extra(r["cell_id"])
                 self._db.execute("INSERT OR REPLACE INTO results(cell_id, hf_user, received, json) VALUES (?,?,?,?)",
                                  (r["cell_id"], r.get("hf_user"), _parse_ts(r.get("received_at"), now), json.dumps(r)))
                 self._db.execute("UPDATE cells SET done=1 WHERE cell_id=?", (r["cell_id"],))
             # A restart outlasts a short lease: every saved lease starts a fresh one now, so a live runner's next
             # heartbeat keeps its cell and a dead runner's cell returns one lease later.
             for le in leases:
+                self._restore_extra(le["cell_id"])
                 self._db.execute("UPDATE cells SET lease_user=?, lease_expires=?, n_claims=n_claims+1 WHERE cell_id=? AND done=0",
                                  (le["user"], max(le["expires"], now + self.lease_s), le["cell_id"]))
             self.version += 1

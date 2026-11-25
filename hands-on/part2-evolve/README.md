@@ -49,15 +49,14 @@ To run the loop on your own agent and tasks, read [APPLY-TO-YOUR-AGENT.md](APPLY
 `my-strategy/strategy.toml` (which trajectories the proposer reads, how much history, 1 or 2 candidates per iteration,
 validation trials, keep margin z, re-measure, iterations) and `my-strategy/proposer_prompt.md` (how your coding agent
 should approach a patch), then `aidev-evolve run --strategy my-strategy`. Fixed for everyone, so strategies compete
-fairly: the model, 180 s per task, the splits and the 21 held-out tasks, the seed, 2 held-out trials, a 22-minute
-session (a new iteration starts only if it and the held-out check still fit) and at most $2 of HF credits.
+fairly: the model, 180 s per task, the splits and the 21 held-out tasks, the seed and at most $2 of HF credits. The workshop uses a measured seed and one iteration. Validation alone decides which patch to keep. Use `--full` for the longer experiment.
 
-Every run ends with the seed and your final agent on the 21 held-out tasks (2 trials each, about 4-5 min, $0.25) and a
+Every run ends with the seed and your final agent on the 21 held-out tasks (one trial each in the workshop, two in `--full`) and a
 paired gain with a 95% CI. One run's interval is about ±18 points (20 runs: half-widths 14 to 24), so the board ranks **strategies**, pooling every
 run of the same strategy (and every edit of a preset), with Welch intervals and leaderboard-style ties
 (`aidev-evolve rank runs/*` does the same offline). Details: DESIGN.md, "Phase 3" and "Phase 4".
 
-Measured on 20 real runs (PROGRESS.md, Phase 4): `code-audit` (read agent.py line by line, then fix every harmful
+In the earlier long-format experiment, measured on 20 real runs (PROGRESS.md, Phase 4): `code-audit` (read agent.py line by line, then fix every harmful
 line in one patch) reached 70% on the held-out tasks, ahead of `every-weakness` (58%) and `baseline` (50%; seed 35%),
 and the board would rank it first on its own. About 3 min for the seed, 4-5 min per iteration (7-8 with a re-measure),
 2 iterations per session, $0.4-0.8 per run.
@@ -103,4 +102,4 @@ uv run aidev-evolve eval --agent src/aidev_evolve/seed/agent.py --tasks fix-git,
 python devtools/fake_board.py       # the /evolve board stand-in on :8766
 ```
 
-On staging, 40 loops with one scripted proposal took 29 minutes at the median and 34 minutes at the slowest. The 22-minute budget is not a finish deadline. Use `aidev-evolve replay` for the debrief if your live result is not ready.
+The 18-minute target is measured from launch to the held-out result. It has not yet been verified with 40 concurrent workshop runs. If the result is late, use `aidev-evolve replay` for the debrief.

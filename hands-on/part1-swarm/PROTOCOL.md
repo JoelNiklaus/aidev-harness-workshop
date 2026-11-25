@@ -52,3 +52,6 @@ Auth: every POST carries `Authorization: Bearer <attendee HF token>`; the coordi
 A claim beyond the user's lease limit or share returns 409 with `held` (cells already held) and `share`; cell ids are `<harness>__<task>__<trial>`; bad requests 422; Hub outage during auth 503. The HF edge rate-limits per IP (429 after ~870 fast requests): runners keep unsent results and retry for at least 30 min; the board polls every 10 s with backoff.
 
 Development: every test fakes the external calls (Hub, Jobs, sandboxes, model) and the suites run in seconds. Tokens never appear in logs.
+
+### Second round (live mode)
+Free base trials take priority. When all remaining base trials are leased, the coordinator allocates unique repeat trials. Within each repeat wave it tries the shortest observed harness/task pairs first. New claims stop 18 minutes after the first claim; running trials can still submit. The board shows base completion and extra results separately. Both count toward the room scores; the reference stays fixed. Replay uses only the base grid.

@@ -19,7 +19,7 @@ uvx --from "https://github.com/JoelNiklaus/aidev-harness-workshop/releases/downl
 
 ## Part 1 in the room
 
-Start page with Copy buttons (live on the day): https://niklaus.ai/aidev-harness-workshop/1
+Start page with every step, the commands to copy and the usual fixes: https://niklaus.ai/aidev-harness-workshop/1
 
 ```bash
 uvx --from "https://github.com/JoelNiklaus/aidev-harness-workshop/releases/download/swarm-v0.4.3/aidev_swarm-0.4.3-py3-none-any.whl" aidev-swarm launch
@@ -40,7 +40,7 @@ Change `--harness` (for example `pi`, `openclaw`, `codex`) or `--task` (any task
 
 ## Part 2 in the room
 
-Start page with Copy buttons (live on the day): https://niklaus.ai/aidev-harness-workshop/2
+Start page with every step, the commands to copy and the usual fixes: https://niklaus.ai/aidev-harness-workshop/2
 
 ```bash
 W="https://github.com/JoelNiklaus/aidev-harness-workshop/releases/download/evolve-v0.6.0/aidev_evolve-0.6.0-py3-none-any.whl"
@@ -54,7 +54,7 @@ Each seating block runs one optimization strategy (`left` = `baseline`, `middle`
 
 ## After Part 2: the loop on your own agent
 
-[`APPLY-TO-YOUR-AGENT.md`](hands-on/part2-evolve/APPLY-TO-YOUR-AGENT.md) (short link: https://niklaus.ai/aidev-harness-workshop/guide) shows what you need (tasks with a pass/fail check, three splits, your harness in one file, a coding agent) and a toy example that runs in 3 minutes for under one cent.
+[`APPLY-TO-YOUR-AGENT.md`](hands-on/part2-evolve/APPLY-TO-YOUR-AGENT.md) (as a page: https://niklaus.ai/aidev-harness-workshop/guide) shows what you need (tasks with a pass/fail check, three splits, your harness in one file, a coding agent) and a toy example that runs in 3 minutes for under one cent.
 
 ## Layout
 
@@ -78,4 +78,4 @@ cd hands-on/part2-evolve && uv run python -m pytest -q
 
 Apache-2.0, see [LICENSE](LICENSE).
 
-On staging, 40 loops with one scripted proposal took 29 minutes at the median and 34 minutes at the slowest. The 22-minute budget is not a finish deadline. Use `aidev-evolve replay` for the debrief if your live result is not ready.
+The 18-minute target is measured from launch to the held-out result. It has not yet been verified with 40 concurrent workshop runs. If the result is late, use `aidev-evolve replay` for the debrief.

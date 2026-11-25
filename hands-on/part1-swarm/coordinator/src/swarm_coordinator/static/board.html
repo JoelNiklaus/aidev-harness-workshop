@@ -107,7 +107,7 @@ const light = (hex, a = 0.35) => "#" + [1, 3, 5].map(i => Math.round(parseInt(he
 
 function header(s) {
   const c = s.counts;
-  $("done").innerHTML = num(c.done) + " <span>/ " + num(c.cells_total) + " trials</span>";
+  $("done").innerHTML = num(c.base_done) + " <span>/ " + num(c.cells_total) + " base · +" + num(c.extra_done) + " extra</span>";
   $("running").textContent = num(c.running);
   $("people").textContent = num(c.contributors);
   $("mode").innerHTML = s.mode === "replay" ? '<span class="badge">REPLAY</span>' : "";

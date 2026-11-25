@@ -167,35 +167,16 @@ def _pages(store, **kw):
     return c.get("/join").text, c.get("/evolve/join").text
 
 
-def test_each_start_page_links_its_sessions_coupon_above_the_first_step(store):
-    one, two = "https://huggingface.co/coupons/part-one", "https://huggingface.co/coupons/part-two"
-    p1, p2 = _pages(store, coupons={"part1": one, "part2": two})
-    assert f'href="{one}"' in p1 and two not in p1 and p1.index(one) < p1.index("Install uv")
-    assert f'href="{two}"' in p2 and one not in p2 and p2.index(two) < p2.index("Check your setup")
-    assert "$10" in p1 and "logged in" in p1  # what the link does and the one condition
-
-
-def test_without_a_coupon_setting_the_pages_show_no_coupon(store):
-    p1, p2 = _pages(store)
-    assert "coupon" not in p1.lower() and "coupon" not in p2.lower()
-
-
-@pytest.mark.parametrize("bad", ["javascript:alert(1)", "http://huggingface.co/x", 'https://x.org/"><script>', "https://evil.example/coupon"])
-def test_a_coupon_setting_that_is_not_a_plain_hugging_face_link_stops_the_start(tmp_path, bad):
-    """The value comes from a Space variable: a typo must fail at start, on staging, not show a broken link in the room."""
-    with pytest.raises(SystemExit, match="SWARM_COUPON_PART1"):
-        cli.build(cli.parse(_files(tmp_path)), env={"SWARM_COUPON_PART1": bad})
-
-
-def test_the_coordinator_reads_the_coupon_links_and_the_trials_per_cell_from_its_environment(tmp_path):
-    env = {"SWARM_COUPON_PART1": "https://huggingface.co/coupons/a", "SWARM_COUPON_PART2": "https://huggingface.co/coupons/b", "SWARM_TRIALS_PER_CELL": "5"}
-    c = cli.build(cli.parse(_files(tmp_path)), env=env)
-    page = TestClient(c.app).get("/join").text
-    assert "https://huggingface.co/coupons/a" in page
-    assert c.store.grid.trials_per_cell == 5 and len(c.store.grid.cells) == 3 * 2 * 5  # the test grid: 3 harnesses x 2 tasks
-    state = TestClient(c.app).get("/api/state").json()
+def test_private_links_never_reach_start_pages(tmp_path):
+    secret = "https://huggingface.co/private-sentinel"
+    c = cli.build(cli.parse(_files(tmp_path)), env={"SWARM_COUPON_PART1": secret, "SWARM_COUPON_PART2": secret, "SWARM_TRIALS_PER_CELL": "5"})
+    client = TestClient(c.app)
+    for path in ("/join", "/evolve/join"):
+        assert secret not in client.get(path).text
+        assert "Credits for today" not in client.get(path).text
+    state = client.get("/api/state").json()
     assert state["counts"]["cells_total"] == 30 and state["grid"]["trials"] == 5
-    assert all(len(row) == 2 * 5 for row in state["grid"]["rows"].values())
+    assert all(len(row) == 10 for row in state["grid"]["rows"].values())
 
 
 def test_more_trials_per_cell_keep_the_order_every_task_once_before_any_task_twice(tmp_path):
@@ -213,10 +194,8 @@ def test_trials_per_cell_can_only_grow_within_bounds(tmp_path, bad):
 
 def test_deploy_sets_and_clears_the_room_settings(tmp_path):
     hub = VarHub()
-    deploy.deploy(*deploy.TARGETS["staging"], api=hub, token_file=token_file(tmp_path), staging=True,
-                  settings={"SWARM_COUPON_PART1": "https://huggingface.co/coupons/a", "SWARM_TRIALS_PER_CELL": "5"})
-    assert hub.variables["SWARM_COUPON_PART1"] == "https://huggingface.co/coupons/a" and hub.variables["SWARM_TRIALS_PER_CELL"] == "5"
-    assert "SWARM_COUPON_PART2" not in hub.variables
-    deploy.deploy(*deploy.TARGETS["staging"], api=hub, token_file=token_file(tmp_path), staging=True, settings={"SWARM_TRIALS_PER_CELL": ""})
-    assert "SWARM_TRIALS_PER_CELL" not in hub.variables  # an empty value removes the setting
-    assert hub.variables["SWARM_COUPON_PART1"] == "https://huggingface.co/coupons/a"  # a setting that is not named stays as it is
+    with pytest.raises(ValueError):
+        deploy.deploy(*deploy.TARGETS["staging"], api=hub, settings={"SWARM_COUPON_PART1": "private"})
+    for value in ("5", ""):
+        deploy.deploy(*deploy.TARGETS["staging"], api=hub, token_file=token_file(tmp_path), staging=True, settings={"SWARM_TRIALS_PER_CELL": value})
+        assert hub.variables.get("SWARM_TRIALS_PER_CELL") == (value or None)
