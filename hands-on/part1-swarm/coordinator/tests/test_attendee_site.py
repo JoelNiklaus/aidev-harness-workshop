@@ -99,6 +99,9 @@ def test_each_part_shows_the_output_that_means_you_are_in_as_the_tools_print_it(
         assert fragment in swarm_cli, fragment
         assert re.sub(r"\s+", " ", fragment.replace("{user}", "<you>")).strip() in t1, fragment
     assert f"Board: {BOARD}" in t1
+    launch_py = (paths.runner_dir() / "src" / "aidev_swarm" / "launch.py").read_text()
+    parallel = re.search(r"(?m)^DEFAULT_PARALLEL = (\d+)", launch_py).group(1)
+    assert "trials until the grid is full" in swarm_cli and f"it runs trials until the grid is full, up to {parallel} at once on Hugging Face" in t1
     for fragment in ("ready: start your loop with `aidev-evolve run --proposer ", "Workshop board: ", "(your progress appears there; --no-board keeps it private)"):
         assert fragment in evolve_cli, fragment
         assert fragment.strip() in t2, fragment

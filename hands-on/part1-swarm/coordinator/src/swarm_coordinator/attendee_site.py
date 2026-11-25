@@ -149,7 +149,7 @@ def markdown(md: str) -> str:
         elif line.startswith((">", " ", "\t")):
             raise ValueError(f"markdown the guide page does not render: {line[:80]!r}")
         else:
-            para = []
+            para, i = [line.strip()], i + 1  # always consumes its first line, so the loop cannot stall
             while i < len(lines) and lines[i].strip() and not lines[i].startswith(("#", "|", "```", ">")) and not _LIST.match(lines[i]):
                 para.append(lines[i].strip())
                 i += 1
