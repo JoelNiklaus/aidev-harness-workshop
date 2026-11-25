@@ -17,6 +17,8 @@ uvx --from "https://github.com/JoelNiklaus/aidev-harness-workshop/releases/downl
 
 `check` makes one GLM-5.3-Flash call, runs one tiny HF Job and one command in an HF Sandbox (15 to 35 seconds in our runs, well under one cent) and ends with `ready: ...`. It claims no workshop task.
 
+The start pages show the whole setup step by step, with copy buttons and the usual fixes. They are online now, so you can do the setup at home: https://niklaus.ai/aidev-harness-workshop/1 for Part 1 and https://niklaus.ai/aidev-harness-workshop/2 for Part 2.
+
 ## Part 1 in the room
 
 Start page with every step, the commands to copy and the usual fixes: https://niklaus.ai/aidev-harness-workshop/1
@@ -50,7 +52,7 @@ uvx --from "$W" aidev-evolve show                                      # afterwa
 uvx --from "$W" aidev-evolve replay                                    # a recorded real run, offline
 ```
 
-Each seating block runs one optimization strategy (`left` = `baseline`, `middle` = `every-weakness`, `right` = `code-audit`), so the board has enough runs of each to rank them by their held-out gain. `run` prints the workshop board's address and streams every iteration to it, and it ends with the path of your final `agent.py`. The model, time budget, tasks and held-out set are the same for everyone. `aidev-evolve strategies` lists all six strategies; `aidev-evolve strategy-init <preset> my-strategy` copies one to edit (its knobs and the proposer prompt) and `--strategy my-strategy` runs it. Use `--proposer manual` to paste the prompt into any coding agent. Leave the laptop open: a run takes about 20 minutes and ends with a held-out check.
+Each seating block runs one optimization strategy (`left` = `baseline`, `middle` = `every-weakness`, `right` = `code-audit`), so the board has enough runs of each to rank them by their held-out gain. `run` prints the workshop board's address and streams every iteration to it, and it ends with the path of your final `agent.py`. The model, time budget, tasks and held-out set are the same for everyone. `aidev-evolve strategies` lists all six strategies; `aidev-evolve strategy-init <preset> my-strategy` copies one to edit (its knobs and the proposer prompt) and `--strategy my-strategy` runs it. Use `--proposer manual` to paste the prompt into any coding agent. Leave the laptop open: a run takes about 6 minutes on its own and 12 to 15 minutes during the session (with 40 runs at once on 23 Nov 2026, the held-out result arrived 12.2 minutes after launch at the median and 15.0 minutes at p90). If your result is late, use `aidev-evolve replay` for the debrief.
 
 ## After Part 2: the loop on your own agent
 
@@ -77,5 +79,3 @@ cd hands-on/part2-evolve && uv run python -m pytest -q
 ## License
 
 Apache-2.0, see [LICENSE](LICENSE).
-
-The 18-minute target is measured from launch to the held-out result. It has not yet been verified with 40 concurrent workshop runs. If the result is late, use `aidev-evolve replay` for the debrief.

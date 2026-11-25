@@ -102,4 +102,4 @@ uv run aidev-evolve eval --agent src/aidev_evolve/seed/agent.py --tasks fix-git,
 python devtools/fake_board.py       # the /evolve board stand-in on :8766
 ```
 
-The 18-minute target is measured from launch to the held-out result. It has not yet been verified with 40 concurrent workshop runs. If the result is late, use `aidev-evolve replay` for the debrief.
+A workshop run takes about 6 minutes on its own and 12 to 15 minutes during the session: with 40 runs at once on 23 Nov 2026, the held-out result arrived 12.2 minutes after launch at the median and 15.0 minutes at p90. If your result is late, use `aidev-evolve replay` for the debrief.

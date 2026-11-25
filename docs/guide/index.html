@@ -91,7 +91,7 @@ uv run python examples/own_eval/evolve_my_agent.py --proposer claude     # or --
 <li><a href="https://github.com/JoelNiklaus/harness-optimization">JoelNiklaus/harness-optimization</a>: my fork with the legal agent experiment from the talk (63.4% to 80.1% on Harvey's Legal Agent Benchmark with the model frozen), where the harness is a git repository and every candidate is a commit.</li></ul>
 <h2>What it costs</h2>
 <ul><li>The example: under one cent of HF credits per run (64 trials with 171 model calls in my run, $0.008), plus one or two proposals on your coding-agent plan.</li>
-<li>The workshop loop on Terminal-Bench tasks: $0.4 to $0.8 of HF credits per run (20 runs on 19 Nov 2026), about 20 minutes.</li>
+<li>The workshop loop on Terminal-Bench tasks: about $0.3 of HF credits per run (40 runs at once on 23 Nov 2026: mean $0.28, at most $0.33). A run takes about 6 minutes on its own and took 12 to 15 minutes with the 40 at once.</li>
 <li>Your own eval: trials per iteration = (search tasks + 2 x validation tasks) for the patch + 2 x validation tasks for the current best, twice when a winner is re-measured. Multiply by your cost per trial before you start.</li></ul>
 </article>
 <p class="label">This page is <a href="https://github.com/JoelNiklaus/aidev-harness-workshop/blob/main/hands-on/part2-evolve/APPLY-TO-YOUR-AGENT.md">APPLY-TO-YOUR-AGENT.md</a> of the public repo.</p>

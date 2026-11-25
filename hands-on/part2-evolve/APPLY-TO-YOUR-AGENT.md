@@ -109,7 +109,7 @@ agent service) needs the research setup this workshop is based on:
 
 - The example: under one cent of HF credits per run (64 trials with 171 model calls in my run, $0.008), plus
   one or two proposals on your coding-agent plan.
-- The workshop loop on Terminal-Bench tasks: $0.4 to $0.8 of HF credits per run (20 runs on 19 Nov 2026), about 20
-  minutes.
+- The workshop loop on Terminal-Bench tasks: about $0.3 of HF credits per run (40 runs at once on 23 Nov 2026: mean
+  $0.28, at most $0.33). A run takes about 6 minutes on its own and took 12 to 15 minutes with the 40 at once.
 - Your own eval: trials per iteration = (search tasks + 2 x validation tasks) for the patch + 2 x validation tasks for
   the current best, twice when a winner is re-measured. Multiply by your cost per trial before you start.

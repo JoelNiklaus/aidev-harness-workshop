@@ -109,6 +109,14 @@ def test_each_part_shows_the_output_that_means_you_are_in_as_the_tools_print_it(
     assert "can call the workshop model, run HF Jobs and use HF Sandboxes" in swarm_cli and "can call the workshop model, run HF Jobs and use HF Sandboxes" in t1
 
 
+def test_part2_gives_the_measured_run_time_and_no_page_the_old_one(pages):
+    assert join.EVOLVE_RUN_TIME in text_of(pages["2/index.html"])
+    part2_cost = (PART2 / "APPLY-TO-YOUR-AGENT.md").read_text()
+    assert "12 to 15 minutes" in " ".join(part2_cost.split()), "the guide's cost section names the same measurement"
+    for name in HTML_PAGES:
+        assert "20 minutes" not in text_of(pages[name]), name
+
+
 def test_each_part_links_the_live_board(pages):
     assert f'href="{BOARD}/"' in pages["1/index.html"]
     assert f'href="{BOARD}/evolve"' in pages["2/index.html"]

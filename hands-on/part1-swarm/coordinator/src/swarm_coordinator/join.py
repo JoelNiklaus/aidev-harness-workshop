@@ -183,8 +183,12 @@ EVOLVE_SCRIPT = """for (const b of document.querySelectorAll("button[data-agent]
 }
 """
 
+# How long one workshop run of aidev-evolve 0.6.0 takes (23 Nov 2026). On its own: the "about 6 min when run alone" that
+# `aidev-evolve strategies` prints (a test compares the two). During the session: launch to held-out result with 40 runs
+# at once took 12.2 min at the median and 15.0 min at p90. tools/public/README.md and the Part 2 README quote it too.
+EVOLVE_RUN_TIME = "One run takes about 6 minutes on its own and 12 to 15 minutes during the session."
 EVOLVE_LEAD = ("Your coding agent proposes patches to a small agent; a job on Hugging Face scores each one, and the loop keeps a patch only "
-               "if it wins on tasks your coding agent never saw. One run takes about 20 minutes.")
+               "if it wins on tasks your coding agent never saw. " + EVOLVE_RUN_TIME)
 AGENT_SWITCH = ('<div class="agent"><span>My coding agent:</span><button type="button" data-agent="claude">Claude Code</button>'
                 '<button type="button" data-agent="codex">Codex</button></div>')
 BLOCKS_LABEL = "Start the run of your seating block (as seen from your seat, facing the stage)"

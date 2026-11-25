@@ -1,4 +1,4 @@
-"""GET /evolve/join: the Part 2 start page (the short link /2 opens it): one command per seating block, with Copy buttons.
+"""GET /evolve/join: the Part 2 start page on the board (the attendee site's static /2 shows the same commands): one command per seating block, with Copy buttons.
 
 The wheel URL is the `<WHEEL_URL>` line of the Part 2 README (pinned there to the package version) and the block ->
 strategy table is the Part 2 package's own (`aidev_evolve.strategy.BLOCKS`), so page, README and CLI cannot drift."""
@@ -34,6 +34,22 @@ def page(store):
 def test_the_blocks_are_the_part2_packages_blocks():
     src = (EVOLVE / "src" / "aidev_evolve" / "strategy.py").read_text()
     assert join.BLOCKS == ast.literal_eval(re.search(r"^BLOCKS = (\{.*\})$", src, re.M).group(1))
+
+
+def test_the_page_gives_the_measured_run_time(page):
+    """Measured for the 0.6.0 workshop run (23 Nov 2026): about 6 min alone; launch to held-out result with 40 runs at
+    once took 12.2 min at the median and 15.0 at p90. The earlier "about 20 minutes" was the long loop before 0.6.0."""
+    assert join.EVOLVE_RUN_TIME == "One run takes about 6 minutes on its own and 12 to 15 minutes during the session."
+    assert join.EVOLVE_RUN_TIME in page and "20 minutes" not in page
+
+
+def test_the_run_time_on_its_own_is_the_one_aidev_evolve_strategies_prints():
+    """`aidev-evolve strategies` prints "about N min when run alone" for a one-Job workshop run (every block's strategy):
+    N comes from these two constants of the Part 2 package, and the page's sentence names the same N."""
+    src = (EVOLVE / "src" / "aidev_evolve" / "strategy.py").read_text()
+    propose, job = (float(x) for x in re.search(r"(?m)^WORKSHOP_PROPOSE_MIN, WORKSHOP_JOB_MIN = ([\d.]+), ([\d.]+)", src).groups())
+    assert "minutes = WORKSHOP_PROPOSE_MIN + WORKSHOP_JOB_MIN" in src and "about {est['minutes']:.0f} min when run alone" in src
+    assert f"about {propose + job:.0f} minutes on its own" in join.EVOLVE_RUN_TIME
 
 
 def test_each_block_has_its_run_command_verbatim_for_claude_and_for_codex(page):
