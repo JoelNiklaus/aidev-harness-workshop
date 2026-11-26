@@ -1,11 +1,11 @@
 {
- "_comment": "Fixed task splits of `aidev-evolve eval`: Terminal-Bench 2.1 at task_commit, GLM-5.3-Flash at low effort. validation: the 8 tasks every version is scored on (their trajectories are read while fixing). heldout: 21 tasks nobody reads, for the check at the end. Chosen on 19 Nov 2026 from paired sweeps on a 34-task pool, 4 trials each, so that each of the three planted flaws costs passes on the validation tasks; the other 5 pool tasks are not used. eval_budget_s: agent time per task (chosen on 25 Nov 2026 from ladders at 90, 120 and 180 s).",
+ "_comment": "Fixed task splits of `aidev-evolve eval`: Terminal-Bench 2.1 at task_commit, GLM-5.3-Flash at low effort. validation: the 8 tasks every version is scored on (their trajectories are read while fixing). heldout: 20 tasks nobody reads, for the check at the end. Chosen on 19 Nov 2026 from paired sweeps on a 34-task pool, 4 trials each, so that each of the three planted flaws costs passes on the validation tasks; the other 6 pool tasks are not used. On 26 Nov 2026 build-pmars moved from heldout to validation in place of sqlite-with-gcov, which left the package (12.6 MB of task files, and its sandbox start or verifier made 2 of 4 first evaluations take 273 to 329 s). eval_budget_s: agent time per task (chosen on 25 Nov 2026 from ladders at 90, 120 and 180 s).",
  "benchmark": "terminal-bench-2.1",
  "task_commit": "d49e28f1e4ddd13d289e85a5f312a66750951932",
  "eval_budget_s": 120.0,
  "validation": [
   "vulnerable-secret",
-  "sqlite-with-gcov",
+  "build-pmars",
   "fix-code-vulnerability",
   "pypi-server",
   "kv-store-grpc",
@@ -14,7 +14,6 @@
   "fix-git"
  ],
  "heldout": [
-  "build-pmars",
   "build-pov-ray",
   "cancel-async-tasks",
   "code-from-image",

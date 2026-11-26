@@ -147,7 +147,7 @@ aidev-evolve eval
 
 **Goal.** Versions of `agent.py` that solve more tasks than version 1, and a chart that shows it.
 
-**Fixed.** Three flaws are planted in the harness on purpose. The model, the tasks and the time per task are fixed (see `CONTRACT.md`). The evidence is in the trajectories: read `traces/vN/INDEX.md` first. After every change you run `aidev-evolve eval` again (1.5 to 3 minutes, 1 to 2 cents), and the chart gets a new bar.
+**Fixed.** Three flaws are planted in the harness on purpose. The model, the tasks and the time per task are fixed (see `CONTRACT.md`). The evidence is in the trajectories: read `traces/vN/INDEX.md` first. After every change you run `aidev-evolve eval` again (1 to 3 minutes, 1 to 4 cents), and the chart gets a new bar.
 
 **Your decisions.** How to investigate: read `INDEX.md` yourself, ask your agent which tasks ended with time left, ask it to show you a step of a failed task, compare a passed and a failed trajectory, or read the harness. What the diagnosis is and what to change: say both in your own words, and your agent checks them against the trajectories and makes the edit. How much to change per version.
 
@@ -159,7 +159,7 @@ aidev-evolve eval
 
 **Goal.** A score for your best version on tasks that nobody looked at.
 
-**Fixed.** You fixed the harness while you read the trajectories of these 8 tasks, so their score flatters it a little. This command scores your latest version and version 1 on 21 other tasks (about 3 minutes, 15 cents). Both scores appear below the chart.
+**Fixed.** You fixed the harness while you read the trajectories of these 8 tasks, so their score flatters it a little. This command scores your latest version and version 1 on 20 other tasks (about 3 minutes, 13 cents). Both scores appear below the chart.
 
 ```bash
 aidev-evolve eval --heldout

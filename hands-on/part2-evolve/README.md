@@ -13,7 +13,7 @@ account; a local chart shows the score by version. This folder is the tool behin
 uv tool install ./hands-on/part1-swarm/runner --with-executables-from "aidev-evolve @ ./hands-on/part2-evolve" --with-executables-from huggingface-hub
 cd hands-on/part2-harness
 aidev-evolve eval             # scores agent.py as the next version (the first run records version 1)
-aidev-evolve eval --heldout   # the latest version and version 1 on 21 tasks nobody read, in one Job
+aidev-evolve eval --heldout   # the latest version and version 1 on 20 tasks nobody read, in one Job
 ```
 
 The Job downloads the wheel of this version from the Hugging Face repository `launch.WHEEL_REPO`, with one more try
@@ -29,15 +29,19 @@ and no recorded result: a folder with `agent.py` and no `versions.json` gets ver
 unchanged `agent.py` is not evaluated again. A trial lost to infrastructure (sandbox, provider) is not counted as a fail.
 The agent time per task is 120 s (`data/splits.json`, `eval_budget_s`).
 
-Measured on 25 Nov 2026 (provider deepinfra, 8 tasks x 4 trials per row, 120 s per task):
+Measured on 26 Nov 2026 (provider deepinfra, 8 tasks x 4 trials per row, 120 s per task, one Job, 0 infrastructure errors):
 
 | Version | Passed | Slowest trial of an evaluation |
 |---|---|---|
-| v1, as shipped | 8/32 (25%; 18/96 = 19% over three Jobs) | 45 to 88 s |
-| task text no longer cut | 12/32 (38%) | 49 to 85 s |
-| turn limit fixed only | 17/32 (53%) | 83 to 151 s |
-| both | 23/32 (72%) | 77 to 151 s |
-| all three flaws fixed | 29/32 (91%) | 79 to 87 s |
+| v1, as shipped | 5/32 (16%) | 47 to 97 s |
+| task text no longer cut | 10/32 (31%) | 48 to 106 s |
+| turn limit fixed only | 13/32 (41%) | 68 to 150 s |
+| both | 20/32 (63%) | 73 to 156 s |
+| all three flaws fixed | 30/32 (94%) | 70 to 85 s |
+
+Held-out (20 tasks x 2 trials): v1 13/40 (33%), all three fixed 27/40 (68%). The validation task `build-pmars` came from the
+held-out tasks on 26 Nov 2026, in place of a slow one (data/splits.json has the reason; devtools/ladder.py `--tasks`
+measured the candidates).
 
 One evaluation is 8 trials, so a version's score moves by one or two tasks between runs.
 

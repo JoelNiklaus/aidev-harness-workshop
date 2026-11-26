@@ -6,10 +6,10 @@
 aidev-evolve eval --heldout
 ```
 
-This scores your latest version and version 1 on 21 other tasks, in one Job (about 3 minutes, about 15 cents).
+This scores your latest version and version 1 on 20 other tasks, in one Job (about 3 minutes, about 13 cents).
 You fixed the harness while reading the trajectories of the 8 validation tasks, so those 8 scores flatter the harness a little.
-The held-out score is the number to report. Measured on 25 Nov 2026 in two sessions: version 1 passed 6 of 21 (29%),
-version 4 passed 15 of 21 (71%).
+The held-out score is the number to report. Measured on 26 Nov 2026 with two tries per task: version 1 passed 13 of 40 (33%),
+the version with all three flaws fixed passed 27 of 40 (68%).
 
 ## 2. Go on with this harness
 
@@ -31,7 +31,7 @@ The loop of this session has four parts. You can build each of them for any agen
    model saw, what it did, what came back, and how the run ended. Add a one-table index. Most harness flaws show up
    in the difference between what a tool returned and what the model received.
 2. **A fixed evaluation set and a held-out set.** Pick a small set of tasks with automatic checks for the loop
-   (8 here) and keep a second set that you never read (21 here).
+   (8 here) and keep a second set that you never read (20 here).
 3. **One command.** It evaluates the current version, stores the version and its trajectories, and adds a point to a chart.
    When it takes more than a few minutes, you stop running it.
 4. **One change per version.** Ask the coding agent for the evidence in the trajectories first, then change one thing.

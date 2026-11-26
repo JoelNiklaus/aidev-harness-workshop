@@ -141,9 +141,10 @@ def record(trial_dir: Path, candidate: str) -> dict[str, Any]:
     wall = _seconds(result.get("started_at"), result.get("finished_at"))
     inference = float((traj or {}).get("cost_usd") or 0.0)
     sandbox = (wall or 0.0) / 3600 * SANDBOX_USD_PER_H
-    ae = result.get("agent_execution") or {}
+    ae, es, ve = (result.get(k) or {} for k in ("agent_execution", "environment_setup", "verifier"))
     return {"candidate": candidate, "task": result["task_name"].rsplit("/", 1)[-1], "trial_name": result.get("trial_name", trial_dir.name),
             "outcome": outcome, "reward": reward, "wall_s": wall, "agent_s": _seconds(ae.get("started_at"), ae.get("finished_at")),
+            "setup_s": _seconds(es.get("started_at"), es.get("finished_at")), "verifier_s": _seconds(ve.get("started_at"), ve.get("finished_at")),
             "error": (f"{exc.get('exception_type')}: {(exc.get('exception_message') or '')[-300:]}" if exc else None),
             "usage": (traj or {}).get("usage"), "inference_usd": round(inference, 6), "sandbox_usd": round(sandbox, 6),
             "cost_usd": round(inference + sandbox, 6), "provider_calls": (traj or {}).get("provider_calls") or {}, "trajectory": traj}

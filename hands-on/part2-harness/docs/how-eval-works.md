@@ -26,15 +26,15 @@ A task that was lost to infrastructure (a sandbox or a provider error) is not co
 
 ## What it costs
 
-Everything is billed to your Hugging Face account. Measured on 25 Nov 2026:
+Everything is billed to your Hugging Face account. Measured on 26 Nov 2026:
 
 | Run | Time | Cost |
 |---|---|---|
-| `eval`, version 1 | 75 to 90 s | $0.008 |
-| `eval`, later versions | 75 to 170 s | $0.008 to $0.018 |
-| `eval --heldout` (21 tasks, two versions) | about 180 s | $0.14 to $0.17 |
+| `eval`, version 1 | 60 to 110 s | $0.01 |
+| `eval`, later versions | 60 to 170 s | $0.01 to $0.04 |
+| `eval --heldout` (20 tasks, two versions) | about 180 s | $0.13 |
 
-A whole session (four evaluations and the held-out check) cost $0.20 to $0.21.
+A whole session (four evaluations and the held-out check) costs about $0.20.
 Most of the cost is the model calls. The Job machine costs $0.01 per hour and each sandbox $0.02 per hour.
 
 The time of one evaluation is the time of its slowest task. A task that uses its whole 120 seconds makes the

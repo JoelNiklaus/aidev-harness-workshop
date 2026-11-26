@@ -135,7 +135,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub = p.add_subparsers(dest="cmd", required=True)
     e = sub.add_parser("eval", help="score agent.py as its next version on the 8 validation tasks (one HF Job); run it in the folder that holds agent.py")
     e.add_argument("--dir", default=".", help="your folder (default: the current one)")
-    e.add_argument("--heldout", action="store_true", help="score the latest version and version 1 on the 21 held-out tasks instead (one HF Job)")
+    e.add_argument("--heldout", action="store_true", help="score the latest version and version 1 on the 20 held-out tasks instead (one HF Job)")
     e.add_argument("--package-url", default=None, help="another wheel for the Job to install (default: this version's)")
     e.set_defaults(fn=cmd_eval)
     j = sub.add_parser("eval-job", help="(inside the HF Job) run the spec from $AIDEV_EVOLVE_SPEC")
