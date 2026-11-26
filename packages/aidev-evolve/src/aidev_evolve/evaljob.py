@@ -29,7 +29,7 @@ BENCH = "terminal-bench-2.1"
 EFFORT = "low"
 AGENT_IMPORT = "aidev_evolve.harbor_agent:EvolveAgent"
 HARBOR_SLACK_S = 90  # Harbor's own agent timeout sits this far behind the runtime budget, so the runtime ends first
-SANDBOX_USD_PER_H = 0.02  # cpu-basic $0.01/h plus the exposed port $0.01/h (Part 1 runner PROGRESS)
+SANDBOX_USD_PER_H = 0.02  # cpu-basic $0.01/h plus the exposed port $0.01/h
 SPEC_ENV = "AIDEV_EVOLVE_SPEC"
 # The tasks' own verifier timeouts are 6-60 min; on the board their p90 run time is at most 3 min on the search
 # and validation tasks (4 min on held-out pytorch-model-cli). A hung test run would otherwise hold the whole

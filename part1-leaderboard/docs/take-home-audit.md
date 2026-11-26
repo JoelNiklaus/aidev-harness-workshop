@@ -16,7 +16,7 @@ For each passed trial, read the agent's trajectory (every command it ran and eve
 ## How to build it
 
 1. Keep the trajectories. Harbor writes one folder per trial inside the cloud job, with the agent's log. Copy
-   these folders to your bucket at the end of the job (the runner is in `hands-on/part1-swarm/runner`,
+   these folders to your bucket at the end of the job (the runner is in `packages/aidev-lb`,
    `src/aidev_lb/job.py`).
 2. First pass with plain rules: search each trajectory for the task name, `terminal-bench`, `github.com`, and
    the names of the test files.

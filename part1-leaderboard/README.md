@@ -1,6 +1,6 @@
 # Part 1: build a harness leaderboard
 
-Setup and the four challenges are in the [main README](../../README.md). Start your coding agent in this folder.
+Setup and the four challenges are in the [main README](../README.md). Start your coding agent in this folder.
 
 | File | What it is |
 |---|---|

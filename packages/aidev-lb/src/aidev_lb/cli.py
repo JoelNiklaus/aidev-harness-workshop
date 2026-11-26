@@ -10,7 +10,7 @@ your Jobs, sandboxes and model calls (your HF credits). It is sent only to Huggi
 
 `run` also keeps the results in the public bucket <you>/harness-results (created if missing), where a static page can
 read them. `--no-bucket` keeps them in the local file only; so does a token that cannot write the bucket. A trial that
-ends without a result (an infrastructure error, or the time limit) has none: nothing is filled in.
+ends without a result (an infrastructure error, or the time limit) has none.
 """
 
 from __future__ import annotations

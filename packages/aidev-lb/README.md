@@ -10,7 +10,7 @@ log, and keeps the results in `results.json`. There is no shared server: your HF
 
 ```bash
 # once: uv installed, HF account with credits, and a token of type "Write", saved with `hf auth login`
-uv tool install --with-executables-from huggingface-hub ./hands-on/part1-swarm/runner   # from the clone: aidev-lb and hf
+uv tool install --with-executables-from huggingface-hub ./packages/aidev-lb   # from the clone: aidev-lb and hf
 aidev-lb check          # one model call, one tiny Job, one sandbox command (< $0.01)
 aidev-lb harnesses      # the 10 harnesses: fast, medium or slow to install
 aidev-lb run --harness pi
@@ -26,8 +26,7 @@ install only inside the Job (the `run` extra).
 - `run --tasks N` takes the first N of the 10 tasks in `data/tasks.json` (default 5).
 - `run` ends when every trial has a result or an infrastructure error. While it waits it prints one line every
   30 s (`still waiting: N trials (K sandboxes queued)`). After 15 minutes it cancels the Jobs still running and
-  their sandboxes. A trial without a result has none: the command prints one line that says so, and nothing is
-  filled in. A repeated run replaces the older result of the same harness and task.
+  their sandboxes. A trial without a result has none: the command prints one line that says so. A repeated run replaces the older result of the same harness and task.
 - `run` also keeps the results in the public bucket `<you>/harness-results` (created if missing; `--bucket NAME`
   for another name): the Jobs write one file per cell (`results/<cell_id>.json`) and the laptop writes the
   aggregate `results.json`, readable without a token at
@@ -35,7 +34,7 @@ install only inside the Job (the `run` extra).
   bucket gives one message, and the run goes on with the local file only. `--no-bucket` skips the bucket.
   Ctrl-C publishes the results so far.
 - Every record in `results.json` has `source: "measured"`. The attendee's page bundles made-up records with
-  `source: "sample"` (`hands-on/part1-leaderboard/sample-results.json`) and shows them as mock rows.
+  `source: "sample"` (`part1-leaderboard/sample-results.json`) and shows them as mock rows.
 
 ## How it works
 

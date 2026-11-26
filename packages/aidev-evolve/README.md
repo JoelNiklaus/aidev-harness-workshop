@@ -1,7 +1,7 @@
 # aidev-evolve: the evaluation tool of Part 2
 
 Part 2 hands-on of the AI Dev NYC workshop ("Don't train the model, evolve the harness"). Attendees work in
-[`../part2-harness`](../part2-harness) (setup and the challenge: the main README): a 172-line terminal agent (`agent.py`, the *harness*: the
+[`part2-harness`](../../part2-harness) (setup and the challenge: the main README): a 172-line terminal agent (`agent.py`, the *harness*: the
 loop around a fixed model) with three planted flaws. They decide how to investigate and what to change, and their own coding agent
 reads the trajectories and edits; `aidev-evolve eval` scores the new version with GLM-5.3-Flash on 8 Terminal-Bench 2.1 tasks in an HF Job in their
 account; a local chart shows the score by version. This folder is the tool behind that command.
@@ -10,8 +10,8 @@ account; a local chart shows the score by version. This folder is the tool behin
 
 ```bash
 # once, from the root of the clone (the main README's setup): aidev-lb, aidev-evolve and hf as uv tools
-uv tool install ./hands-on/part1-swarm/runner --with-executables-from "aidev-evolve @ ./hands-on/part2-evolve" --with-executables-from huggingface-hub
-cd hands-on/part2-harness
+uv tool install ./packages/aidev-lb --with-executables-from "aidev-evolve @ ./packages/aidev-evolve" --with-executables-from huggingface-hub
+cd part2-harness
 aidev-evolve eval             # scores agent.py as the next version (the first run records version 1)
 aidev-evolve eval --heldout   # the latest version and version 1 on 20 tasks nobody read, in one Job
 ```
@@ -24,8 +24,8 @@ the API refused with 503. The trials of one version are stopped at a wall limit 
 `<WHEEL_URL>` is today `https://huggingface.co/datasets/agent-harness-workshop/aidev-workshop-wheels/resolve/main/evolve/aidev_evolve-0.7.0-py3-none-any.whl`
 (a public repository).
 
-`eval` prints the Job page at once, one line per trial as results arrive, then `vN: K/8 passed`. There is no `init`
-and no recorded result: a folder with `agent.py` and no `versions.json` gets version 1 from its first `eval`. An
+`eval` prints the Job page at once, one line per trial as results arrive, then `vN: K/8 passed`. A folder with
+`agent.py` and no `versions.json` gets version 1 from its first `eval`. An
 unchanged `agent.py` is not evaluated again. A trial lost to infrastructure (sandbox, provider) is not counted as a fail.
 The agent time per task is 120 s (`data/splits.json`, `eval_budget_s`).
 
@@ -54,7 +54,7 @@ provider") is left out for the rest of the Job.
 
 Anything in `agent.py` that a harness controls: prompts, the loop, tools, how command output is shown to the
 model, when to stop, how to recover. Fixed: the model and its settings, the time per task, the contract
-(`run(task, env)`, `env.llm`, `env.shell`; see `../part2-harness/CONTRACT.md`). `eval` refuses an `agent.py` that does
+(`run(task, env)`, `env.llm`, `env.shell`; see `part2-harness/CONTRACT.md`). `eval` refuses an `agent.py` that does
 not compile or has no `run(task, env)` before any credits are spent.
 
 ## Develop
@@ -70,7 +70,7 @@ uv run python devtools/ladder.py submit --name val --split validation --trials 4
 uv run python devtools/ladder.py collect --name val
 ```
 
-An agent for the ladder is a file, or `harness` (`../part2-harness/agent.py`) with any of its three flaws fixed
+An agent for the ladder is a file, or `harness` (`part2-harness/agent.py`) with any of its three flaws fixed
 (`steps`, `task`, `cleanup`); `--budget-s` sets another agent time. `tests/test_harness.py` shows what each
 fix changes. An unreleased wheel can be measured from a private Hub file:
 `--package-url https://huggingface.co/datasets/<you>/<repo>/resolve/main/<wheel>` (the Job downloads it with its own token).

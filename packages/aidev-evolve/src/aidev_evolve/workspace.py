@@ -1,6 +1,6 @@
 """The attendee's working folder: agent.py, its measured versions, their traces and the chart.
 
-In the cloned repo this is hands-on/part2-harness (agent.py, CONTRACT.md, hints/ and the empty chart.html are files
+In the cloned repo this is part2-harness (agent.py, CONTRACT.md, hints/ and the empty chart.html are files
 of the repo). `eval` adds:
 
     DIR/versions.json         one entry per version: score, outcomes per task
@@ -55,7 +55,7 @@ def load(directory: Path) -> list[dict[str, Any]]:
     """The measured versions of the folder's agent.py, oldest first (none before the first `eval`)."""
     directory = Path(directory)
     if not (directory / "agent.py").is_file():
-        raise WorkspaceError(f"There is no agent.py in {directory.resolve()}: run `aidev-evolve eval` inside hands-on/part2-harness of the cloned repo.")
+        raise WorkspaceError(f"There is no agent.py in {directory.resolve()}: run `aidev-evolve eval` inside part2-harness of the cloned repo.")
     path = directory / VERSIONS
     return json.loads(path.read_text())["versions"] if path.is_file() else []
 

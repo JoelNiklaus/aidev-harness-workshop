@@ -16,7 +16,7 @@ The setup takes about 5 minutes. Do it before the session.
 ```bash
 git clone https://github.com/JoelNiklaus/aidev-harness-workshop
 cd aidev-harness-workshop
-uv tool install ./hands-on/part1-swarm/runner --with-executables-from "aidev-evolve @ ./hands-on/part2-evolve" --with-executables-from huggingface-hub
+uv tool install ./packages/aidev-lb --with-executables-from "aidev-evolve @ ./packages/aidev-evolve" --with-executables-from huggingface-hub
 hf auth login
 aidev-lb check
 ```
@@ -33,10 +33,10 @@ aidev-lb check
 
 A benchmark score belongs to the model and its harness together. You build a web page that compares coding-agent harnesses. All of them use the same model (GLM-5.3-Flash) on the same tasks (Terminal-Bench 2.1). One command measures a harness in the cloud. The page is yours: you decide what it shows, and your coding agent writes it.
 
-![One possible leaderboard page: one row per harness with pass rate, trials, cost and a mock or measured badge](hands-on/part1-leaderboard/docs/leaderboard.png)
+![One possible leaderboard page: one row per harness with pass rate, trials, cost and a mock or measured badge](part1-leaderboard/docs/leaderboard.png)
 
 ```bash
-cd hands-on/part1-leaderboard
+cd part1-leaderboard
 ```
 
 Start your coding agent in this folder and tell it what you want, in your own words. It reads `AGENTS.md` there, which holds the facts below. There are four challenges.
@@ -107,24 +107,24 @@ Ideas for the waiting time, all for your coding agent: cost per solved task, a g
 
 ### If you are stuck
 
-Sample requests for your coding agent are in `hints/sample-prompts.md`, and a finished page is in `hints/sample-solution.html` (both in `hands-on/part1-leaderboard`).
+Sample requests for your coding agent are in `hints/sample-prompts.md`, and a finished page is in `hints/sample-solution.html` (both in `part1-leaderboard`).
 
 ### After the session
 
 - More tasks: `aidev-lb run --harness pi --tasks 10` runs 10 tasks in place of 5.
 - More trials: one trial per task is noisy. Run a harness several times with `--out` and `--no-bucket`, and show the spread.
-- Another model: the model is set in the source of the runner, `hands-on/part1-swarm/runner`. Does the ranking of the harnesses stay the same?
-- Audit: did a harness look up the answer? See [take-home-audit.md](hands-on/part1-leaderboard/docs/take-home-audit.md).
-- How it works: [architecture.md](hands-on/part1-leaderboard/docs/architecture.md) and [results-format.md](hands-on/part1-leaderboard/docs/results-format.md).
+- Another model: the model is set in the source of the runner, `packages/aidev-lb`. Does the ranking of the harnesses stay the same?
+- Audit: did a harness look up the answer? See [take-home-audit.md](part1-leaderboard/docs/take-home-audit.md).
+- How it works: [architecture.md](part1-leaderboard/docs/architecture.md) and [results-format.md](part1-leaderboard/docs/results-format.md).
 
 ## Part 2 (live workshop, Tue 1 Dec): fix a harness and watch its score go up
 
 You get a small harness with flaws and one command that scores it. You find out why it fails, change it and measure the change. The scoring is pre-built. The investigation and the changes are yours: you decide where to look and what to try. Your coding agent is your teacher here: it shows you where to look and makes the changes you decide. It will not hand you the answer.
 
-![The chart: one bar per version of agent.py, from 1 of 8 tasks passed to 8 of 8](hands-on/part2-harness/docs/chart.png)
+![The chart: one bar per version of agent.py, from 1 of 8 tasks passed to 8 of 8](part2-harness/docs/chart.png)
 
 ```bash
-cd hands-on/part2-harness
+cd part2-harness
 ```
 
 Start your coding agent in this folder and ask it questions, in your own words. It reads `AGENTS.md` there, which makes it a teacher and holds the facts below. There are three challenges.
@@ -171,14 +171,14 @@ aidev-evolve eval --heldout
 
 ### If you are stuck
 
-Ask your coding agent for a hint, and ask again for a clearer one. Sample questions are in `hints/sample-prompt.md`, and `hints/hint-1.md` to `hint-3.md` reveal one flaw each: first the symptom, then the setting (all in `hands-on/part2-harness`).
+Ask your coding agent for a hint, and ask again for a clearer one. Sample questions are in `hints/sample-prompt.md`, and `hints/hint-1.md` to `hint-3.md` reveal one flaw each: first the symptom, then the setting (all in `part2-harness`).
 
 ### After the session
 
 - Automate it: you ran this loop by hand. In practice a proposer model writes the changes, and a search keeps the versions that score higher. Start with Meta-Harness, where you can add your own benchmark: [github.com/stanford-iris-lab/meta-harness](https://github.com/stanford-iris-lab/meta-harness). My fork with more experiments: [github.com/JoelNiklaus/harness-optimization](https://github.com/JoelNiklaus/harness-optimization).
 - Go on with this harness: it has more to gain than the three planted flaws. Every version stays in `versions/vN/agent.py`, so you can always go back.
-- Your own agent: [take-home.md](hands-on/part2-harness/docs/take-home.md) shows how to build the same loop around it.
-- How it works: [how-eval-works.md](hands-on/part2-harness/docs/how-eval-works.md).
+- Your own agent: [take-home.md](part2-harness/docs/take-home.md) shows how to build the same loop around it.
+- How it works: [how-eval-works.md](part2-harness/docs/how-eval-works.md).
 
 ## If something fails
 

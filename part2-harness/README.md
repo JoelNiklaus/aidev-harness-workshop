@@ -1,6 +1,6 @@
 # Part 2: fix a harness and watch its score go up
 
-Setup and the challenge are in the [main README](../../README.md). Run `aidev-evolve eval` and your coding agent in this folder.
+Setup and the challenge are in the [main README](../README.md). Run `aidev-evolve eval` and your coding agent in this folder.
 
 | File | What it is |
 |---|---|

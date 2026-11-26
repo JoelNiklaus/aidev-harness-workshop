@@ -44,7 +44,7 @@ Pitfalls:
 - A fix for one task is not a harness fix. Look for a pattern across several failed tasks.
 - Do not read the held-out trajectories, and do not run the held-out check after every change.
 
-The evaluation tool is in [`../part2-evolve`](../../part2-evolve) of this repository. To evaluate another harness on
+The evaluation tool is in [`packages/aidev-evolve`](../../packages/aidev-evolve) of this repository. To evaluate another harness on
 the same tasks, copy this folder, replace `agent.py` with any file that follows `CONTRACT.md`, delete `versions.json`,
 `versions/` and `traces/`, and run `aidev-evolve eval` there.
 

@@ -1,0 +1,19 @@
+{
+  "model": "zai-org/GLM-5.3-Flash",
+  "benchmark": "terminal-bench-2.1",
+  "reasoning_effort": "low",
+  "default_n": 5,
+  "tasks": [
+    "kv-store-grpc",
+    "pypi-server",
+    "nginx-request-logging",
+    "log-summary-date-ranges",
+    "sanitize-git-repo",
+    "openssl-selfsigned-cert",
+    "fix-git",
+    "build-pmars",
+    "cancel-async-tasks",
+    "headless-terminal"
+  ],
+  "_comment": "The ordered Terminal-Bench 2.1 tasks of `aidev-lb run`: --tasks N takes the first N (default 5). The first 5 had 2 infrastructure errors in 633 room trials and split Pi, Qwen Code and OpenClaw. The next 5 are further tasks outside the avoid list, fastest first by the board's GLM-5.3-Flash low-effort task time without harness install (p50 / p90 min): openssl-selfsigned-cert 1.7 / 3.4, fix-git 2.0 / 3.5, build-pmars 2.5 / 6.1, cancel-async-tasks 3.5 / 12.2, headless-terminal 5.7 / 11.5. Left out: pytorch-model-cli (8.3 / 12.1, the slowest), and sparql-university, merge-diff-arc-agi-task, regex-log, polyglot-c-py, configure-git-webserver, git-multibranch, db-wal-recovery (infrastructure failures in the room runs), hf-model-inference, count-dataset-tokens (Hub downloads)."
+}

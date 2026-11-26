@@ -2,7 +2,7 @@
 
 Token counts come from the in-sandbox meter's log (`agent/hlb-meter.jsonl`, summarized by the Harness
 Leaderboard's `scoring.meter_summary`), never from what a harness reports. Cost is tokens x the list
-price in `config/prices.json`, cached input at its own rate, so every attendee and the slides use the same numbers.
+price in `data/prices.json`, cached input at its own rate, so every attendee and the slides use the same numbers.
 """
 
 from __future__ import annotations

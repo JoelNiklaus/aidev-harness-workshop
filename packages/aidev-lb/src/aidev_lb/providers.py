@@ -19,7 +19,7 @@ import math
 from importlib import resources
 from typing import Any
 
-# Cross-implementation check values for the 3:1 novita/zai-org list (PROTOCOL.md "Providers").
+# Check values of the hash for a 3:1 list of two providers (pinned by tests/test_providers.py).
 TEST_VECTORS = {"alice": ["novita", "zai-org"], "dave": ["zai-org", "novita"], "JoelNiklaus": ["novita", "zai-org"]}
 
 
