@@ -2,13 +2,14 @@
 
 The laptop sends a spec (candidates' sources, which tasks and how many trials each) as one environment
 variable. Each candidate becomes one Harbor job with the Part 1 sandbox setup (the Harness Leaderboard's
-`HLBSandboxEnvironment`, same pin) and our `EvolveAgent`; all jobs run at once. A watcher thread emits
+`HLBSandboxEnvironment`, same pin, with the rewrites of nogithub.py: no trial downloads from GitHub) and our `EvolveAgent`; all jobs run at once. A watcher thread emits
 each finished trial as a record into the Job log (transport.py), so the laptop shows progress live; the
 last line says how many records were sent.
 """
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import gzip
 import json
@@ -34,6 +35,27 @@ SPEC_ENV = "AIDEV_EVOLVE_SPEC"
 # and validation tasks (4 min on held-out pytorch-model-cli). A hung test run would otherwise hold the whole
 # iteration (seen 17 Nov: one headless-terminal verifier kept a Job open for 10+ min). A timeout is not scored.
 VERIFIER_CAP_S = 240
+SANDBOX_S = 300  # room for a sandbox to start, take the task files and stop
+
+
+class TrialWallLimit(RuntimeError):
+    """The trials of one candidate did not end within their wall limit and were stopped."""
+
+
+def wall_limit_s(budget_s: float) -> float:
+    """Longest the trials of one candidate may take (they run at once): the agent's budget, Harbor's slack behind it,
+    the verifier cap and the sandbox's own start and stop. One trial in 250 hung for 17 minutes in the Part 1 load
+    test of 25 Nov 2026; without a limit it would hold the whole evaluation until the Job's timeout."""
+    return budget_s + HARBOR_SLACK_S + VERIFIER_CAP_S + SANDBOX_S
+
+
+async def within(run: Any, limit_s: float) -> Any:
+    """Await `run`, cancelling it at the limit (Harbor stops its sandboxes when it is cancelled). The trials that
+    finished before have their result files; the laptop counts the others as missing."""
+    try:
+        return await asyncio.wait_for(run, limit_s)
+    except TimeoutError:
+        raise TrialWallLimit(f"no end after {limit_s:.0f} s, the wall limit of an evaluation: stopped") from None
 
 
 def encode_spec(spec: dict[str, Any]) -> str:
@@ -45,9 +67,8 @@ def decode_spec(text: str) -> dict[str, Any]:
 
 
 def spec_providers(spec: dict[str, Any]) -> list[str]:
-    """The attendee's GLM providers, preferred first (providers.order on the laptop); the reference when a spec names
-    none (devtools sweeps)."""
-    return list(spec.get("providers") or [REFERENCE])
+    """The GLM providers the Job's model calls use, preferred first (providers.for_user on the laptop)."""
+    return list(spec["providers"])
 
 
 def build_run(model: str = MODEL, effort: str = EFFORT, provider: str = REFERENCE) -> dict[str, Any]:
@@ -77,18 +98,23 @@ def prepare_env(run: dict[str, Any], environ: dict[str, str] | None = None) -> N
 def harbor_configs(spec: dict[str, Any], jobs_dir: Path, run_id: str, run: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     from hlb.worker import harbor_job_config
 
+    from aidev_evolve import nogithub
+
+    tasks_dir = str(nogithub.tasks_dir())  # the task folders of the wheel: no trial clones the Terminal-Bench repository
     run = run or {**build_run(), "run_id": run_id}
     budget = float(spec.get("budget_s", 150))
     providers = spec_providers(spec)
     cfgs = []
     for i, entry in enumerate(spec["runs"]):
         cand, tasks, trials = entry["candidate"], entry["tasks"], int(entry.get("trials", 1))
-        job_name = f"{run_id}-{i}-{cand}"  # a candidate can appear in two runs (seed: search x1, validation x2)
+        job_name = f"{run_id}-{i}-{cand}"  # a candidate can appear in two runs
         cfg = harbor_job_config(run, BENCH, ["mini-swe-agent"], tasks, trials, job_name, Path(jobs_dir),
                                 {"aidev-evolve": run_id}, concurrency=len(tasks) * trials)
         cfg["agents"] = [{"import_path": AGENT_IMPORT, "model_name": run["model"], "override_timeout_sec": budget + HARBOR_SLACK_S,
                           "kwargs": {"source": spec["candidates"][cand], "candidate": cand, "budget_s": budget, "providers": providers}}]
         cfg["verifier"] = {"override_timeout_sec": VERIFIER_CAP_S}
+        cfg["datasets"] = [{"path": tasks_dir, "task_names": tasks}]
+        cfg["environment"]["import_path"] = "aidev_evolve.nogithub:WorkshopSandbox"
         cfgs.append(cfg)
     return cfgs
 
@@ -124,7 +150,6 @@ def record(trial_dir: Path, candidate: str) -> dict[str, Any]:
 
 
 def harbor_run(cfgs: list[dict[str, Any]]) -> None:
-    import asyncio
     from concurrent.futures import ThreadPoolExecutor
 
     from harbor.job import Job
@@ -133,7 +158,8 @@ def harbor_run(cfgs: list[dict[str, Any]]) -> None:
     async def go() -> None:
         asyncio.get_running_loop().set_default_executor(ThreadPoolExecutor(max_workers=256))  # sandbox execs run in threads
         jobs = [await Job.create(JobConfig.model_validate(c)) for c in cfgs]
-        for cfg, res in zip(cfgs, await asyncio.gather(*(j.run() for j in jobs), return_exceptions=True)):
+        for cfg, res in zip(cfgs, await asyncio.gather(*(within(j.run(), wall_limit_s(c["agents"][0]["kwargs"]["budget_s"])) for j, c in zip(jobs, cfgs)),
+                                                  return_exceptions=True)):
             if isinstance(res, BaseException):
                 print(f"aidev-evolve: Harbor job {cfg['job_name']} failed: {type(res).__name__}: {res}", flush=True)
 
@@ -142,7 +168,7 @@ def harbor_run(cfgs: list[dict[str, Any]]) -> None:
 
 def main(spec: dict[str, Any], *, workdir: Path, harbor: Callable[[list[dict[str, Any]]], None] = harbor_run,
          emit: Callable[[str], None] = print, prepare: Callable[[dict[str, Any]], None] = prepare_env, poll_s: float = 2.0) -> int:
-    run = build_run(provider=spec_providers(spec)[0])
+    run = build_run()
     prepare(run)
     cfgs = harbor_configs(spec, Path(workdir), run["run_id"], run)
     cand_of = {c["job_name"]: c["agents"][0]["kwargs"]["candidate"] for c in cfgs}

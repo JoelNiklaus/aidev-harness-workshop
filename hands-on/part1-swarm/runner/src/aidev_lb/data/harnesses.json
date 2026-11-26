@@ -1,0 +1,15 @@
+{
+  "harnesses": [
+    {"name": "pi", "speed": "fast"},
+    {"name": "qwen-code", "speed": "fast"},
+    {"name": "kimi-code", "speed": "fast"},
+    {"name": "mini-swe-agent", "speed": "fast"},
+    {"name": "openclaw", "speed": "medium"},
+    {"name": "deepseek-harness", "speed": "medium"},
+    {"name": "claude-code", "speed": "medium"},
+    {"name": "codex", "speed": "slow"},
+    {"name": "opencode", "speed": "slow"},
+    {"name": "hermes", "speed": "slow", "note": "installs from GitHub: can fail when many people start at once"}
+  ],
+  "_comment": "The 10 harnesses `aidev-lb run --harness` accepts (the Harness Leaderboard's released ones), with a speed label from the harness install time measured in the room dry runs of 21 and 23 Nov 2026 (40 Jobs x 8 trials, install p50): fast 12 to 41 s, medium 58 to 100 s, slow 112 to 171 s."
+}

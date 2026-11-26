@@ -1,30 +1,20 @@
 """aidev-evolve command line.
 
-- `aidev-evolve run --strategy <preset|folder>` (or `--block left|middle|right`): the evolve loop (seed -> propose -> evaluate -> keep or drop), see loop.py.
-  The workshop run by default (one iteration, one HF Job); `--full` is the long run for home.
-- `aidev-evolve show [run folder] [--diff]`: the final agent.py of a run (default: the newest under runs/).
-- `aidev-evolve strategies` / `strategy-init <preset> <dir>`: the optimization strategies (strategy.py).
-- `aidev-evolve rank <run folders>`: rank strategies by held-out gain with CIs and ties (ranking.py).
-- `aidev-evolve replay`: play a recorded loop offline (no network).
-- `aidev-evolve eval --agent agent.py --tasks a,b --trials K`: score one agent.py once (one HF Job).
+- `aidev-evolve eval [--heldout]`: score the folder's agent.py as its next version (one HF Job); trajectories (traces/),
+  versions.json, chart.html (workspace.py). The first eval records version 1.
 - `aidev-evolve eval-job`: what the HF Job runs (reads its spec from the environment).
 """
 
 from __future__ import annotations
 
 import argparse
-import json
 import sys
-import time
 from pathlib import Path
 from typing import Any
 
-from aidev_evolve import __version__, board, calibration, launch, loop, ranking, strategy
+from aidev_evolve import __version__, launch
 
-
-def _bundled_budget() -> float:
-    return float(loop.default_splits()["budget_s"])
-
+RESET, RED, GREEN, YELLOW = "\033[0m", "\033[31m", "\033[32m", "\033[33m"
 
 def _session() -> tuple[Any, str, str]:
     """HfApi, token and username of the logged-in attendee (`hf auth login` or HF_TOKEN)."""
@@ -32,96 +22,104 @@ def _session() -> tuple[Any, str, str]:
 
     token = get_token()
     if not token:
-        raise SystemExit("No Hugging Face token: run `uvx hf auth login` (or set HF_TOKEN).")
+        raise SystemExit("No Hugging Face token: run `hf auth login` (or set HF_TOKEN).")
     api = HfApi(token=token)
     return api, token, api.whoami()["name"]
 
 
-def _progress(rec: dict[str, Any]) -> None:
-    from aidev_evolve import show
-
-    print(show.trial_line(rec, "eval", sys.stdout.isatty()), end="", flush=True)
-
-
-def _http() -> Any:
-    import httpx
-
-    return httpx.Client(timeout=10.0)
+def _trial_line(rec: dict[str, Any], color: bool) -> str:
+    text, code = {"pass": ("PASS ", GREEN), "fail": ("fail ", RED), "infra": ("INFRA", YELLOW)}[rec["outcome"]]
+    mark = f"{code}{text}{RESET}" if color else text
+    return f"  {mark} {rec['task']:<28} {rec.get('wall_s') or 0:4.0f} s"
 
 
-def cmd_check(args: argparse.Namespace) -> int:
-    """Everything `run` needs, in seconds and for free (`--job` adds one real HF Job: about a minute, under a cent)."""
-    from aidev_evolve import proposer
-
-    print(f"aidev-evolve {__version__}: checking your setup")
-
-    def line(ok: bool | None, text: str) -> None:
-        print(f"  {'ok  ' if ok else ('FAIL' if ok is False else 'warn')}  {text}", flush=True)
-
-    session = None
-    try:
-        session = _session()
-        line(True, f"Hugging Face: logged in as {session[2]}")
-    except SystemExit as e:
-        line(False, f"Hugging Face: {e}")
-    except Exception as e:  # noqa: BLE001 - a bad token, no network
-        line(False, f"Hugging Face: {type(e).__name__}: {e} (run `uvx hf auth login` again)")
-    failed = session is None  # go on: show every problem in one go
-    backends = [args.proposer] if args.proposer else ["claude", "codex"]
-    working = []
-    for b in backends:
-        ok, msg = proposer.probe(b)
-        line(ok if (ok or args.proposer) else None, msg)
-        if ok:
-            working.append(b)
-    if not working:
-        failed = True
-        print("  No coding agent answered. Log in (see above), or run the loop with `--proposer manual` and paste each prompt into any agent.")
-    try:
-        r = _http().get(f"{args.board.rstrip('/')}/api/evolve/state")
-        line(True if r.status_code == 200 else None,
-             f"workshop board {board.page_url(args.board)}: " + ("reachable" if r.status_code == 200 else f"HTTP {r.status_code} (not live yet; your loop runs without it)"))
-        problem = board.version_problem(args.board, http=_http())
-        if problem:
-            line(False, problem)
-            failed = True
-    except Exception as e:  # noqa: BLE001 - the board is a display, never a blocker
-        line(None, f"workshop board {board.page_url(args.board)}: {type(e).__name__} (your loop runs without it and sends its updates later)")
-    if args.job and session:
-        from aidev_evolve import loop, providers
-
-        api, token, user = session
-        order = providers.for_user(user)
-        line(True, f"GLM provider: {order[0]} (fallback: {', '.join(order[1:]) or 'none'})")
-        spec = {"candidates": {"seed": loop.SEED_SOURCE}, "runs": [{"candidate": "seed", "tasks": ["fix-git"], "trials": 1}], "budget_s": _bundled_budget(),
-                "providers": order}
-        try:
-            res = launch.run_eval(api, token, user, spec, on_record=_progress, package_url=args.package_url)
-            outcome = res.records[0]["outcome"] if res.records else "no result"
-            cost = sum(r.get("cost_usd") or 0.0 for r in res.records) + res.job_usd
-            line(outcome != "infra" and bool(res.records), f"HF Job {res.job_id}: seed agent on one task, {outcome}, {res.seconds:.0f} s, ${cost:.4f}")
-            failed |= outcome == "infra" or not res.records
-        except Exception as e:  # noqa: BLE001
-            line(False, f"HF Job: {type(e).__name__}: {str(e)[:200]} (credits: open the coupon link; 403: the token needs the Jobs permission)")
-            failed = True
-    if failed:
-        return 1
-    print(f"ready: start your loop with `aidev-evolve run --proposer {working[0]}`")
-    return 0
+def _pct(h: dict[str, Any]) -> str:
+    return f"{h['passed']}/{h['scored']} = {100 * h['passed'] / h['scored']:.0f}%"
 
 
 def cmd_eval(args: argparse.Namespace) -> int:
+    """Score the folder's agent.py as its next version: one HF Job, the validation tasks, one trial each. With
+    --heldout: the latest version and version 1 on the held-out tasks, in one Job."""
+    from aidev_evolve import providers, workspace
+
+    d = Path(args.dir)
+    try:
+        versions = workspace.load(d)
+        source = (d / "agent.py").read_text()
+        workspace.check_agent(source)
+    except workspace.WorkspaceError as e:
+        print(e)
+        return 2
+    split = workspace.splits()
+    version = workspace.next_version(versions, source)
+    again = "aidev-evolve eval" + (" --heldout" if args.heldout else "")
+    if args.heldout:
+        if version is not None:
+            print("agent.py is not a measured version yet: run `aidev-evolve eval` first, then `aidev-evolve eval --heldout`.")
+            return 2
+        tasks = split["heldout"]
+        wanted = [v for v in {versions[0]["version"]: versions[0], versions[-1]["version"]: versions[-1]}.values()]
+        todo = [v for v in wanted if not v.get("heldout")]
+        if not todo:
+            print("The held-out scores are measured already: " + ", ".join(f"v{v['version']}: {_pct(v['heldout'])}" for v in wanted)
+                  + ". Change agent.py and run `aidev-evolve eval` to get a new version.")
+            return 0
+        try:
+            candidates = {f"v{v['version']}": source if v is versions[-1] else workspace.version_source(d, v["version"]) for v in todo}
+        except workspace.WorkspaceError as e:
+            print(e)
+            return 2
+        what = f"{' and '.join(candidates)} on the {len(tasks)} held-out tasks"
+    elif version is None:
+        last = versions[-1]
+        print(f"agent.py is unchanged since v{last['version']} ({workspace.score_text(last)}): nothing to evaluate. Change agent.py, then run `aidev-evolve eval` again.")
+        return 0
+    else:
+        candidates, tasks = {f"v{version}": source}, split["validation"]
+        what = f"agent.py as v{version} on the {len(tasks)} validation tasks"
     api, token, user = _session()
-    source = Path(args.agent).read_text()
-    spec = {"candidates": {"cand": source}, "runs": [{"candidate": "cand", "tasks": args.tasks.split(","), "trials": args.trials}], "budget_s": args.budget_s}
-    res = launch.run_eval(api, token, user, spec, on_record=_progress, package_url=args.package_url)
-    with open(args.out, "a") as f:
-        for r in res.records:
-            f.write(json.dumps(r) + "\n")
-    passed = sum(r["outcome"] == "pass" for r in res.records)
-    scored = sum(r["outcome"] != "infra" for r in res.records)
-    cost = sum(r["cost_usd"] for r in res.records) + res.job_usd
-    print(f"{passed}/{scored} passed, {res.seconds:.0f} s, ${cost:.3f} (Job {res.job_id})")
+    order = providers.for_user(user)
+    spec = {"candidates": candidates, "runs": [{"candidate": name, "tasks": tasks, "trials": 1} for name in candidates],
+            "budget_s": workspace.eval_budget_s(), "providers": order}
+    color = sys.stdout.isatty()
+    several = len(candidates) > 1
+    print(f"Evaluating {what}, 1 trial each (GLM-5.3-Flash on {order[0]}).", flush=True)
+    try:
+        res = launch.run_eval(api, token, user, spec, on_job=lambda job: print(f"HF Job: {getattr(job, 'url', None) or job.id}", flush=True),
+                              on_record=lambda r: print(_trial_line(r, color) + (f"   {r['candidate']}" if several else ""), flush=True), package_url=args.package_url)
+    except KeyboardInterrupt:
+        print("\nStopped: the Job was cancelled and nothing was recorded.")
+        return 130
+    except launch.EvalJobError as e:
+        print(f"The evaluation Job failed: {e}\nNothing was recorded. Run `{again}` again.")
+        return 1
+    except Exception as e:  # noqa: BLE001 - the Hub refused the Job (credits, token scope) or the network is down
+        print(f"The evaluation Job could not run: {type(e).__name__}: {str(e)[:300]}\nNothing was recorded. "
+              f"402: the account has no credits left (Settings > Billing on huggingface.co). "
+              f"401 or 403: create a token of type \"Write\" at https://huggingface.co/settings/tokens, then run `hf auth login` again.")
+        return 1
+    scored = [r for r in res.records if r["outcome"] != "infra"]
+    lost = len(tasks) * len(candidates) - len(scored)
+    lost_note = f" ({lost} trials were lost to infrastructure and do not count)" if lost else ""
+    if not scored:
+        print(f"No trial was scored{lost_note}. Nothing was recorded: run `{again}` again.")
+        return 1
+    cost = sum(r.get("cost_usd") or 0.0 for r in res.records) + res.job_usd
+    spent = f"{res.seconds:.0f} s, ${cost:.3f}"
+    if args.heldout:
+        held = workspace.record_heldout(d, {int(name[1:]): [r for r in res.records if r["candidate"] == name] for name in candidates}, trials=1)
+        shown = {v["version"]: held.get(v["version"]) or v.get("heldout") for v in wanted}
+        print("Held-out: " + ", ".join(f"v{n}: {_pct(h)}" for n, h in shown.items() if h) + f"{lost_note}   {spent}")
+        if len(held) < len(candidates):
+            print(f"Not every version was scored: run `{again}` again for the missing one.")
+            if not held:
+                return 1
+    else:
+        entry = workspace.record(d, version, source, res.records, seconds=round(res.seconds, 1), cost_usd=round(cost, 4), job_url=res.job_url)
+        before = f"   (v{versions[-1]['version']}: {workspace.score_text(versions[-1])})" if versions else ""
+        print(f"v{version}: {workspace.score_text(entry)}{lost_note}{before}   {spent}")
+        print(f"Trajectories: {d / 'traces' / f'v{version}' / 'INDEX.md'}")
+    print(f"Chart: {d / 'chart.html'}")
     return 0
 
 
@@ -131,264 +129,17 @@ def cmd_eval_job(args: argparse.Namespace) -> int:
     return evaljob.cli()
 
 
-def make_evolver(args: argparse.Namespace, run_dir: Path, write: Any = None) -> Any:
-    """The real adapters: HF Job evaluation in the user's namespace, their coding agent as proposer."""
-    from aidev_evolve import proposer, providers
-
-    api, token, user = _session()
-
-    def evaluate(spec: dict[str, Any], on_record: Any) -> Any:
-        return launch.run_eval(api, token, user, spec, on_record=on_record, package_url=args.package_url)
-
-    def propose(work: Path, prompt: str) -> Any:
-        return proposer.propose(args.proposer, work, prompt, model=args.model, timeout_s=args.proposer_timeout_s)
-
-    room = board.QueuedBoard(board.Board(args.board, token), run_dir / "outbox.jsonl") if args.board else None
-    extra: dict[str, Any] = {}
-    if args.seed:
-        extra["seed_source"] = Path(args.seed).read_text()
-    splits = json.loads(Path(args.splits).read_text()) if args.splits else loop.default_splits()
-    budget_s = args.budget_s or splits["budget_s"]  # the budget the splits' tasks were selected for
-    session_s = strategy.SESSION_MINUTES * 60 if args.full and not getattr(args, "no_time_box", False) else None  # one iteration needs no time box
-    own = args.seed or args.splits or args.budget_s  # the shipped seed scores are those of the bundled seed, splits and budget
-    shipped = None if (args.full or args.measure_seed or own) else calibration.bundled()
-    return loop.Evolver(run_dir, splits=splits, evaluate=evaluate, propose=propose, board=room, budget_s=budget_s, color=sys.stdout.isatty(),
-                        proposer_name=args.proposer, run_id=f"{user}-{run_dir.name}", write=write or (lambda s: print(s, end="", flush=True)),
-                        resume=getattr(args, "resume", False), strategy=strategy.load(args.strategy), session_s=session_s,
-                        parallel_proposals=args.proposer != "manual", providers=providers.for_user(user), calibration=shipped, fast=not args.full, **extra)
-
-
-def run_plan(args: argparse.Namespace) -> dict[str, Any]:
-    """Iterations and held-out trials of a run: the workshop run's (one iteration, one trial), or with --full the
-    strategy's iterations inside the time box and two trials."""
-    if args.full:
-        return {"iterations": None, "heldout_trials": strategy.HELDOUT_TRIALS}
-    return {"iterations": strategy.WORKSHOP_ITERATIONS, "heldout_trials": strategy.WORKSHOP_HELDOUT_TRIALS}
-
-
-def _run_dir(base: str | None) -> Path:
-    return Path(base) if base else Path("runs") / time.strftime("%Y%m%d-%H%M%S")
-
-
-def _strategy_or_exit(spec: str) -> strategy.Strategy | None:
-    try:
-        return strategy.load(spec)
-    except strategy.StrategyError as e:
-        print(f"Strategy {spec!r}: {e}")
-        return None
-
-
-def cmd_run(args: argparse.Namespace) -> int:
-    from aidev_evolve import proposer
-
-    s = _strategy_or_exit(args.strategy)  # before any login check or paid call
-    if s is None:
-        return 2
-    print("Strategy " + strategy.describe(s), flush=True)
-    if args.proposer != "manual":  # a logged-out proposer must stop the run before anything is measured or posted
-        ok, msg = proposer.probe(args.proposer)
-        if not ok:
-            print(f"Your coding agent does not answer: {msg}\nFix it (`aidev-evolve check` shows every step), or use --proposer manual.")
-            return 1
-    evo = make_evolver(args, _run_dir(args.run_dir))
-    if args.board:
-        print(f"Workshop board: {board.page_url(args.board)}  (your progress appears there; --no-board keeps it private)", flush=True)
-        problem = board.version_problem(args.board, http=_http())
-        if problem:
-            print(f"WARNING: {problem}", flush=True)
-    try:
-        evo.run(**run_plan(args))
-    except launch.EvalJobError as e:  # a Job the run cannot go on without (the seed's, the held-out check's) failed
-        print(f"\nAn evaluation Job failed: {e}\nFix the cause, then `aidev-evolve run --resume --run-dir {evo.run_dir}` "
-              f"continues without repeating paid work.")
-        return 1
-    room = getattr(evo, "board", None)
-    left = room.flush(retries=4) if isinstance(room, board.QueuedBoard) else 0
-    if left:
-        print(f"\nThe workshop board did not take {left} updates; `aidev-evolve run --resume --run-dir {evo.run_dir}` sends them later.")
-    print(f"Run folder: {evo.run_dir}")
-    return 0
-
-
-def cmd_experiment(args: argparse.Namespace) -> int:
-    """Phase 2 entry point: R independent runs of the same loop, each with its held-out check; one summary."""
-    if _strategy_or_exit(args.strategy) is None:
-        return 2
-    base = _run_dir(args.run_dir)
-    summary = []
-    for k in range(args.runs):
-        evo = make_evolver(args, base / f"run{k + 1}")
-        plan = run_plan(args)
-        st = evo.run(iterations=plan["iterations"] if args.iterations is None else args.iterations,
-                     heldout_trials=plan["heldout_trials"] if args.heldout_trials is None else args.heldout_trials)
-        summary.append({"run": k + 1, "incumbent": st["incumbent"], "kept": sum(h["verdict"] == "kept" for h in st["history"]),
-                        "val_curve": st["curve"], "heldout": st["heldout"], "spend_usd": st["spend_usd"], "proposer_usd": st["proposer_usd"]})
-        (base / "summary.json").write_text(json.dumps(summary, indent=2))
-    print(json.dumps(summary, indent=2))
-    return 0
-
-
-def cmd_strategies(args: argparse.Namespace) -> int:
-    print(f"Optimization strategies (fixed for everyone: model, {loop.default_splits()['budget_s']:.0f} s per task, the splits and held-out set, the seed).\n"
-          f"`run` is the workshop run: {strategy.WORKSHOP_ITERATIONS} iteration, the seed's scores measured before the workshop, "
-          f"{strategy.WORKSHOP_HELDOUT_TRIALS} held-out trial per task, one HF Job.\n"
-          f"`run --full` is the long run for home: the seed measured again, the strategy's iterations inside {strategy.SESSION_MINUTES:.0f} min, "
-          f"{strategy.HELDOUT_TRIALS} held-out trials, at most ${strategy.USD_CAP:.0f}.\n")
-    for name in strategy.presets():
-        print(strategy.describe(strategy.load(name)) + "\n")
-    print("In the room, run your seating block's strategy:")
-    for block, letter in zip(strategy.BLOCKS, strategy.BLOCK_LETTERS):
-        print(f"  aidev-evolve run --block {block:<7} (or {letter.upper()}): {strategy.BLOCKS[block]}")
-    print("\nEdit one: `aidev-evolve strategy-init <preset> my-strategy`, change strategy.toml and proposer_prompt.md, "
-          "then `aidev-evolve run --strategy my-strategy`.")
-    return 0
-
-
-def cmd_strategy_init(args: argparse.Namespace) -> int:
-    try:
-        d = strategy.init(args.preset, Path(args.directory))
-    except (strategy.StrategyError, FileExistsError) as e:
-        print(e)
-        return 2
-    print(f"Copied {args.preset} to {d}/: edit strategy.toml (knobs) and proposer_prompt.md (your proposer's approach),\n"
-          f"then run it with `aidev-evolve run --strategy {d}` (the file is checked before anything is spent).")
-    return 0
-
-
-def run_entry(run_dir: Path) -> dict[str, Any]:
-    """A run folder as the ranking reads it (the same fields as the board's heldout event)."""
-    config = json.loads((run_dir / "config.json").read_text())
-    state = json.loads((run_dir / "state.json").read_text())
-    rid = state.get("run_id") or config.get("run_id") or run_dir.name
-    return {"run_id": rid, "user": rid.split("-")[0], "strategy": config["strategy"], "heldout": state.get("heldout"),
-            "kept": [h.get("title") for h in state.get("history", []) if h.get("verdict") == "kept"]}
-
-
-def cmd_rank(args: argparse.Namespace) -> int:
-    runs = [run_entry(Path(d)) for d in args.run_dirs]
-    result = ranking.rank(runs, by=args.by, min_runs=args.min_runs)
-    print(ranking.format_table(result))
-    if args.json:
-        Path(args.json).write_text(json.dumps(result, indent=2))
-    return 0
-
-
-def cmd_show(args: argparse.Namespace) -> int:
-    from aidev_evolve import show
-
-    run_dir = Path(args.run_dir) if args.run_dir else show.newest_run()
-    if run_dir is None or not (run_dir / "state.json").is_file():
-        print(f"No run {'in ' + str(run_dir) if run_dir else 'under runs/ in this folder'}: start one with `aidev-evolve run`, "
-              f"or name its folder (`aidev-evolve show runs/<time>`).")
-        return 1
-    print(show.final_agent(run_dir, diff=args.diff, color=sys.stdout.isatty()), end="")
-    return 0
-
-
-def cmd_replay(args: argparse.Namespace) -> int:
-    from aidev_evolve import replay
-
-    print("RECORDED REPLAY — historical run, not live results.", flush=True)
-    replay.replay(Path(args.run_dir) if args.run_dir else replay.bundled(), speed=args.speed)
-    return 0
-
-
-def _block(value: str) -> str:
-    try:
-        return strategy.block_strategy(value)
-    except ValueError as e:
-        raise argparse.ArgumentTypeError(str(e)) from None
-
-
-def _loop_args(p: argparse.ArgumentParser) -> None:
-    p.add_argument("--proposer", choices=["claude", "codex", "manual"], default="claude")
-    p.add_argument("--model", default=None, help="proposer model (claude: sonnet, opus; codex: its model names)")
-    p.add_argument("--proposer-timeout-s", type=float, default=300)
-    pick = p.add_mutually_exclusive_group()
-    pick.add_argument("--strategy", default=strategy.DEFAULT,
-                      help=f"optimization strategy: a preset ({', '.join(strategy.presets())}) or a folder from `strategy-init`")
-    pick.add_argument("--block", dest="strategy", type=_block, metavar="{" + ",".join(strategy.BLOCKS) + "}",
-                      help="your seating block in the room: " + ", ".join(f"{b} = {s}" for b, s in strategy.BLOCKS.items()) + " (or A, B, C)")
-    p.add_argument("--full", action="store_true",
-                   help=f"the long run (for home, about 20 min): measure the seed again, the strategy's iterations inside a {strategy.SESSION_MINUTES:.0f}-min time box, "
-                        f"the re-measure in its own Job, {strategy.HELDOUT_TRIALS} held-out trials. Default: the workshop run (one iteration, one Job)")
-    p.add_argument("--measure-seed", action="store_true",
-                   help="measure the seed agent in a Job of its own instead of using the scores shipped with this version (always with --full, --seed, --splits or --budget-s)")
-    p.add_argument("--budget-s", type=float, default=None, help="agent time per task (default: the budget the splits were selected for)")
-    p.add_argument("--seed", default=None, help="starting agent.py (default: the bundled seed)")
-    p.add_argument("--splits", default=None, help="splits JSON (default: the bundled splits)")
-    p.add_argument("--run-dir", default=None)
-    p.add_argument("--resume", action="store_true", help="continue the run in --run-dir after a crash or Ctrl-C (iterations = total)")
-    p.add_argument("--board", default=board.default_url(),
-                   help=f"workshop board to post your progress to (default: $AIDEV_BOARD, else the coordinator Space, {board.ROOM_URL})")
-    p.add_argument("--no-board", dest="board", action="store_const", const=None, help="do not post to the workshop board")
-    p.add_argument("--package-url", default=None)
-
-
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="aidev-evolve")
+    p = argparse.ArgumentParser(prog="aidev-evolve", description="Score agent.py on Terminal-Bench 2.1 tasks in an HF Job on your own HF account.")
     p.add_argument("--version", action="version", version=__version__)
     sub = p.add_subparsers(dest="cmd", required=True)
-    c = sub.add_parser("check", help="check your setup: HF login, your coding agent, the workshop board (free, seconds)")
-    c.add_argument("--proposer", choices=["claude", "codex"], default=None, help="check only this coding agent (default: both, one must answer)")
-    c.add_argument("--board", default=board.default_url(), help="workshop board (default: $AIDEV_BOARD, else the coordinator Space)")
-    c.add_argument("--job", action="store_true", help="also run one seed trial in an HF Job (about a minute, under a cent)")
-    c.add_argument("--package-url", default=None)
-    c.set_defaults(fn=cmd_check)
-    e = sub.add_parser("eval", help="score one agent.py on some tasks (one HF Job)")
-    e.add_argument("--agent", required=True)
-    e.add_argument("--tasks", required=True)
-    e.add_argument("--trials", type=int, default=1)
-    e.add_argument("--budget-s", type=float, default=_bundled_budget())
-    e.add_argument("--out", default="records.jsonl")
-    e.add_argument("--package-url", default=None)
+    e = sub.add_parser("eval", help="score agent.py as its next version on the 8 validation tasks (one HF Job); run it in the folder that holds agent.py")
+    e.add_argument("--dir", default=".", help="your folder (default: the current one)")
+    e.add_argument("--heldout", action="store_true", help="score the latest version and version 1 on the 21 held-out tasks instead (one HF Job)")
+    e.add_argument("--package-url", default=None, help="another wheel for the Job to install (default: this version's)")
     e.set_defaults(fn=cmd_eval)
     j = sub.add_parser("eval-job", help="(inside the HF Job) run the spec from $AIDEV_EVOLVE_SPEC")
     j.set_defaults(fn=cmd_eval_job)
-    r = sub.add_parser("run", help="evolve the agent: propose, evaluate, keep or drop, repeat")
-    _loop_args(r)
-    r.set_defaults(fn=cmd_run)
-    x = sub.add_parser("experiment", help="several independent runs with held-out checks (Phase 2)")
-    _loop_args(x)
-    x.add_argument("--runs", type=int, default=3)
-    x.add_argument("--iterations", type=int, default=None, help="(dev) iterations per run (default: the strategy's, inside the time box)")
-    x.add_argument("--heldout-trials", type=int, default=None, help="(dev) held-out trials per task (default: the run's; 0 skips the held-out check)")
-    x.add_argument("--no-time-box", action="store_true", help="(dev) with --full: no time box")
-    x.set_defaults(fn=cmd_experiment)
-    room = sub.add_parser("room-init", help="create an offline shared-seed proposal kit")
-    room.add_argument("directory")
-    def init_room(args: argparse.Namespace) -> int:
-        from aidev_evolve import room as room_module
-        room_module.init(Path(args.directory))
-        return 0
-    room.set_defaults(fn=init_room)
-    rd = sub.add_parser("room-diff", help="print a proposal as text without executing it")
-    rd.add_argument("directory")
-    def diff_room(args: argparse.Namespace) -> int:
-        from aidev_evolve import room as room_module
-        room_module.diff(Path(args.directory))
-        return 0
-    rd.set_defaults(fn=diff_room)
-    st = sub.add_parser("strategies", help="list the optimization strategy presets with their knobs, time and credits")
-    st.set_defaults(fn=cmd_strategies)
-    si = sub.add_parser("strategy-init", help="copy a strategy preset into a folder to edit it")
-    si.add_argument("preset")
-    si.add_argument("directory", nargs="?", default="my-strategy")
-    si.set_defaults(fn=cmd_strategy_init)
-    rk = sub.add_parser("rank", help="rank strategies by held-out gain (95%% CIs, ties) from run folders")
-    rk.add_argument("run_dirs", nargs="+")
-    rk.add_argument("--by", choices=["hash", "preset", "name"], default="hash", help="pool identical strategies (hash) or every edit of a preset")
-    rk.add_argument("--min-runs", type=int, default=ranking.MIN_RUNS)
-    rk.add_argument("--json", default=None, help="also write the full ranking as JSON")
-    rk.set_defaults(fn=cmd_rank)
-    sh = sub.add_parser("show", help="print the final agent.py of a run (default: your newest run under runs/)")
-    sh.add_argument("run_dir", nargs="?", default=None)
-    sh.add_argument("--diff", action="store_true", help="only what changed against the seed agent")
-    sh.set_defaults(fn=cmd_show)
-    rp = sub.add_parser("replay", help="play a recorded run (offline, no credits)")
-    rp.add_argument("run_dir", nargs="?", default=None)
-    rp.add_argument("--speed", type=float, default=20.0)
-    rp.set_defaults(fn=cmd_replay)
     return p
 
 

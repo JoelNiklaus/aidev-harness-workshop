@@ -1,4 +1,4 @@
-"""What the proposer reads: trajectories rendered as short markdown transcripts, failures first.
+"""What the attendee's coding agent reads: trajectories rendered as short markdown files, failures first.
 
 Each step shows what the model said and asked for, the command, its exit code, duration and output
 (head and tail), how many characters the command printed and how many the harness passed on to the model
@@ -40,7 +40,8 @@ def _llm_block(i: int, s: dict[str, Any], task: str | None = None) -> str:
     if seen:
         lines.append("tool results the model received: " + ", ".join(f"model saw {len(m.get('content') or ''):,} chars" for m in seen))
     if s.get("dropped_or_changed_from") is not None:
-        lines.append(f"(the harness changed or dropped earlier messages from message {s['dropped_or_changed_from']})")
+        lines.append(f"(the harness dropped or changed earlier messages: the model no longer received the conversation as it was sent before, "
+                     f"from message {s['dropped_or_changed_from'] + 1} on)")
     reply = s.get("reply") or {}
     if reply.get("content"):
         lines.append("model: " + _snip(reply["content"], 600))
@@ -94,7 +95,8 @@ def render(rec: dict[str, Any], max_chars: int = 20_000) -> str:
     return text + "\n" + "\n\n".join(blocks) + end
 
 
-def write(records: list[dict[str, Any]], out_dir: Path, *, include: str = "all", max_traces: int | None = None) -> list[Path]:
+def write(records: list[dict[str, Any]], out_dir: Path, *, include: str = "all", max_traces: int | None = None,
+          title: str = "Trajectories of agent.py") -> list[Path]:
     """Failed transcripts first, then passed ones (`include="failed"`: failed only), at most `max_traces`."""
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -108,8 +110,8 @@ def write(records: list[dict[str, Any]], out_dir: Path, *, include: str = "all",
         p.write_text(render(r))
         paths.append(p)
         t = r.get("trajectory") or {}
-        rows.append(f"| {r['task']} | {r['outcome'].upper()} | {t.get('end', '-')} | {(t.get('usage') or {}).get('calls', 0)} | {t.get('agent_s', 0):.0f} s | {p.name} |")
-    index = ["# Trajectories of the current agent on the search tasks", "",
+        rows.append(f"| {r['task']} | {r['outcome'].upper()} | {t.get('end', '-')} | {(t.get('usage') or {}).get('calls', 0)} | {t.get('agent_s', 0):.0f} s{f" of {t['budget_s']:.0f} s" if t.get('budget_s') else ''} | {p.name} |")
+    index = [f"# {title}", "",
              "| task | result | run ended | model calls | agent time | file |", "|---|---|---|---|---|---|", *rows]
     (out_dir / "INDEX.md").write_text("\n".join(index) + "\n")
     return paths

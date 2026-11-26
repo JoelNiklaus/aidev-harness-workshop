@@ -9,7 +9,7 @@ agent.py defines `run(task, env)`. `env` is the only door to the world:
   sandbox (stdout and stderr together). Without a timeout a command may run until the time budget is gone.
 - `env.time_left()` -> seconds left of the trial's budget; `env.log(text)` adds a note to the trajectory.
 
-The runtime records every step itself (the proposer can change agent.py but not what is recorded) and
+The runtime records every step itself (a change to agent.py cannot change what is recorded) and
 ends the run when the budget is gone: `TimeUp` derives from BaseException so `except Exception` in an
 agent cannot swallow it.
 """
@@ -113,6 +113,7 @@ class Env:
             reply, usage = self._llm(messages, tools, timeout=left, **params)
         except TimeoutError:
             raise TimeUp from None
+        dropped_from = same if same < len(self._last_messages) else None  # the last call's messages are not a prefix of this call's
         self._last_messages = snapshot
         cost = call_cost(usage, self._price)
         self.cost_usd += cost
@@ -121,7 +122,7 @@ class Env:
         self.usage["output"] += usage.get("completion_tokens", 0)
         self.usage["calls"] += 1
         self.steps.append({"kind": "llm", "t": round(start - self._t0, 3), "duration_s": round(self._clock() - start, 3),
-                           "n_messages": len(snapshot), "dropped_or_changed_from": same if same < len(self._last_messages) else None,
+                           "n_messages": len(snapshot), "dropped_or_changed_from": dropped_from,
                            "new_messages": [_capped_message(m) for m in snapshot[same:]], "reply": _capped_message(reply),
                            "tools": [t.get("function", {}).get("name") for t in tools or []], "params": params, "usage": usage})
         return reply

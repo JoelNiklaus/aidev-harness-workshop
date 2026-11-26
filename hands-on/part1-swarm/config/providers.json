@@ -1,8 +1,0 @@
-{
-  "model": "zai-org/GLM-5.3-Flash",
-  "providers": [
-    {"name": "novita", "weight": 3},
-    {"name": "zai-org", "weight": 1}
-  ],
-  "_comment": "The one list of GLM-5.3-Flash providers the workshop uses (Part 1 runner and Part 2 aidev-evolve). Each attendee gets one provider, picked by a weighted rendezvous hash of the lowercased HF username (runner/src/aidev_swarm/providers.py, PROTOCOL.md 'Providers'); the remaining providers in the same order are the fallback. Allowlist = the providers the Harness Leaderboard's equivalence policy admits for this model (harness-leaderboard hlb/data/models.json `equivalence`, docs/provider-equivalence.md): zai-org (reference, fp8) and novita (admitted 2026-11-08, fp8). Not admitted, so not here: baseten (fp8, behaviour matched on 2026-11-14 but its Hub route flapped and prompts render 1 token longer; waits for Joel's call on the leaderboard), together and fireworks-ai (precision unpublished), coreweave (nvfp4), deepinfra (fp4). The board's reference layer comes from leaderboard runs on zai-org alone (351 of 600 trials) and on the zai-org + novita pool (240), so these two keep the room comparable with it. Weights 3:1 because Part 1 trials are long-context agent runs: on 2026-11-14 (harness-leaderboard docs/provider-equivalence-2026-11-14/GLM-5.3-Flash/REPORT.md) zai-org slowed down above 16 concurrent agents (p50 x2.1 at 32), Novita stayed flat up to 128; on 2026-11-18's short-context replay (talk folder evolve/room-design.md) both were clean at 240 simulated trials. Novita also bills less (0.084/0.28 vs 0.15/0.50 $/M; list prices equal, so the board's cost is the same). Change the list only after a provider is admitted on the leaderboard (a test checks every name against the runner's pinned hlb pool)."
-}

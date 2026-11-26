@@ -1,10 +1,10 @@
 [project]
 name = "aidev-evolve"
-version = "0.6.0"
-description = "Evolve a small coding-agent harness on Terminal-Bench 2.1: your coding agent proposes patches, an HF Job scores them on HF Sandboxes with GLM-5.3-Flash, and the loop keeps a patch only if it wins on validation."
+version = "0.7.0"
+description = "Fix a small coding-agent harness on Terminal-Bench 2.1: your coding agent finds and fixes its bugs, an HF Job scores each version on HF Sandboxes with GLM-5.3-Flash, and a local chart shows the score by version."
 readme = "README.md"
 requires-python = ">=3.12"
-# The base install is what the laptop needs (the loop, the proposer call, Job submission and log reading).
+# The base install is what the laptop needs (Job submission, log reading, the chart).
 # The `run` extra is what the HF Job installs to run trials with Harbor.
 dependencies = [
     "httpx>=0.27",
@@ -37,5 +37,5 @@ packages = ["src/aidev_evolve"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-markers = ["live: real HF Jobs, router or proposer calls (opt-in: -m live)"]
+markers = ["live: real HF Jobs or router calls (opt-in: -m live)"]
 addopts = "-m 'not live'"

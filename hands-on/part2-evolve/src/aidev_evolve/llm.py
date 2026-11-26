@@ -2,7 +2,9 @@
 
 Runs in the HF Job with the attendee's token. A rate limit (429), server error (5xx), network error or timeout is
 retried once at once on the next provider of the attendee's list (the Job's shared `providers.Pool` moves to the next
-provider after 3 such fallbacks), then with backoff while the trial has time left. A 4xx the agent caused (a malformed history) is an
+provider after 3 such fallbacks), then with backoff while the trial has time left. A provider that refuses the model
+(HTTP 400 "not supported by provider") is a provider error: the call moves to the next provider, the Job stops asking
+that one, and when every provider refuses the trial ends as infra (not scored). A 4xx the agent caused (a malformed history) is an
 `LLMError` the agent sees; an account problem (401/402/403: token, credits) is `InfraError`, which ends the
 trial as infra (not scored) and which an agent cannot catch with `except Exception`.
 """
@@ -22,6 +24,7 @@ ROUTER = "https://router.huggingface.co/v1/chat/completions"
 EFFORT = "low"
 MIN_FALLBACK_S = 5.0  # a timed-out call is retried on the next provider only if this much of the trial's time is left
 KEEP = ("role", "content", "tool_calls")
+REFUSAL = "not supported by provider"  # the router's 400 when a provider does not serve the model
 
 
 class LLMError(RuntimeError):
@@ -67,6 +70,12 @@ class RouterLLM:
                 return {k: msg.get(k) for k in KEEP if k in msg}, usage
             if r is not None and r.status_code in (401, 402, 403):
                 raise InfraError(f"router HTTP {r.status_code}: {r.text[:300]}")
+            if r is not None and r.status_code == 400 and REFUSAL in r.text.lower():
+                nxt = self._pool.refuse(provider)
+                if nxt is None:
+                    raise InfraError(f"every provider refused {MODEL} (last: {provider}): {r.text[:300]}")
+                provider = nxt
+                continue
             if r is not None and r.status_code != 429 and r.status_code < 500:
                 raise LLMError(f"router HTTP {r.status_code}: {r.text[:500]}")
             nxt = None if fell_back else self._pool.fallback(provider)

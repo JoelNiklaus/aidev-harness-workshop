@@ -1,6 +1,6 @@
 """Laptop side of an evaluation: one HF Job in the attendee's own namespace, records read back from its log.
 
-The Job downloads this version's wheel (a public GitHub release asset; no credentials sent), installs it with the `run` extra (Harbor and the Part 1 sandbox
+The Job downloads this version's wheel from Hugging Face (WHEEL_REPO; with the Job's own token), installs it with the `run` extra (Harbor and the Part 1 sandbox
 wiring) and runs `aidev-evolve eval-job`; the spec (candidate sources and the trial plan) rides in one
 environment variable and the token only in the Job secret `HF_TOKEN` (as in Part 1's `launch`).
 """
@@ -16,10 +16,15 @@ from typing import Any
 from aidev_evolve import __version__, evaljob, transport
 
 JOB_IMAGE = "ghcr.io/astral-sh/uv:python3.12-bookworm"
-GITHUB_REPO = "JoelNiklaus/aidev-harness-workshop"  # public: the wheel is a release asset, so the Job downloads it without credentials
+# THE place the wheel lives: the Hugging Face dataset repository the evaluation Jobs download it from
+# (devtools/publish.py uploads it). Not GitHub: hundreds of Jobs share a few egress IPs, and GitHub answered them with
+# HTTP 403 (load test, 25 Nov 2026). It is PUBLIC and shared with the Part 1 runner (aidev_lb.launch names the same
+# repository): one folder each.
+WHEEL_REPO = "agent-harness-workshop/aidev-workshop-wheels"
+WHEEL_FOLDER = "evolve"
 FLAVOR = "cpu-basic"
 JOB_USD_PER_H = 0.01  # cpu-basic
-SETUP_S = 10 * 60
+SETUP_S = 10 * 60  # the Job's own install before the trials start, with room
 MAX_SPEC_CHARS = 100_000  # a 60 KB variable was probed fine (17 Nov); keep a margin
 JOB_LABEL = {"aidev-evolve": "eval"}
 RUNNING = {"SCHEDULING", "RUNNING", "STARTING", "PENDING", "QUEUED"}
@@ -40,31 +45,41 @@ class EvalResult:
     missing: int = 0  # trials the spec asked for that sent no record (a crashed Harbor job, a lost log line)
 
 
-def release_tag(version: str = __version__) -> str:
-    return f"evolve-v{version}"
-
-
 def default_package_url(version: str = __version__) -> str:
-    return f"https://github.com/{GITHUB_REPO}/releases/download/{release_tag(version)}/aidev_evolve-{version}-py3-none-any.whl"
+    return f"https://huggingface.co/datasets/{WHEEL_REPO}/resolve/main/{WHEEL_FOLDER}/aidev_evolve-{version}-py3-none-any.whl"
+
+
+def _download(url: str, to: str) -> str:
+    """Shell: download with one more try after a short random delay. A Hub URL gets the Job's own token from the
+    environment (the secret HF_TOKEN), so the Hub counts the request against the attendee's account, not the shared IP."""
+    auth = ' -H "Authorization: Bearer $HF_TOKEN"' if url.startswith("https://huggingface.co/") else ""
+    curl = f"curl -fsSL --retry 2{auth} -o {shlex.quote(to)} {shlex.quote(url)}"
+    return f"{{ {curl} || {{ sleep $((2 + RANDOM % 7)); {curl}; }}; }}"
 
 
 def job_script(url: str) -> str:
+    """The wheel is the Job's only download besides the PyPI packages and the leaderboard library (git on the Hub):
+    the tasks travel in it."""
     wheel = "/tmp/" + url.rsplit("/", 1)[-1]
-    return (f'set -e; curl -fsSL -o {shlex.quote(wheel)} {shlex.quote(url)}; '
+    return (f'set -e; {_download(url, wheel)}; '
             f'exec uvx --python 3.12 --from "aidev-evolve[run] @ file://{wheel}" aidev-evolve eval-job')
 
 
 def job_spec(token: str, user: str, spec: dict[str, Any], *, package_url: str | None = None, flavor: str = FLAVOR) -> dict[str, Any]:
+    if not spec.get("providers"):
+        raise ValueError("the evaluation spec names no providers: pass providers.for_user(user)")
     encoded = evaljob.encode_spec(spec)
     if len(encoded) > MAX_SPEC_CHARS:
         raise ValueError(f"evaluation spec too large for a Job variable ({len(encoded):,} chars > {MAX_SPEC_CHARS:,}): is agent.py huge?")
     return {
         "image": JOB_IMAGE,
         "command": ["bash", "-c", job_script(package_url or default_package_url())],
-        "env": {evaljob.SPEC_ENV: encoded, "PYTHONUNBUFFERED": "1", "UV_NO_PROGRESS": "1", "HF_HUB_DISABLE_PROGRESS_BARS": "1"},
+        "env": {evaljob.SPEC_ENV: encoded,
+                "LITELLM_LOCAL_MODEL_COST_MAP": "True",  # litellm's packaged price list, not the one on raw.githubusercontent.com
+                "PYTHONUNBUFFERED": "1", "UV_NO_PROGRESS": "1", "HF_HUB_DISABLE_PROGRESS_BARS": "1"},
         "secrets": {"HF_TOKEN": token},
         "flavor": flavor,
-        "timeout": int(spec.get("budget_s", 150) + evaljob.HARBOR_SLACK_S + SETUP_S),
+        "timeout": int(evaljob.wall_limit_s(float(spec.get("budget_s", 150))) + SETUP_S),
         "labels": dict(JOB_LABEL),
         "namespace": user,
     }
@@ -78,11 +93,12 @@ def _stage_running(api: Any, job_id: str, user: str) -> bool:
 
 
 def run_eval(api: Any, token: str, user: str, spec: dict[str, Any], *, on_record: Callable[[dict[str, Any]], None] = lambda r: None,
-             package_url: str | None = None, flavor: str = FLAVOR, clock: Callable[[], float] = time.monotonic,
+             on_job: Callable[[Any], None] = lambda job: None, package_url: str | None = None, flavor: str = FLAVOR, clock: Callable[[], float] = time.monotonic,
              stage_running: Callable[[Any, str, str], bool] = _stage_running, sleep: Callable[[float], None] = time.sleep,
              max_follows: int = 30) -> EvalResult:
     start = clock()
     job = api.run_job(**job_spec(token, user, spec, package_url=package_url, flavor=flavor))
+    on_job(job)
     dec = transport.Decoder()
     records: list[dict[str, Any]] = []
     tail: list[str] = []

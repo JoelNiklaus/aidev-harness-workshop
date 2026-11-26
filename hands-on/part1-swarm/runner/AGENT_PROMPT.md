@@ -1,5 +1,0 @@
-# Prompt for your coding agent
-
-Paste this into Claude Code, Codex or any coding agent that can run shell commands:
-
-> Run `uvx --from "<WHEEL_URL>" aidev-swarm launch` in a terminal. It starts one Hugging Face Job under my HF account that claims Terminal-Bench 2.1 trials from the workshop's shared grid, runs each in an HF Sandbox and submits the results to the live board; the command returns in a few seconds. Tell me the Job page and the board URL it prints. Then follow the Job with `uvx hf jobs logs -f <job id>` and, each time a line says PASS or FAIL, tell me the harness, the task, the cost and the time in one line. If `launch` stops with an error, read it and fix only my local setup (HF login with `uvx hf auth login`, credits, uv), then start it again; never edit the tool's code and never print my token. If the Job log says "stopping: 3 trials in a row failed", show me its last error lines and run `launch` once more. When I ask why a trial failed, explain in three lines whether the model, the harness or the task is the likely cause.

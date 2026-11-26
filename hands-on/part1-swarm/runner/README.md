@@ -1,96 +1,72 @@
-# aidev-swarm (runner)
+# aidev-lb (Part 1 runner)
 
-The attendee tool of the Part 1 swarm (see `../PROTOCOL.md`). `aidev-swarm launch` starts **one HF Job in
-your own namespace**. The Job claims cells of the workshop grid (harness x Terminal-Bench 2.1 task x trial)
-from the coordinator, runs each with Harbor on an HF Sandbox, and submits the results to the live board.
-Everything runs on Hugging Face: your laptop only submits the Job (about 1 s) and can close afterwards.
-Your HF credits pay for your Job (cpu-basic, $0.01/h), the sandboxes and the GLM-5.3-Flash calls.
+`aidev-lb run --harness pi --harness qwen-code` starts **one HF Job per harness in your own namespace**. Each
+Job runs its harness on 5 Terminal-Bench 2.1 tasks at once, every trial in its own HF Sandbox, with
+GLM-5.3-Flash at low effort. The command prints each Job page, then one line per trial event read from the Job
+log, and keeps the results in `results.json`. There is no shared server: your HF credits pay for your Jobs
+(cpu-basic), the sandboxes and the model calls.
 
 ## Attendee: run it
 
 ```bash
-# once, before the workshop: uv installed, HF account with credits, and a fine-grained token with the
-# permissions "Make calls to Inference Providers" and "Start and manage Jobs" saved with
-uvx hf auth login
-uvx --from "<WHEEL_URL>" aidev-swarm check           # one model call, one tiny Job, one sandbox command (15-35 s, < $0.01)
-
-# in the room
-uvx --from "<WHEEL_URL>" aidev-swarm launch          # trials until the grid is full (Job timeout 3 h)
-uvx --from "<WHEEL_URL>" aidev-swarm launch --n 2    # or exactly 2 trials
+# once: uv installed, HF account with credits, and a token of type "Write", saved with `hf auth login`
+uv tool install --with-executables-from huggingface-hub ./hands-on/part1-swarm/runner   # from the clone: aidev-lb and hf
+aidev-lb check          # one model call, one tiny Job, one sandbox command (< $0.01)
+aidev-lb harnesses      # the 10 harnesses: fast, medium or slow to install
+aidev-lb run --harness pi
+aidev-lb run --harness qwen-code --harness openclaw
 ```
 
-`launch` prints the Job page, `hf jobs logs <id>` (follow it with `-f`), `hf jobs cancel <id>`, and the board
-URL. Or paste `AGENT_PROMPT.md` into your coding agent and let it do this. In the room, the coordinator's
-`/join` page (the slide's QR code) shows both with Copy buttons.
+The Jobs install the released wheel `<WHEEL_URL>`.
+`<WHEEL_URL>` is today `https://huggingface.co/datasets/agent-harness-workshop/aidev-workshop-wheels/resolve/main/lb/aidev_lb-0.5.0-py3-none-any.whl`
+(a public repository; `run --package dist/aidev_lb-0.5.0-py3-none-any.whl` sends a local wheel to the Jobs as a
+Job secret instead). The laptop install is light (httpx and huggingface_hub); Harbor and the harness wiring
+install only inside the Job (the `run` extra).
 
-`<WHEEL_URL>` is today `https://github.com/JoelNiklaus/aidev-harness-workshop/releases/download/swarm-v0.4.3/aidev_swarm-0.4.3-py3-none-any.whl`
-(a release asset of this public repo: no login needed; the Job downloads the same file). The laptop install is
-26 MB (httpx and huggingface_hub; 4 s with an empty uv cache). Harbor and the harness wiring (about 290 MB)
-install only inside the Job (the `run` extra, about 8 s there).
-
-Other commands:
-
-- `aidev-swarm check`: the prep email's self-test (token, credits, GLM-5.3-Flash call, tiny Job, sandbox), claims nothing.
-- `aidev-swarm run --dry`: check token and credits only, claim nothing (works with the light install).
-- `aidev-swarm run [--loop | --n K] [--parallel N]`: what the Job runs (needs `aidev-swarm[run]`).
-- `aidev-swarm run --local --harness pi --task nginx-request-logging`: one trial, no coordinator (take-home).
-
-The coordinator defaults to `https://agent-harness-workshop-aidev-swarm.hf.space` (the board). Override it with `--board`
-or `export AIDEV_BOARD=<url>`, the same setting `aidev-evolve` reads (a dry run points both at the staging Space).
+- `run --tasks N` takes the first N of the 10 tasks in `data/tasks.json` (default 5).
+- `run` ends when every trial has a result or an infrastructure error. While it waits it prints one line every
+  30 s (`still waiting: N trials (K sandboxes queued)`). After 15 minutes it cancels the Jobs still running and
+  their sandboxes. A trial without a result has none: the command prints one line that says so, and nothing is
+  filled in. A repeated run replaces the older result of the same harness and task.
+- `run` also keeps the results in the public bucket `<you>/harness-results` (created if missing; `--bucket NAME`
+  for another name): the Jobs write one file per cell (`results/<cell_id>.json`) and the laptop writes the
+  aggregate `results.json`, readable without a token at
+  `https://huggingface.co/buckets/<you>/harness-results/resolve/results.json`. A token that cannot write the
+  bucket gives one message, and the run goes on with the local file only. `--no-bucket` skips the bucket.
+  Ctrl-C publishes the results so far.
+- Every record in `results.json` has `source: "measured"`. The attendee's page bundles made-up records with
+  `source: "sample"` (`hands-on/part1-leaderboard/sample-results.json`) and shows them as mock rows.
 
 ## How it works
 
-- `launch.py` builds the Job: image `ghcr.io/astral-sh/uv:python3.12-bookworm`, cpu-basic, the token only as
-  the Job secret `HF_TOKEN`; the command downloads this version's wheel from the GitHub release (no
-  credentials sent) and runs
-  `uvx --from "aidev-swarm[run] @ file://<wheel>" aidev-swarm run --loop | --n K --parallel N`.
-- `trial.py` reuses the Harness Leaderboard's wiring (`hlb` 0.1.11, pinned to the deployed Space revision; it stops
-  an agent whose time is up before the tests start):
-  per-harness Harbor configs, the HF Sandbox environment and the in-sandbox meter. Harnesses get a dummy
-  key; only the meter inside the sandbox holds your token. Sandboxes run in your namespace.
-- `result.py` builds the protocol's Result from the trial folder: tokens from the meter log, cost =
-  tokens x `data/prices.json` (cached input at its rate).
-- `coordinator.py` speaks the protocol (claim, heartbeat, submit, release; User-Agent `aidev-swarm/<version>`,
-  the coordinator refuses claims from runners older than 0.4.3). Transient errors (429 from the HF edge's
-  per-IP limit, 5xx, network) are retried with capped backoff: submit for 35 min, claim 10 min, heartbeat
-  25 s (the next beat retries), release 2 min (6 s on the way out of a cancelled Job). A result the
-  coordinator still does not take is kept in `<workdir>/unsent/` and sent again before the next claim.
-- Leases are short: a background thread heartbeats every 24-30 s (random, so runners do not beat in step)
-  and the coordinator frees a cell 90 s after its last heartbeat, so the cell of a Job that dies without a
-  word (SIGKILL, lost node) returns to the queue within about 1.5 min. A slow trial keeps its cell as long
-  as it heartbeats, however long it runs. When every free cell is taken (204 with Retry-After), a looping
-  runner waits and asks again, so it picks up cells that come back; a plain 204 means the grid is full.
-- In a multi-trial run, a trial that fails before any model call (setup, sandbox start) keeps its lease,
-  the next cell is claimed (one lease over the run's limit) and only then the failed cell is released, so the queue does not hand
-  it straight back. Three failed trials in a row stop the run. Every way out the runner can catch gives
-  its cells back at once: a cancelled or timed-out Job (SIGTERM), Ctrl-C, crashes, and an exit hook.
-- `--parallel N` (`launch` default 8, at most 8): the Job runs N slots, each a thread with its own lease and
-  heartbeats; every trial runs in its own HF Sandbox, so the Job only orchestrates (~70 MB per slot on cpu-basic's
-  2 vCPU / 16 GB). Each slot claims with `?limit=N`; the coordinator caps it at the attendee's `share` (the open cells
-  over the active attendees, with a slow start), slots beyond the share wait without asking and the slot at it asks
-  with a backoff (30 s doubling to 300 s). All slots share one hlb run id, so the harnesses' dummy key in
-  `os.environ` is the same for every trial of the Job; each trial gets its own Harbor job folder.
-- One lease more than the run's limit is allowed: a second runner of the same attendee claims with it after a 409.
-- `providers.py` spreads the room over GLM-5.3-Flash providers: each attendee gets one provider from
-  `data/providers.json` (novita 3 : zai-org 1, the providers the Harness Leaderboard admits for the model),
-  picked by a weighted hash of the HF username, so the same attendee always gets the same one. Inside a trial
-  the meter sends a call novita answers with 429 on to zai-org; a trial with 3+ calls answered 429/5xx, or one
-  that ended before any model call, moves the next trials to the next provider. Every result records
-  `provider` and `n_provider_errors` (PROTOCOL.md "Providers").
+- `cli.py`: the laptop commands. `run` submits the Jobs in parallel, follows each Job log (a broken stream is
+  reopened and replayed without duplicates), and writes each result as it arrives.
+- `launch.py`: the Job (image `ghcr.io/astral-sh/uv:python3.12-bookworm`, cpu-basic, the token only as the Job
+  secret `HF_TOKEN`). It installs this version's wheel and runs `aidev-lb job --harness H --tasks a,b,c`.
+- `job.py`: inside the Job. One short model call per provider finds the first that answers; then all trials
+  start in threads. A trial whose every model call ended in a provider error runs again on the next provider.
+- `events.py`: the `AIDEV-LB {json}` lines the Job prints (sandbox_started, harness_installed, agent_finished,
+  result, infra, retry, provider) and the plain line for each.
+- `store.py`: the results store (`write_result`, `read_all`, and `publish` for the bucket's aggregate). Backend
+  "log", always on: the Job prints the result on its log, the laptop keeps `results.json`. Backend "bucket",
+  the default: the same records in the attendee's public bucket.
+- `providers.py`: the provider list (`data/providers.json`), the attendee's order (a weighted hash of the HF
+  username), and what counts as a provider error: 429, 5xx, and refusals (400 "not supported by provider", 401,
+  403, 404). `result.py` turns a trial folder into a Result and names infrastructure errors: a trial that ended
+  with an error before any model call, or whose every model call was a provider error, is never a fail.
+- `trial.py` reuses the Harness Leaderboard's wiring (`hlb`, pinned): per-harness Harbor configs, the HF
+  Sandbox environment and the in-sandbox meter. Harnesses get a dummy key; only the meter holds your token.
+  The meter sends a call its provider answers with 429 on to the attendee's next provider.
+- `catalog.py`: the packaged data files.
 
 ## Develop
 
+In the workshop's source repository: the public repository ships only `src`, `pyproject.toml` and this file.
+
 ```bash
 uv sync --python 3.12
-uv run python -m pytest -q                       # every external faked, about 8 s
-uv run python devtools/publish.py                # build the wheel, attach it to GitHub release swarm-v<version> (needs gh)
-python devtools/fake_coordinator.py --port 8765 --harnesses pi --tasks nginx-request-logging --trials 1
-aidev-swarm run --coordinator http://127.0.0.1:8765
+.venv/bin/python -m pytest -q                    # every external faked, a few seconds
+.venv/bin/python devtools/build_data.py          # rebuild ../../part1-leaderboard/sample-results.json
+uv build --wheel --out-dir dist                  # the wheel `run --package` takes
+uv run python devtools/publish.py                # build the wheel and upload it to the Hugging Face repository launch.WHEEL_REPO
 ```
-
-Dry runs with many Jobs from one account: the real coordinator allows two live leases per user, so host the
-stand-in in an HF Job instead (`--host 0.0.0.0 --max-leases 25 --behind-jobs-proxy`, `expose=[8765]`; the
-Jobs proxy checks the bearer token and strips it) and point `launch --coordinator https://<job>--8765.hf.jobs`
-at it. `devtools/dryrun_report.py` then summarizes start latency, wall time, failures and cost.
-
-`src/aidev_swarm/data/{grid,prices}.json` are copies of `../config/`; a test fails when they drift.

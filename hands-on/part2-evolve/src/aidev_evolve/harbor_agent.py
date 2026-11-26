@@ -22,7 +22,6 @@ from typing import Any
 from harbor.agents.base import BaseAgent
 
 from aidev_evolve import runtime
-from aidev_evolve.providers import REFERENCE
 from aidev_evolve.runtime import ShellResult
 
 TRAJECTORY = "evolve-trajectory.json"
@@ -33,7 +32,7 @@ class EvolveAgent(BaseAgent):
     def __init__(self, logs_dir: Path, model_name: str | None = None, *, source: str, candidate: str = "candidate", budget_s: float = 150,
                  providers: list[str] | None = None, llm: Any = None, **kwargs: Any):
         self._source, self._candidate, self._budget_s, self._llm = source, candidate, float(budget_s), llm
-        self._providers = list(providers or [REFERENCE])
+        self._providers = list(providers or [])  # the spec always names them (evaljob.spec_providers)
         super().__init__(logs_dir=Path(logs_dir), model_name=model_name, **kwargs)
 
     @staticmethod

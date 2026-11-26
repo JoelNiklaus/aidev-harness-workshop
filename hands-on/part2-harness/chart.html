@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta http-equiv="refresh" content="5"><meta name="viewport" content="width=device-width, initial-scale=1"><title>aidev-evolve: score by version</title><style>
+body { margin: 0; background: #fff; color: #111; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 1200px; margin: 0 auto; padding: 12px 20px; }
+h1 { font-size: 34px; margin: 8px 0 0; }
+p { font-size: 20px; color: #444; margin: 4px 0 8px; }
+svg { width: 100%; height: auto; max-height: calc(100vh - 120px); display: block; }  /* the whole chart fits the window: no scrolling */
+.bar { fill: #1565c0; } .held { fill: #2e7d32; }
+.pct { font-size: 46px; font-weight: 700; text-anchor: middle; }
+.count { font-size: 26px; fill: #333; text-anchor: middle; }
+.name { font-size: 40px; font-weight: 700; text-anchor: middle; }
+.axis { font-size: 20px; fill: #777; text-anchor: end; }
+.grid { stroke: #ddd; stroke-width: 1; } .base { stroke: #333; stroke-width: 2; }
+.htitle { font-size: 30px; font-weight: 700; }
+.many .pct { font-size: 28px; } .many .count { font-size: 18px; } .many .name { font-size: 28px; }
+.hname { font-size: 32px; font-weight: 700; } .hval { font-size: 32px; }
+p.empty { font-size: 26px; color: #111; margin: 16px 0; }
+</style></head>
+<body><main><h1>Score by version of agent.py</h1><p>8 validation tasks, 1 trial each. This page reloads itself every 5 s.</p>
+<p class="empty">No version yet: run `aidev-evolve eval` in this folder and version 1 appears here.</p>
+<svg viewBox="0 0 1200 500" role="img" aria-label="Pass rate by version">
+<line class="base" x1="90" y1="410.0" x2="1160" y2="410.0"/><text class="axis" x="80" y="417.0">0%</text>
+<line class="grid" x1="90" y1="332.5" x2="1160" y2="332.5"/><text class="axis" x="80" y="339.5">25%</text>
+<line class="grid" x1="90" y1="255.0" x2="1160" y2="255.0"/><text class="axis" x="80" y="262.0">50%</text>
+<line class="grid" x1="90" y1="177.5" x2="1160" y2="177.5"/><text class="axis" x="80" y="184.5">75%</text>
+<line class="grid" x1="90" y1="100.0" x2="1160" y2="100.0"/><text class="axis" x="80" y="107.0">100%</text>
+</svg></main></body></html>

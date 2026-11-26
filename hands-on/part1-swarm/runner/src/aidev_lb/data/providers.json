@@ -1,0 +1,26 @@
+{
+  "model": "zai-org/GLM-5.3-Flash",
+  "providers": [
+    {
+      "name": "together",
+      "weight": 2
+    },
+    {
+      "name": "coreweave",
+      "weight": 2
+    },
+    {
+      "name": "deepinfra",
+      "weight": 2
+    },
+    {
+      "name": "wafer",
+      "weight": 2
+    },
+    {
+      "name": "particle-ai",
+      "weight": 1
+    }
+  ],
+  "_comment": "The GLM-5.3-Flash providers of the workshop, on the HF router. Each attendee starts on one, picked by a weighted rendezvous hash of the lowercased HF username (providers.order); the rest, in the same order, are the fallback. From the provider load test of 25 Nov 2026 (agent-like conversations, low effort): together, coreweave, deepinfra and wafer had no rate limit at 256 concurrent conversations (the highest level tested); particle-ai had sporadic failures at low load and gets half weight. Optional per provider: max_completion_tokens_as_max_tokens (default true: the in-sandbox meter sends a harness's max_completion_tokens as max_tokens)."
+}

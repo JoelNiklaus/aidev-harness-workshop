@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Harness leaderboard</title>
+<style>
+  body { font-family: sans-serif; margin: 2em; }
+  table { border-collapse: collapse; }
+  th, td { border: 1px solid #ccc; padding: 4px 10px; text-align: left; }
+  .badge { padding: 1px 6px; border-radius: 4px; background: #eee; }
+</style>
+</head>
+<body>
+<h1>Harness leaderboard</h1>
+<p>Mock rows are made-up sample data.</p>
+<p><button id="refresh">Refresh</button> Last update: <span id="updated">no measured results yet</span></p>
+<table id="leaderboard">
+  <thead><tr><th>Harness</th><th>Pass rate</th><th>Trials</th><th>Cost</th><th>Cost per pass</th><th>Data</th></tr></thead>
+  <tbody></tbody>
+</table>
+<h2>Task grid</h2>
+<table id="grid">
+  <thead></thead>
+  <tbody></tbody>
+</table>
+<script>
+const SAMPLE = [
+  {"harness": "pi", "task": "kv-store-grpc", "passed": true, "cost_usd": 0.002, "source": "sample"},
+  {"harness": "pi", "task": "pypi-server", "passed": true, "cost_usd": 0.003, "source": "sample"},
+  {"harness": "pi", "task": "nginx-request-logging", "passed": true, "cost_usd": 0.004, "source": "sample"},
+  {"harness": "pi", "task": "log-summary-date-ranges", "passed": true, "cost_usd": 0.005, "source": "sample"},
+  {"harness": "pi", "task": "sanitize-git-repo", "passed": false, "cost_usd": 0.006, "source": "sample"},
+  {"harness": "qwen-code", "task": "kv-store-grpc", "passed": false, "cost_usd": 0.005, "source": "sample"},
+  {"harness": "qwen-code", "task": "pypi-server", "passed": true, "cost_usd": 0.006, "source": "sample"},
+  {"harness": "qwen-code", "task": "nginx-request-logging", "passed": true, "cost_usd": 0.007, "source": "sample"},
+  {"harness": "qwen-code", "task": "log-summary-date-ranges", "passed": false, "cost_usd": 0.008, "source": "sample"},
+  {"harness": "qwen-code", "task": "sanitize-git-repo", "passed": true, "cost_usd": 0.009, "source": "sample"},
+  {"harness": "openclaw", "task": "kv-store-grpc", "passed": false, "cost_usd": 0.004, "source": "sample"},
+  {"harness": "openclaw", "task": "pypi-server", "passed": false, "cost_usd": 0.005, "source": "sample"},
+  {"harness": "openclaw", "task": "nginx-request-logging", "passed": true, "cost_usd": 0.006, "source": "sample"},
+  {"harness": "openclaw", "task": "log-summary-date-ranges", "passed": false, "cost_usd": 0.007, "source": "sample"},
+  {"harness": "openclaw", "task": "sanitize-git-repo", "passed": false, "cost_usd": 0.008, "source": "sample"},
+];
+
+function rowsFor(sample, measured) {
+  const groups = new Map();
+  for (const r of sample) {
+    if (!groups.has(r.harness)) groups.set(r.harness, { sample: [], measured: [] });
+    groups.get(r.harness).sample.push(r);
+  }
+  for (const r of measured) {
+    if (!groups.has(r.harness)) groups.set(r.harness, { sample: [], measured: [] });
+    groups.get(r.harness).measured.push(r);
+  }
+  const rows = [];
+  for (const [harness, g] of groups) {
+    const isMeasured = g.measured.length > 0;
+    const recs = isMeasured ? g.measured : g.sample;
+    const passed = recs.filter(r => r.passed === true).length;
+    const cost = recs.reduce((s, r) => s + (Number(r.cost_usd) || 0), 0);
+    rows.push({
+      harness,
+      passed,
+      trials: recs.length,
+      rate: recs.length ? passed / recs.length : 0,
+      cost,
+      source: isMeasured ? "measured" : "mock",
+      recs,
+    });
+  }
+  rows.sort((a, b) => b.rate - a.rate || a.cost - b.cost);
+  return rows;
+}
+
+function render(rows) {
+  const tbody = document.querySelector("#leaderboard tbody");
+  tbody.replaceChildren();
+  for (const row of rows) {
+    const tr = document.createElement("tr");
+    tr.dataset.harness = row.harness;
+    tr.dataset.source = row.source;
+    const cells = [
+      row.harness,
+      `${Math.round(row.rate * 100)}% (${row.passed}/${row.trials})`,
+      String(row.trials),
+      `$${row.cost.toFixed(4)}`,
+      row.passed ? `$${(row.cost / row.passed).toFixed(4)}` : "n/a",
+    ];
+    for (const v of cells) {
+      const td = document.createElement("td");
+      td.textContent = v;
+      tr.appendChild(td);
+    }
+    const td = document.createElement("td");
+    const badge = document.createElement("span");
+    badge.className = "badge";
+    badge.textContent = row.source;
+    td.appendChild(badge);
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+  }
+  renderGrid(rows);
+}
+
+function renderGrid(rows) {
+  const head = document.createElement("tr");
+  const th0 = document.createElement("th");
+  th0.textContent = "Task";
+  head.appendChild(th0);
+  for (const row of rows) {
+    const th = document.createElement("th");
+    th.textContent = row.source === "mock" ? `${row.harness} (mock)` : row.harness;
+    head.appendChild(th);
+  }
+  document.querySelector("#grid thead").replaceChildren(head);
+  const tasks = [];
+  for (const row of rows) for (const r of row.recs) if (!tasks.includes(r.task)) tasks.push(r.task);
+  const tbody = document.querySelector("#grid tbody");
+  tbody.replaceChildren();
+  for (const task of tasks) {
+    const tr = document.createElement("tr");
+    tr.dataset.task = task;
+    const name = document.createElement("td");
+    name.textContent = task;
+    tr.appendChild(name);
+    for (const row of rows) {
+      const recs = row.recs.filter(r => r.task === task);
+      const td = document.createElement("td");
+      if (!recs.length) { td.className = "none"; td.textContent = "-"; }
+      else if (recs.some(r => r.passed === true)) { td.className = "pass"; td.textContent = "pass"; }
+      else { td.className = "fail"; td.textContent = "fail"; }
+      tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+  }
+}
+
+render(rowsFor(SAMPLE, []));
+
+const HF_USER = "YOUR_USER_NAME";  // your Hugging Face user name
+const RESULTS_URL = `https://huggingface.co/buckets/${HF_USER}/harness-results/resolve/results.json`;
+
+async function load() {
+  if (document.visibilityState !== "visible") return;
+  try {
+    const res = await fetch(RESULTS_URL, {cache: "no-store"});
+    if (res.status !== 200) return;
+    const measured = await res.json();
+    if (!Array.isArray(measured)) return;
+    render(rowsFor(SAMPLE, measured));
+    document.getElementById("updated").textContent = new Date().toLocaleTimeString();
+  } catch (e) {
+    // keep current rows
+  }
+}
+
+document.getElementById("refresh").addEventListener("click", load);
+load();
+setInterval(load, 60000);
+</script>
+</body>
+</html>
