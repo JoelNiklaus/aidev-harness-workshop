@@ -159,7 +159,7 @@ aidev-evolve eval
 
 **Goal.** A score for your best version on tasks that nobody looked at.
 
-**Fixed.** You fixed the harness while you read the trajectories of these 8 tasks, so their score flatters it a little. This command scores your latest version and version 1 on 20 other tasks (about 3 minutes, 13 cents). Both scores appear below the chart.
+**Fixed.** You fixed the harness while you read the trajectories of these 8 tasks, so their score flatters it a little. This command scores your latest version and version 1 on 20 other tasks (3 to 4 minutes, 9 to 13 cents). Both scores appear below the chart.
 
 ```bash
 aidev-evolve eval --heldout

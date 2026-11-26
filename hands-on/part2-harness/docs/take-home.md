@@ -6,7 +6,7 @@
 aidev-evolve eval --heldout
 ```
 
-This scores your latest version and version 1 on 20 other tasks, in one Job (about 3 minutes, about 13 cents).
+This scores your latest version and version 1 on 20 other tasks, in one Job (3 to 4 minutes, 9 to 13 cents).
 You fixed the harness while reading the trajectories of the 8 validation tasks, so those 8 scores flatter the harness a little.
 The held-out score is the number to report. Measured on 26 Nov 2026 with two tries per task: version 1 passed 13 of 40 (33%),
 the version with all three flaws fixed passed 27 of 40 (68%).
